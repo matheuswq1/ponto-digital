@@ -19,14 +19,26 @@
 </div>
 @endif
 
+@if($errors->any())
+<div class="mb-4 rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+    <ul class="list-disc pl-4 space-y-0.5">
+        @foreach($errors->all() as $e) <li>{{ $e }}</li> @endforeach
+    </ul>
+</div>
+@endif
+
 <div class="flex flex-wrap items-center gap-2 mb-5">
     <a href="{{ route('painel.companies.index') }}" class="text-sm text-slate-600 hover:underline">← Empresas</a>
     <span class="text-slate-300">|</span>
-    <a href="{{ route('painel.companies.edit', $company) }}" class="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline">Editar dados</a>
+    <a href="{{ route('painel.companies.edit', $company) }}" class="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline">Editar dados da empresa</a>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    {{-- Coluna principal --}}
     <div class="lg:col-span-2 space-y-5">
+
+        {{-- Identificação --}}
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h2 class="text-sm font-semibold text-slate-700 mb-3">Identificação</h2>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -45,34 +57,135 @@
                 <div><dt class="text-xs text-slate-500">Telefone</dt><dd class="text-slate-800">{{ $company->phone }}</dd></div>
                 @endif
                 @if($company->address)
-                <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Morada</dt><dd class="text-slate-800">{{ $company->address }}{{ $company->city ? ', '.$company->city : '' }}{{ $company->state ? ' — '.$company->state : '' }}</dd></div>
+                <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Morada</dt>
+                    <dd class="text-slate-800">{{ $company->address }}{{ $company->city ? ', '.$company->city : '' }}{{ $company->state ? ' — '.$company->state : '' }}</dd>
+                </div>
                 @endif
             </dl>
         </div>
 
+        {{-- Colaboradores --}}
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h2 class="text-sm font-semibold text-slate-700 mb-3">Colaboradores ativos</h2>
+            <h2 class="text-sm font-semibold text-slate-700 mb-2">Colaboradores ativos</h2>
             <p class="text-2xl font-bold text-slate-800">{{ $company->active_employees_count }}</p>
-            <a href="{{ route('painel.employees.index', ['q' => '', 'status' => 'active']) }}" class="text-xs text-indigo-600 hover:underline mt-2 inline-block">Gerir colaboradores no painel</a>
+            <a href="{{ route('painel.employees.index', ['q' => '', 'status' => 'active']) }}"
+               class="text-xs text-indigo-600 hover:underline mt-2 inline-block">Gerir colaboradores no painel</a>
         </div>
+
     </div>
 
-    <div class="bg-indigo-50 rounded-xl border border-indigo-100 p-6">
-        <h2 class="text-sm font-semibold text-indigo-900 mb-3">Acesso ao app</h2>
-        <p class="text-xs text-indigo-800/90 mb-4">Gestores desta empresa entram no aplicativo com o e-mail e a palavra-passe definidos na criação.</p>
-        @if($gestores->isEmpty())
-            <p class="text-sm text-slate-600">Nenhum gestor registado.</p>
+    {{-- Coluna lateral — Gestores --}}
+    <div class="space-y-5">
+
+        {{-- Lista de gestores --}}
+        @if($gestores->isNotEmpty())
+            @foreach($gestores as $g)
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5" x-data="{ tab: 'info' }">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm shrink-0">
+                        {{ strtoupper(substr($g->name, 0, 1)) }}
+                    </div>
+                    <div class="min-w-0">
+                        <p class="font-semibold text-sm text-slate-800 truncate">{{ $g->name }}</p>
+                        <p class="text-xs text-slate-500 truncate">{{ $g->email }}</p>
+                    </div>
+                </div>
+
+                {{-- Tabs --}}
+                <div class="flex gap-1 mb-4 bg-slate-100 rounded-lg p-0.5">
+                    <button type="button" @click="tab='info'"
+                            :class="tab==='info' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'"
+                            class="flex-1 text-xs font-medium py-1.5 rounded-md transition">Dados</button>
+                    <button type="button" @click="tab='pass'"
+                            :class="tab==='pass' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'"
+                            class="flex-1 text-xs font-medium py-1.5 rounded-md transition">Palavra-passe</button>
+                </div>
+
+                {{-- Editar dados --}}
+                <div x-show="tab==='info'">
+                    <form method="post" action="{{ route('painel.companies.gestores.update', [$company, $g]) }}" class="space-y-3">
+                        @csrf
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Nome</label>
+                            <input type="text" name="name" value="{{ old('name', $g->name) }}" required
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">E-mail de login</label>
+                            <input type="email" name="email" value="{{ old('email', $g->email) }}" required
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+                        </div>
+                        <button type="submit"
+                                class="w-full text-sm font-medium text-white bg-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-700 transition">
+                            Guardar
+                        </button>
+                    </form>
+                </div>
+
+                {{-- Redefinir senha --}}
+                <div x-show="tab==='pass'">
+                    <form method="post" action="{{ route('painel.companies.gestores.password', [$company, $g]) }}" class="space-y-3">
+                        @csrf
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Nova palavra-passe</label>
+                            <input type="password" name="password" minlength="8" autocomplete="new-password"
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none"
+                                   placeholder="Deixe em branco para gerar automaticamente">
+                        </div>
+                        <button type="submit"
+                                class="w-full text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition">
+                            Redefinir palavra-passe
+                        </button>
+                    </form>
+                </div>
+            </div>
+            @endforeach
         @else
-            <ul class="space-y-3">
-                @foreach($gestores as $g)
-                    <li class="text-sm border border-indigo-100 rounded-lg bg-white px-3 py-2">
-                        <p class="font-medium text-slate-800">{{ $g->name }}</p>
-                        <p class="text-xs text-slate-600">{{ $g->email }}</p>
-                    </li>
-                @endforeach
-            </ul>
+            <div class="bg-slate-50 rounded-xl border border-slate-200 p-5 text-sm text-slate-500">
+                Nenhum gestor registado nesta empresa.
+            </div>
         @endif
+
+        {{-- Adicionar novo gestor --}}
+        <div class="bg-indigo-50 rounded-xl border border-indigo-100 p-5" x-data="{ open: false }">
+            <button type="button" @click="open=!open"
+                    class="flex items-center gap-2 text-sm font-medium text-indigo-700 hover:text-indigo-900 transition w-full">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                </svg>
+                Adicionar novo gestor
+            </button>
+            <div x-show="open" x-cloak class="mt-4 space-y-3">
+                <form method="post" action="{{ route('painel.companies.gestores.add', $company) }}" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Nome <span class="text-rose-500">*</span></label>
+                        <input type="text" name="name" required
+                               class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">E-mail <span class="text-rose-500">*</span></label>
+                        <input type="email" name="email" required
+                               class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Palavra-passe</label>
+                        <input type="password" name="password" minlength="8" autocomplete="new-password"
+                               class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none bg-white"
+                               placeholder="Deixe em branco para gerar automaticamente">
+                    </div>
+                    <button type="submit"
+                            class="w-full text-sm font-medium text-white bg-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-700 transition">
+                        Criar gestor
+                    </button>
+                </form>
+            </div>
+        </div>
+
     </div>
 </div>
+
+{{-- Alpine.js para as tabs e accordion --}}
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
 @endsection

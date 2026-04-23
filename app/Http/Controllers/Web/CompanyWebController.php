@@ -175,4 +175,88 @@ class CompanyWebController extends Controller
             ->route('painel.companies.show', $company)
             ->with('success', 'Empresa atualizada.');
     }
+
+    public function updateGestor(Request $request, Company $company, User $gestor): RedirectResponse
+    {
+        $this->authorize('manage-companies');
+
+        abort_if($gestor->company_id !== $company->id, 403);
+
+        $request->validate([
+            'name'  => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $gestor->id,
+        ], [
+            'email.unique' => 'Este e-mail já está em uso.',
+        ]);
+
+        $gestor->update([
+            'name'  => $request->name,
+            'email' => $request->email,
+        ]);
+
+        return redirect()
+            ->route('painel.companies.show', $company)
+            ->with('success', 'Dados do gestor actualizados.');
+    }
+
+    public function resetGestorPassword(Request $request, Company $company, User $gestor): RedirectResponse
+    {
+        $this->authorize('manage-companies');
+
+        abort_if($gestor->company_id !== $company->id, 403);
+
+        $request->validate([
+            'password' => 'nullable|string|min:8',
+        ]);
+
+        $autoPassword = ! $request->filled('password');
+        $plain = $autoPassword ? Str::password(12, symbols: true) : $request->password;
+
+        $gestor->update(['password' => Hash::make($plain)]);
+
+        $redirect = redirect()
+            ->route('painel.companies.show', $company)
+            ->with('success', 'Palavra-passe do gestor redefinida.');
+
+        if ($autoPassword) {
+            $redirect->with('gestor_password_plain', $plain);
+        }
+
+        return $redirect;
+    }
+
+    public function addGestor(Request $request, Company $company): RedirectResponse
+    {
+        $this->authorize('manage-companies');
+
+        $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email',
+            'password' => 'nullable|string|min:8',
+        ], [
+            'email.unique' => 'Este e-mail já está em uso.',
+        ]);
+
+        $autoPassword = ! $request->filled('password');
+        $plain = $autoPassword ? Str::password(12, symbols: true) : $request->password;
+
+        User::create([
+            'name'       => $request->name,
+            'email'      => $request->email,
+            'password'   => Hash::make($plain),
+            'role'       => 'gestor',
+            'active'     => true,
+            'company_id' => $company->id,
+        ]);
+
+        $redirect = redirect()
+            ->route('painel.companies.show', $company)
+            ->with('success', 'Novo gestor adicionado.');
+
+        if ($autoPassword) {
+            $redirect->with('gestor_password_plain', $plain);
+        }
+
+        return $redirect;
+    }
 }

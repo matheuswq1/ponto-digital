@@ -49,6 +49,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/empresas/{company}', [CompanyWebController::class, 'show'])->name('companies.show');
         Route::get('/empresas/{company}/editar', [CompanyWebController::class, 'edit'])->name('companies.edit');
         Route::post('/empresas/{company}/atualizar', [CompanyWebController::class, 'update'])->name('companies.update');
+        Route::post('/empresas/{company}/gestores', [CompanyWebController::class, 'addGestor'])->name('companies.gestores.add');
+        Route::post('/empresas/{company}/gestores/{gestor}/atualizar', [CompanyWebController::class, 'updateGestor'])->name('companies.gestores.update');
+        Route::post('/empresas/{company}/gestores/{gestor}/senha', [CompanyWebController::class, 'resetGestorPassword'])->name('companies.gestores.password');
 
         // Utilizadores (apenas admin)
         Route::get('/utilizadores', [UserWebController::class, 'index'])->name('users.index');
