@@ -27,7 +27,6 @@ class ApiClient {
 
     _dio.interceptors.addAll([
       _AuthInterceptor(),
-      _ErrorInterceptor(),
       PrettyDioLogger(
         requestHeader: false,
         requestBody: true,
@@ -35,6 +34,7 @@ class ApiClient {
         error: true,
         compact: true,
       ),
+      _ErrorInterceptor(),
     ]);
 
     // Em debug, aceita qualquer certificado para dev local (HTTP/HTTPS)
@@ -84,28 +84,41 @@ class _ErrorInterceptor extends Interceptor {
     final response = err.response;
 
     if (response == null) {
-      // Loga o erro real para diagnóstico
+      // Captura o erro interno real (pode estar embrulhado)
+      final innerError = err.error;
+      final innerMsg = err.message ?? '';
+      final causeStr = '${innerError ?? ''} $innerMsg'.toLowerCase();
+
       if (kDebugMode) {
-        debugPrint('[ApiClient] Erro sem resposta: type=${err.type} | error=${err.error} | msg=${err.message}');
+        debugPrint('[ApiClient] Erro sem resposta:'
+            '\n  type    = ${err.type}'
+            '\n  error   = $innerError (${innerError?.runtimeType})'
+            '\n  message = $innerMsg'
+            '\n  cause   = $causeStr');
       }
 
       final isTimeout = err.type == DioExceptionType.connectionTimeout ||
           err.type == DioExceptionType.receiveTimeout ||
           err.type == DioExceptionType.sendTimeout;
 
-      final cause = '${err.error ?? ''} ${err.message ?? ''}'.toLowerCase();
-      final isCleartext = cause.contains('cleartext') || cause.contains('plain text');
-      final isRefused = cause.contains('refused') || cause.contains('econnrefused') || cause.contains('connection refused');
+      final isCleartext = causeStr.contains('cleartext') || causeStr.contains('plain text');
+      final isRefused   = causeStr.contains('refused') || causeStr.contains('econnrefused');
+      final isHandshake = causeStr.contains('handshake') || causeStr.contains('certificate') || causeStr.contains('ssl') || causeStr.contains('tls');
+      final isHost      = causeStr.contains('failed host lookup') || causeStr.contains('no address') || causeStr.contains('socketexception');
 
       String msg;
       if (isCleartext) {
         msg = 'Tráfego HTTP bloqueado. Verifique a configuração de rede.';
       } else if (isRefused) {
-        msg = 'Conexão recusada. Verifique se o servidor está rodando.';
+        msg = 'Conexão recusada. O servidor pode estar fora do ar.';
+      } else if (isHandshake) {
+        msg = 'Erro de certificado SSL. Verifique a conexão segura.';
+      } else if (isHost) {
+        msg = 'Não foi possível resolver o servidor. Verifique sua internet.';
       } else if (isTimeout) {
         msg = 'Tempo de conexão esgotado. Verifique sua rede.';
       } else {
-        msg = 'Sem conexão com o servidor. Verifique sua rede.';
+        msg = 'Sem conexão com o servidor. Verifique sua internet.';
       }
 
       handler.next(DioException(

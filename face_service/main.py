@@ -1,6 +1,6 @@
 """
 Ponto Digital — Face Service
-Microserviço de reconhecimento facial via FastAPI + face_recognition (dlib).
+Microserviço de reconhecimento facial via FastAPI + DeepFace.
 
 Endpoints:
   POST /enroll   — cadastra embedding para um employee_id
@@ -10,19 +10,18 @@ Endpoints:
 
 Autenticação: cabeçalho `X-Face-Service-Key` (definido via variável de ambiente FACE_SERVICE_KEY).
 Os embeddings são persistidos em JSON simples em /data/embeddings.json.
-Para produção use banco de dados ou Redis.
 """
 
 import json
 import os
+import tempfile
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-import face_recognition
 import numpy as np
+from deepface import DeepFace
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
 from PIL import Image
 
 # ---------------------------------------------------------------------------
@@ -31,15 +30,25 @@ from PIL import Image
 FACE_SERVICE_KEY: str = os.getenv("FACE_SERVICE_KEY", "changeme-secret-key")
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 EMBEDDINGS_FILE = DATA_DIR / "embeddings.json"
-SIMILARITY_THRESHOLD: float = float(os.getenv("FACE_THRESHOLD", "0.55"))
+# Distância coseno: <0.40 = mesma pessoa (modelo Facenet512)
+SIMILARITY_THRESHOLD: float = float(os.getenv("FACE_THRESHOLD", "0.40"))
+MODEL_NAME = "Facenet512"
+# Ordem de tentativa: opencv costuma falhar em selfies; ssd/mtcnn/retinaface são mais robustos
+_DEFAULT_DETECTORS = "ssd,mtcnn,retinaface,opencv"
+DETECTOR_CHAIN: list[str] = [
+    b.strip()
+    for b in os.getenv("FACE_DETECTOR_CHAIN", _DEFAULT_DETECTORS).split(",")
+    if b.strip()
+]
 
-app = FastAPI(title="Ponto Digital — Face Service", version="1.0.0")
+
+app = FastAPI(title="Ponto Digital — Face Service", version="2.0.0")
 
 
 # ---------------------------------------------------------------------------
 # Storage helpers
 # ---------------------------------------------------------------------------
-def _load_embeddings() -> dict[str, list[float]]:
+def _load_embeddings() -> dict:
     if not EMBEDDINGS_FILE.exists():
         return {}
     try:
@@ -49,7 +58,7 @@ def _load_embeddings() -> dict[str, list[float]]:
         return {}
 
 
-def _save_embeddings(data: dict[str, list[float]]) -> None:
+def _save_embeddings(data: dict) -> None:
     EMBEDDINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with EMBEDDINGS_FILE.open("w") as f:
         json.dump(data, f)
@@ -63,38 +72,89 @@ def _auth(api_key: Optional[str]) -> None:
         raise HTTPException(status_code=401, detail="Chave de API inválida.")
 
 
-def _decode_image(file: UploadFile) -> np.ndarray:
-    """Lê o upload e devolve um array RGB compatível com face_recognition."""
+def _save_upload_to_tmp(file: UploadFile) -> str:
+    """Normaliza a imagem (RGB, redimensiona) e grava JPEG para o DeepFace."""
     raw = file.file.read()
     pil_img = Image.open(BytesIO(raw)).convert("RGB")
-    return np.array(pil_img)
+    # Reduz lado máximo para acelerar e ajudar detectores (fotos 12MP+)
+    max_side = int(os.getenv("FACE_MAX_IMAGE_SIDE", "1600"))
+    w, h = pil_img.size
+    if max(w, h) > max_side:
+        scale = max_side / float(max(w, h))
+        pil_img = pil_img.resize(
+            (int(w * scale), int(h * scale)),
+            Image.Resampling.LANCZOS,
+        )
+    suffix = ".jpg"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        pil_img.save(tmp.name, "JPEG", quality=92, optimize=True)
+        return tmp.name
 
 
-def _get_embedding(img: np.ndarray) -> list[float]:
-    """Detecta rosto e extrai embedding 128-d. Lança 422 se não encontrar exactamente 1 rosto."""
-    locations = face_recognition.face_locations(img, model="hog")
-    if len(locations) == 0:
-        raise HTTPException(status_code=422, detail="Nenhum rosto detectado na imagem.")
-    if len(locations) > 1:
-        raise HTTPException(status_code=422, detail="Mais de um rosto detectado. Envie apenas um.")
-    encodings = face_recognition.face_encodings(img, known_face_locations=locations)
-    return encodings[0].tolist()
+def _get_embedding(img_path: str) -> list:
+    """Extrai embedding com DeepFace, tentando vários detectores (mobile/selfie)."""
+    last_detail: str | None = None
+    for backend in DETECTOR_CHAIN:
+        try:
+            result = DeepFace.represent(
+                img_path=img_path,
+                model_name=MODEL_NAME,
+                enforce_detection=True,
+                detector_backend=backend,
+                align=True,
+            )
+            if not result:
+                last_detail = f"detector={backend}: sem resultado"
+                continue
+            if len(result) > 1:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Mais de um rosto detectado. Envie apenas um.",
+                )
+            return result[0]["embedding"]
+        except HTTPException:
+            raise
+        except Exception as e:
+            msg = str(e)
+            last_detail = f"{backend}: {msg[:200]}"
+            if "Face could not be detected" in msg or "Detected face could not be aligned" in msg:
+                continue
+            if "no face" in msg.lower():
+                continue
+            # Erro inesperado neste backend — tenta o seguinte
+            continue
+
+    # Último recurso: sem forçar detecção (menos seguro, mas evita falha total em fotos difíceis)
+    try:
+        result = DeepFace.represent(
+            img_path=img_path,
+            model_name=MODEL_NAME,
+            enforce_detection=False,
+            detector_backend="opencv",
+            align=True,
+        )
+        if result and len(result) == 1:
+            return result[0]["embedding"]
+    except Exception:
+        pass
+
+    raise HTTPException(
+        status_code=422,
+        detail="Nenhum rosto detectado na imagem. Use boa luz, olhe para a câmera e aproxime o rosto.",
+    )
 
 
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
+def _cosine_distance(a: list, b: list) -> float:
     va, vb = np.array(a), np.array(b)
-    denom = (np.linalg.norm(va) * np.linalg.norm(vb))
+    denom = np.linalg.norm(va) * np.linalg.norm(vb)
     if denom == 0:
-        return 0.0
-    return float(np.dot(va, vb) / denom)
+        return 1.0
+    return float(1.0 - np.dot(va, vb) / denom)
 
 
-def _face_distance_to_score(distance: float) -> float:
-    """Converte distância euclidiana (face_recognition) para score 0-1.
-    score ~1 = mesma pessoa; score ~0 = pessoas diferentes.
-    Fórmula: score = max(0, 1 - distance / 0.8)
-    """
-    return max(0.0, 1.0 - distance / 0.8)
+def _distance_to_score(distance: float) -> float:
+    """Converte distância coseno para score 0-1 (1 = idêntico)."""
+    return max(0.0, min(1.0, 1.0 - distance / 0.6))
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +162,7 @@ def _face_distance_to_score(distance: float) -> float:
 # ---------------------------------------------------------------------------
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "model": MODEL_NAME}
 
 
 @app.post("/enroll")
@@ -111,18 +171,14 @@ async def enroll(
     photo: UploadFile = File(...),
     x_face_service_key: Optional[str] = Header(None),
 ):
-    """
-    Cadastra (ou atualiza) o embedding facial de um colaborador.
-    Deve ser chamado no **primeiro login** do colaborador no app.
-
-    Body (multipart):
-      - employee_id: string — ID do funcionário no banco
-      - photo: file — imagem JPEG/PNG com o rosto frontal
-    """
     _auth(x_face_service_key)
 
-    img = _decode_image(photo)
-    embedding = _get_embedding(img)
+    tmp_path = _save_upload_to_tmp(photo)
+    try:
+        embedding = _get_embedding(tmp_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
     store = _load_embeddings()
     store[str(employee_id)] = embedding
@@ -137,14 +193,6 @@ async def verify(
     photo: UploadFile = File(...),
     x_face_service_key: Optional[str] = Header(None),
 ):
-    """
-    Verifica se o rosto da foto corresponde ao rosto cadastrado.
-
-    Retorna:
-      - match: bool — aprovado (score >= threshold)
-      - score: float (0-1) — similaridade
-      - threshold: float — limiar configurado
-    """
     _auth(x_face_service_key)
 
     store = _load_embeddings()
@@ -152,14 +200,18 @@ async def verify(
     if stored is None:
         raise HTTPException(
             status_code=404,
-            detail="Nenhum rosto cadastrado para este colaborador. Faça o cadastro primeiro.",
+            detail="Nenhum rosto cadastrado para este colaborador.",
         )
 
-    img = _decode_image(photo)
-    live_embedding = _get_embedding(img)
+    tmp_path = _save_upload_to_tmp(photo)
+    try:
+        live_embedding = _get_embedding(tmp_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
-    distance = float(face_recognition.face_distance([np.array(stored)], np.array(live_embedding))[0])
-    score = _face_distance_to_score(distance)
+    distance = _cosine_distance(stored, live_embedding)
+    score = _distance_to_score(distance)
     match = distance <= SIMILARITY_THRESHOLD
 
     return {
@@ -176,7 +228,6 @@ def delete_enroll(
     employee_id: str,
     x_face_service_key: Optional[str] = Header(None),
 ):
-    """Remove o embedding cadastrado de um colaborador."""
     _auth(x_face_service_key)
 
     store = _load_embeddings()

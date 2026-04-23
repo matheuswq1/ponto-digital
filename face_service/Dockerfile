@@ -1,21 +1,12 @@
-# Build: docker build -t ponto-face-service .
-# Run:   docker run -p 8001:8001 -v ponto_face_data:/data -e FACE_SERVICE_KEY=seu-segredo ponto-face-service
-
+# DeepFace é muito mais fácil de instalar que dlib/face_recognition
 FROM python:3.11-slim
 
-# Dependências do sistema para dlib / face_recognition
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    libopenblas-dev \
-    liblapack-dev \
-    libx11-dev \
-    libgtk-3-dev \
-    libboost-python-dev \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

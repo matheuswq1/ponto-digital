@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'auth_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models/user_model.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -35,9 +36,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     if (result.isEmpty) return;
 
-    // Se o rosto ainda não foi cadastrado, redireciona para o enrolamento
+    final user = result['user'] as UserModel;
     final faceEnrolled = result['face_enrolled'] as bool? ?? false;
-    if (!faceEnrolled) {
+    // Apenas colaboradores precisam cadastrar rosto antes do painel principal
+    if (!faceEnrolled && user.isFuncionario) {
       context.go('/face-enroll');
     } else {
       context.go('/home');

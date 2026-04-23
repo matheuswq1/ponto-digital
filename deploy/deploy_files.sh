@@ -1,6 +1,11 @@
+#!/bin/bash
+set -e
+BASE=/home/ponto/htdocs/ponto.approsamistica.com
+
+# Copiar os ficheiros alterados directamente
+cat > "$BASE/routes/web.php" << 'PHPEOF'
 <?php
 
-use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
@@ -42,14 +47,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');
         Route::get('/pontos/exportar', [TimeRecordWebController::class, 'export'])->name('pontos.export');
 
-        // Empresas (apenas admin)
-        Route::get('/empresas', [CompanyWebController::class, 'index'])->name('companies.index');
-        Route::get('/empresas/criar', [CompanyWebController::class, 'create'])->name('companies.create');
-        Route::post('/empresas', [CompanyWebController::class, 'store'])->name('companies.store');
-        Route::get('/empresas/{company}', [CompanyWebController::class, 'show'])->name('companies.show');
-        Route::get('/empresas/{company}/editar', [CompanyWebController::class, 'edit'])->name('companies.edit');
-        Route::match(['PUT', 'POST'], '/empresas/{company}/atualizar', [CompanyWebController::class, 'update'])->name('companies.update');
-
         // Utilizadores (apenas admin)
         Route::get('/utilizadores', [UserWebController::class, 'index'])->name('users.index');
         Route::get('/utilizadores/criar', [UserWebController::class, 'create'])->name('users.create');
@@ -59,3 +56,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/utilizadores/{user}/senha', [UserWebController::class, 'resetPassword'])->name('users.reset-password');
     });
 });
+PHPEOF
+
+chown ponto:ponto "$BASE/routes/web.php"
+
+sudo -u ponto php "$BASE/artisan" route:cache
+sudo -u ponto php "$BASE/artisan" view:cache
+echo "=== FILES DEPLOYED ==="

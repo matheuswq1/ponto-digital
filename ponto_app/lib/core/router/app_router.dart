@@ -56,7 +56,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/face-enroll',
         name: 'face-enroll',
-        builder: (_, __) => const FaceEnrollScreen(),
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final returnPointType = extra?['returnPointType'] as String?;
+          return FaceEnrollScreen(returnPointType: returnPointType);
+        },
       ),
       GoRoute(
         path: '/home',

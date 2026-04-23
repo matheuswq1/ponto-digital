@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import '../../core/utils/safe_camera_dispose.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'register_point_provider.dart';
 import 'face_verify_step.dart';
 import '../home/today_provider.dart';
+import '../auth/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../services/face_service.dart';
@@ -65,7 +67,9 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
   @override
   void dispose() {
-    _cameraController?.dispose();
+    final c = _cameraController;
+    _cameraController = null;
+    scheduleDisposeCamera(c);
     super.dispose();
   }
 
@@ -80,8 +84,19 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   }
 
   Future<void> _confirmRegister() async {
+    // Verifica se o utilizador já tem rosto cadastrado
+    final authState = ref.read(authProvider);
+    final faceEnrolled = authState.user?.employee?.faceEnrolled ?? false;
+
+    if (!faceEnrolled) {
+      // Sem cadastro facial → leva para enroll antes de bater ponto
+      _showEnrollRequiredDialog();
+      return;
+    }
+
     // Etapa de verificação facial (sheet modal)
-    final faceOk = await showDialog<bool>(
+    // Retorno: true = ok, false = falha, null = sem cadastro (ir para enroll)
+    final faceResult = await showDialog<bool?>(
       context: context,
       barrierDismissible: false,
       builder: (_) => Dialog.fullscreen(
@@ -92,7 +107,14 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     );
 
     if (!mounted) return;
-    if (faceOk == false) {
+
+    if (faceResult == null) {
+      // Rosto não cadastrado detectado na verificação → enroll
+      _showEnrollRequiredDialog();
+      return;
+    }
+
+    if (faceResult == false) {
       // Falha confirmada → alerta e retorna sem registrar
       _showFaceFailDialog();
       return;
@@ -108,6 +130,46 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     if (success) {
       _showSuccessDialog(state.status == RegisterPointStatus.offline);
     }
+  }
+
+  void _showEnrollRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.face_retouching_off, color: AppColors.warning),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Cadastro facial necessário',
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Para bater o ponto é obrigatório ter o rosto cadastrado.\n\n'
+          'Deseja cadastrar agora?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Agora não'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/face-enroll',
+                  extra: {'returnPointType': widget.pointType});
+            },
+            icon: const Icon(Icons.face, size: 18),
+            label: const Text('Cadastrar rosto'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showFaceFailDialog() {
@@ -421,7 +483,9 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
       (c) => c.lensDirection == direction,
       orElse: () => _cameras!.first,
     );
-    await _cameraController?.dispose();
+    final old = _cameraController;
+    _cameraController = null;
+    await safeDisposeCamera(old);
     _cameraController = CameraController(camera, ResolutionPreset.medium, enableAudio: false);
     await _cameraController!.initialize();
     if (mounted) setState(() {});

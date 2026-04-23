@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import '../../core/utils/safe_camera_dispose.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,7 +13,10 @@ import 'auth_provider.dart';
 enum _EnrollStep { camera, preview, loading, done, error }
 
 class FaceEnrollScreen extends ConsumerStatefulWidget {
-  const FaceEnrollScreen({super.key});
+  /// Se não nulo, após o enroll oferece opção de voltar ao registo de ponto.
+  final String? returnPointType;
+
+  const FaceEnrollScreen({super.key, this.returnPointType});
 
   @override
   ConsumerState<FaceEnrollScreen> createState() => _FaceEnrollScreenState();
@@ -34,7 +38,9 @@ class _FaceEnrollScreenState extends ConsumerState<FaceEnrollScreen> {
 
   @override
   void dispose() {
-    _cam?.dispose();
+    final c = _cam;
+    _cam = null;
+    scheduleDisposeCamera(c);
     super.dispose();
   }
 
@@ -103,6 +109,8 @@ class _FaceEnrollScreenState extends ConsumerState<FaceEnrollScreen> {
         email: user.email,
         role: user.role,
         active: user.active,
+        companyId: user.companyId,
+        company: user.company,
         employee: emp,
       );
 
@@ -305,6 +313,7 @@ class _FaceEnrollScreenState extends ConsumerState<FaceEnrollScreen> {
   }
 
   Widget _buildDone(ColorScheme c) {
+    final returnType = widget.returnPointType;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -332,15 +341,41 @@ class _FaceEnrollScreenState extends ConsumerState<FaceEnrollScreen> {
               style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 14),
             ),
             const SizedBox(height: 40),
-            FilledButton.icon(
-              onPressed: () => context.go('/home'),
-              icon: const Icon(Icons.home),
-              label: const Text('Ir para o início'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(200, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            // Se veio de uma tentativa de registo de ponto, oferece voltar
+            if (returnType != null) ...[
+              FilledButton.icon(
+                onPressed: () {
+                  context.go('/home');
+                  context.push('/home/register-point', extra: returnType);
+                },
+                icon: const Icon(Icons.fingerprint),
+                label: const Text('Bater ponto agora'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/home'),
+                icon: const Icon(Icons.home, color: Colors.white70),
+                label: const Text('Ir para o início', style: TextStyle(color: Colors.white70)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white30),
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ] else
+              FilledButton.icon(
+                onPressed: () => context.go('/home'),
+                icon: const Icon(Icons.home),
+                label: const Text('Ir para o início'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(200, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
           ],
         ),
       ),

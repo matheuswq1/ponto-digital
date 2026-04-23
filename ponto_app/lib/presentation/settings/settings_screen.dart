@@ -75,6 +75,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   email: user.email,
                   role: user.role,
                   active: user.active,
+                  companyId: user.companyId,
+                  company: user.company,
                   employee: emp,
                 ),
               );

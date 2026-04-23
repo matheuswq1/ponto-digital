@@ -6,6 +6,8 @@ class UserModel {
   final String email;
   final String role;
   final bool active;
+  final int? companyId;
+  final CompanyModel? company;
   final EmployeeModel? employee;
 
   const UserModel({
@@ -14,6 +16,8 @@ class UserModel {
     required this.email,
     required this.role,
     required this.active,
+    this.companyId,
+    this.company,
     this.employee,
   });
 
@@ -23,6 +27,10 @@ class UserModel {
         email: json['email'],
         role: json['role'],
         active: json['active'] ?? true,
+        companyId: json['company_id'] as int?,
+        company: json['company'] != null
+            ? CompanyModel.fromJson(json['company'] as Map<String, dynamic>)
+            : null,
         employee: json['employee'] != null
             ? EmployeeModel.fromJson(json['employee'])
             : null,
@@ -34,6 +42,8 @@ class UserModel {
         'email': email,
         'role': role,
         'active': active,
+        if (companyId != null) 'company_id': companyId,
+        if (company != null) 'company': company!.toJson(),
         'employee': employee?.toJson(),
       };
 

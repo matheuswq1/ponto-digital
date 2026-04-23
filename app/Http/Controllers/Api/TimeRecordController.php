@@ -22,7 +22,7 @@ class TimeRecordController extends Controller
     {
         $employee = $request->user()->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json(['message' => 'Funcionário não encontrado.'], 404);
         }
 
@@ -46,7 +46,7 @@ class TimeRecordController extends Controller
     {
         $employee = $request->user()->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json(['message' => 'Funcionário não encontrado.'], 404);
         }
 
@@ -80,7 +80,7 @@ class TimeRecordController extends Controller
     {
         $employee = $request->user()->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json(['message' => 'Funcionário não encontrado.'], 404);
         }
 
@@ -120,8 +120,14 @@ class TimeRecordController extends Controller
     {
         $employee = $request->user()->employee;
 
-        if (!$employee) {
-            return response()->json(['message' => 'Funcionário não encontrado.'], 404);
+        if (! $employee) {
+            return response()->json([
+                'date' => today()->toDateString(),
+                'records' => [],
+                'next_type' => null,
+                'next_types' => [],
+                'is_complete' => false,
+            ]);
         }
 
         $records = $employee->timeRecords()
@@ -143,7 +149,7 @@ class TimeRecordController extends Controller
 
     private function getNextValidTypes(?string $lastType): array
     {
-        return match($lastType) {
+        return match ($lastType) {
             null => ['entrada'],
             'entrada' => ['saida_almoco', 'saida'],
             'saida_almoco' => ['volta_almoco'],

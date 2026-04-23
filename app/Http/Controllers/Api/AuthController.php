@@ -19,7 +19,7 @@ class AuthController extends Controller
             'device_name' => 'nullable|string|max:255',
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        if (! Auth::attempt($request->only('email', 'password'))) {
             throw ValidationException::withMessages([
                 'email' => ['Credenciais inválidas.'],
             ]);
@@ -27,7 +27,7 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        if (!$user->active) {
+        if (! $user->active) {
             Auth::logout();
             throw ValidationException::withMessages([
                 'email' => ['Sua conta está desativada.'],
@@ -40,15 +40,19 @@ class AuthController extends Controller
             now()->addDays(30)
         );
 
-        $user->load('employee.company');
+        $user->load(['employee.company', 'company']);
+
+        $faceEnrolled = $user->employee
+            ? (bool) $user->employee->face_enrolled
+            : true;
 
         return response()->json([
-            'token'        => $token->plainTextToken,
-            'token_type'   => 'Bearer',
-            'expires_at'   => $token->accessToken->expires_at,
-            'user'         => new UserResource($user),
-            // Informa ao app se o rosto já foi cadastrado
-            'face_enrolled' => (bool) optional($user->employee)->face_enrolled,
+            'token' => $token->plainTextToken,
+            'token_type' => 'Bearer',
+            'expires_at' => $token->accessToken->expires_at,
+            'user' => new UserResource($user),
+            // Colaboradores sem rosto vão para o enrolamento; gestores/admin sem vínculo de colaborador não.
+            'face_enrolled' => $faceEnrolled,
         ]);
     }
 
@@ -62,7 +66,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'user' => new UserResource($request->user()->load('employee.company')),
+            'user' => new UserResource($request->user()->load(['employee.company', 'company'])),
         ]);
     }
 
