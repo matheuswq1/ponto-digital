@@ -33,8 +33,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/colaboradores', [EmployeeWebController::class, 'store'])->name('employees.store');
         Route::get('/colaboradores/{employee}', [EmployeeWebController::class, 'show'])->name('employees.show');
         Route::get('/colaboradores/{employee}/editar', [EmployeeWebController::class, 'edit'])->name('employees.edit');
-        Route::put('/colaboradores/{employee}', [EmployeeWebController::class, 'update'])->name('employees.update');
-        Route::patch('/colaboradores/{employee}/toggle', [EmployeeWebController::class, 'toggle'])->name('employees.toggle');
+        Route::match(['PUT', 'POST'], '/colaboradores/{employee}/atualizar', [EmployeeWebController::class, 'update'])->name('employees.update');
+        Route::post('/colaboradores/{employee}/toggle', [EmployeeWebController::class, 'toggle'])->name('employees.toggle');
 
         // Pontos
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');
@@ -45,7 +45,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/utilizadores/criar', [UserWebController::class, 'create'])->name('users.create');
         Route::post('/utilizadores', [UserWebController::class, 'store'])->name('users.store');
         Route::get('/utilizadores/{user}/editar', [UserWebController::class, 'edit'])->name('users.edit');
-        Route::put('/utilizadores/{user}', [UserWebController::class, 'update'])->name('users.update');
-        Route::patch('/utilizadores/{user}/senha', [UserWebController::class, 'resetPassword'])->name('users.reset-password');
+        Route::match(['PUT', 'POST'], '/utilizadores/{user}/atualizar', [UserWebController::class, 'update'])->name('users.update');
+        Route::post('/utilizadores/{user}/senha', [UserWebController::class, 'resetPassword'])->name('users.reset-password');
     });
 });

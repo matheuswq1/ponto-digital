@@ -26,7 +26,7 @@
 
 {{-- Editar dados --}}
 <form method="post" action="{{ route('painel.users.update', $user) }}">
-    @csrf @method('PUT')
+    @csrf
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
         <h2 class="text-sm font-semibold text-slate-700">Dados do utilizador</h2>
         <div>
@@ -65,7 +65,7 @@
 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
     <h2 class="text-sm font-semibold text-slate-700 mb-4">Redefinir senha</h2>
     <form method="post" action="{{ route('painel.users.reset-password', $user) }}" class="space-y-4">
-        @csrf @method('PATCH')
+        @csrf
         <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Nova senha</label>
             <input type="password" name="password" required minlength="6"

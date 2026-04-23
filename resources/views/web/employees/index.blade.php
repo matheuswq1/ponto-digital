@@ -142,7 +142,7 @@
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                             </a>
                             <form method="post" action="{{ route('painel.employees.toggle', $emp) }}" class="inline">
-                                @csrf @method('PATCH')
+                                @csrf
                                 <button type="submit" title="{{ $emp->active ? 'Desativar' : 'Reativar' }}"
                                         class="p-1.5 rounded-lg text-slate-400 hover:text-{{ $emp->active ? 'rose' : 'emerald' }}-600 hover:bg-{{ $emp->active ? 'rose' : 'emerald' }}-50 transition">
                                     @if($emp->active)

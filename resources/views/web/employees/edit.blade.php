@@ -25,7 +25,7 @@
 @endif
 
 <form method="post" action="{{ route('painel.employees.update', $employee) }}" class="space-y-6">
-    @csrf @method('PUT')
+    @csrf
 
     {{-- Dados pessoais --}}
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -113,7 +113,7 @@
         <a href="{{ route('painel.employees.show', $employee) }}" class="text-sm text-slate-500 hover:underline">Cancelar</a>
 
         <form method="post" action="{{ route('painel.employees.toggle', $employee) }}" class="ml-auto">
-            @csrf @method('PATCH')
+            @csrf
             <button type="submit"
                     class="text-sm font-medium px-4 py-2 rounded-lg border transition
                            {{ $employee->active
