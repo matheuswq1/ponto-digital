@@ -48,7 +48,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/empresas', [CompanyWebController::class, 'store'])->name('companies.store');
         Route::get('/empresas/{company}', [CompanyWebController::class, 'show'])->name('companies.show');
         Route::get('/empresas/{company}/editar', [CompanyWebController::class, 'edit'])->name('companies.edit');
-        Route::match(['PUT', 'POST'], '/empresas/{company}/atualizar', [CompanyWebController::class, 'update'])->name('companies.update');
+        Route::post('/empresas/{company}/atualizar', [CompanyWebController::class, 'update'])->name('companies.update');
 
         // Utilizadores (apenas admin)
         Route::get('/utilizadores', [UserWebController::class, 'index'])->name('users.index');

@@ -69,7 +69,10 @@
                             @endif
                         </td>
                         <td class="px-4 py-3">
-                            <a href="{{ route('painel.companies.show', $c) }}" class="text-indigo-600 hover:underline font-medium">Ver</a>
+                            <div class="flex items-center gap-3">
+                                <a href="{{ route('painel.companies.show', $c) }}" class="text-indigo-600 hover:underline font-medium">Ver</a>
+                                <a href="{{ route('painel.companies.edit', $c) }}" class="text-slate-500 hover:text-indigo-600 hover:underline text-sm">Editar</a>
+                            </div>
                         </td>
                     </tr>
                     @endforeach

@@ -96,7 +96,8 @@ class CompanyWebController extends Controller
                 'company_id' => $company->id,
             ]);
 
-            $gestor->assignRole('gestor');
+            // Atribuir role Spatie para guard sanctum (usado pela API móvel)
+            $gestor->assignRole(\Spatie\Permission\Models\Role::findByName('gestor', 'sanctum'));
         });
 
         $redirect = redirect()

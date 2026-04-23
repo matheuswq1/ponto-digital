@@ -18,7 +18,6 @@
 
 <form method="post" action="{{ route('painel.companies.update', $company) }}" class="space-y-6">
     @csrf
-    @method('PUT')
 
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h2 class="text-sm font-semibold text-slate-700 mb-4">Dados gerais</h2>
