@@ -116,8 +116,9 @@ class CompanyWebController extends Controller
 
         $company->loadCount('activeEmployees');
         $gestores = $company->users()->where('role', 'gestor')->orderBy('name')->get();
+        $totems   = $company->users()->where('role', 'totem')->orderBy('name')->get();
 
-        return view('web.companies.show', compact('company', 'gestores'));
+        return view('web.companies.show', compact('company', 'gestores', 'totems'));
     }
 
     public function edit(Company $company): View
@@ -255,6 +256,76 @@ class CompanyWebController extends Controller
 
         if ($autoPassword) {
             $redirect->with('gestor_password_plain', $plain);
+        }
+
+        return $redirect;
+    }
+
+    // ─── Totem ───────────────────────────────────────────────────────────────
+
+    public function addTotem(Request $request, Company $company): RedirectResponse
+    {
+        $this->authorize('manage-companies');
+
+        $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email',
+            'password' => 'nullable|string|min:8',
+        ], [
+            'email.unique' => 'Este e-mail já está em uso.',
+        ]);
+
+        $autoPassword = ! $request->filled('password');
+        $plain = $autoPassword ? Str::password(14, symbols: false) : $request->password;
+
+        User::create([
+            'name'       => $request->name,
+            'email'      => $request->email,
+            'password'   => Hash::make($plain),
+            'role'       => 'totem',
+            'active'     => true,
+            'company_id' => $company->id,
+        ]);
+
+        $redirect = redirect()
+            ->route('painel.companies.show', $company)
+            ->with('success', 'Dispositivo totem criado.');
+
+        if ($autoPassword) {
+            $redirect->with('totem_password_plain', $plain);
+        }
+
+        return $redirect;
+    }
+
+    public function toggleTotem(Company $company, User $totem): RedirectResponse
+    {
+        $this->authorize('manage-companies');
+        abort_if($totem->company_id !== $company->id || $totem->role !== 'totem', 403);
+
+        $totem->update(['active' => ! $totem->active]);
+
+        return redirect()
+            ->route('painel.companies.show', $company)
+            ->with('success', $totem->active ? 'Totem reativado.' : 'Totem desativado.');
+    }
+
+    public function resetTotemPassword(Request $request, Company $company, User $totem): RedirectResponse
+    {
+        $this->authorize('manage-companies');
+        abort_if($totem->company_id !== $company->id || $totem->role !== 'totem', 403);
+
+        $autoPassword = ! $request->filled('password');
+        $plain = $autoPassword ? Str::password(14, symbols: false) : $request->password;
+
+        $totem->update(['password' => Hash::make($plain)]);
+
+        $redirect = redirect()
+            ->route('painel.companies.show', $company)
+            ->with('success', 'Senha do totem redefinida.');
+
+        if ($autoPassword) {
+            $redirect->with('totem_password_plain', $plain);
         }
 
         return $redirect;

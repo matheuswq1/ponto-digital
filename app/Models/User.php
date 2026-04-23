@@ -70,4 +70,9 @@ class User extends Authenticatable
     {
         return $this->role === 'funcionario';
     }
+
+    public function isTotem(): bool
+    {
+        return $this->role === 'totem';
+    }
 }

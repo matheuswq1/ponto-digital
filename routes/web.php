@@ -52,6 +52,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/empresas/{company}/gestores', [CompanyWebController::class, 'addGestor'])->name('companies.gestores.add');
         Route::post('/empresas/{company}/gestores/{gestor}/atualizar', [CompanyWebController::class, 'updateGestor'])->name('companies.gestores.update');
         Route::post('/empresas/{company}/gestores/{gestor}/senha', [CompanyWebController::class, 'resetGestorPassword'])->name('companies.gestores.password');
+        Route::post('/empresas/{company}/totems', [CompanyWebController::class, 'addTotem'])->name('companies.totems.add');
+        Route::post('/empresas/{company}/totems/{totem}/toggle', [CompanyWebController::class, 'toggleTotem'])->name('companies.totems.toggle');
+        Route::post('/empresas/{company}/totems/{totem}/senha', [CompanyWebController::class, 'resetTotemPassword'])->name('companies.totems.password');
 
         // Utilizadores (apenas admin)
         Route::get('/utilizadores', [UserWebController::class, 'index'])->name('users.index');

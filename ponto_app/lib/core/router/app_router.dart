@@ -13,6 +13,7 @@ import '../../presentation/balance/balance_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
 import '../../presentation/edits/edit_requests_screen.dart';
 import '../../presentation/edits/request_edit_screen.dart';
+import '../../presentation/totem/totem_screen.dart';
 import '../../data/models/time_record_model.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -36,9 +37,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (!isUnlock) return '/unlock';
         return null;
       }
+      final isTotem = authState.user?.role == 'totem';
       final isFaceEnroll = loc == '/face-enroll';
-      if (authState.isAuthenticated && (isLogin || isUnlock)) {
-        if (!isFaceEnroll) return '/home';
+      final isTotemRoute = loc == '/totem';
+      if (authState.isAuthenticated) {
+        // Totem só pode acessar /totem
+        if (isTotem && !isTotemRoute) return '/totem';
+        // Demais usuários não podem entrar em /totem
+        if (!isTotem && isTotemRoute) return '/home';
+        if (!isTotem && (isLogin || isUnlock) && !isFaceEnroll) return '/home';
       }
       return null;
     },
@@ -52,6 +59,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/unlock',
         name: 'unlock',
         builder: (_, __) => const UnlockScreen(),
+      ),
+      GoRoute(
+        path: '/totem',
+        name: 'totem',
+        builder: (_, __) => const TotemScreen(),
       ),
       GoRoute(
         path: '/face-enroll',

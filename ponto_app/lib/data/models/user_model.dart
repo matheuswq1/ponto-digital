@@ -55,6 +55,7 @@ class UserModel {
   bool get isAdmin => role == 'admin';
   bool get isGestor => role == 'gestor';
   bool get isFuncionario => role == 'funcionario';
+  bool get isTotem => role == 'totem';
 
   String get firstName => name.split(' ').first;
 }

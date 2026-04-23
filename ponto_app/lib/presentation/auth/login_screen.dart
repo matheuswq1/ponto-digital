@@ -38,8 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final user = result['user'] as UserModel;
     final faceEnrolled = result['face_enrolled'] as bool? ?? false;
-    // Apenas colaboradores precisam cadastrar rosto antes do painel principal
-    if (!faceEnrolled && user.isFuncionario) {
+    if (user.role == 'totem') {
+      context.go('/totem');
+    } else if (!faceEnrolled && user.isFuncionario) {
       context.go('/face-enroll');
     } else {
       context.go('/home');

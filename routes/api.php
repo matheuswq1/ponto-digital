@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\TimeRecordController;
 use App\Http\Controllers\Api\TimeRecordEditController;
+use App\Http\Controllers\Api\TotemController;
 use App\Http\Controllers\Api\WorkDayController;
 use Illuminate\Support\Facades\Route;
 
@@ -80,6 +81,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/employees/{employee}', [EmployeeController::class, 'show'])->name('api.employees.show');
             Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('api.employees.update');
             Route::post('/employees/{employee}/dismiss', [EmployeeController::class, 'dismiss'])->name('api.employees.dismiss');
+        });
+
+        // Totem — dispositivo fixo de identificação facial
+        Route::prefix('totem')->middleware('totem')->group(function () {
+            Route::post('/identify', [TotemController::class, 'identify'])->name('api.totem.identify');
+            Route::post('/register-point', [TotemController::class, 'registerPoint'])->name('api.totem.register-point');
         });
 
         // Empresas (somente admin)
