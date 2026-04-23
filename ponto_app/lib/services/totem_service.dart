@@ -87,8 +87,6 @@ class TotemPointResult {
 
   String get typeLabel => switch (type) {
         'entrada' => 'Entrada',
-        'saida_almoco' => 'Saída Almoço',
-        'volta_almoco' => 'Volta Almoço',
         'saida' => 'Saída',
         _ => type,
       };

@@ -9,8 +9,6 @@ class AppColors {
   static const secondaryLight = Color(0xFF34D399);
 
   static const entrada = Color(0xFF10B981);
-  static const saidaAlmoco = Color(0xFFF59E0B);
-  static const voltaAlmoco = Color(0xFF3B82F6);
   static const saida = Color(0xFFEF4444);
 
   static const background = Color(0xFFF8FAFC);

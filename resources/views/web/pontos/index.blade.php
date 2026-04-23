@@ -7,16 +7,12 @@
 @php
     $typeLabels = [
         'entrada'           => 'Entrada',
-        'saida_almoco'      => 'Saída Almoço',
-        'volta_almoco'      => 'Volta Almoço',
         'saida'             => 'Saída',
         'intervalo_inicio'  => 'Intervalo Início',
         'intervalo_fim'     => 'Intervalo Fim',
     ];
     $typeColors = [
         'entrada'           => 'bg-emerald-100 text-emerald-700',
-        'saida_almoco'      => 'bg-amber-100 text-amber-700',
-        'volta_almoco'      => 'bg-sky-100 text-sky-700',
         'saida'             => 'bg-rose-100 text-rose-700',
         'intervalo_inicio'  => 'bg-orange-100 text-orange-700',
         'intervalo_fim'     => 'bg-teal-100 text-teal-700',

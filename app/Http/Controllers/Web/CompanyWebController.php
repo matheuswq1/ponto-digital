@@ -150,6 +150,7 @@ class CompanyWebController extends Controller
             'work_start' => 'nullable|date_format:H:i',
             'work_end' => 'nullable|date_format:H:i',
             'lunch_duration' => 'nullable|integer|min:0|max:120',
+            'max_daily_records' => 'nullable|integer|min:2|max:20',
         ]);
 
         $company->update([
@@ -170,6 +171,7 @@ class CompanyWebController extends Controller
             'work_start' => $request->work_start,
             'work_end' => $request->work_end,
             'lunch_duration' => $request->lunch_duration,
+            'max_daily_records' => $request->integer('max_daily_records') ?: 10,
         ]);
 
         return redirect()

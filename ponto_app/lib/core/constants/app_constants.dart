@@ -21,15 +21,11 @@ class AppConstants {
 
   static const Map<String, String> pointTypeLabels = {
     'entrada': 'Entrada',
-    'saida_almoco': 'Saída Almoço',
-    'volta_almoco': 'Volta Almoço',
     'saida': 'Saída',
   };
 
   static const Map<String, String> pointTypeIcons = {
     'entrada': 'assets/icons/entrada.svg',
-    'saida_almoco': 'assets/icons/almoco.svg',
-    'volta_almoco': 'assets/icons/volta.svg',
     'saida': 'assets/icons/saida.svg',
   };
 }

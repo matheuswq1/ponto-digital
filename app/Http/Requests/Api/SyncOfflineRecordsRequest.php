@@ -15,7 +15,7 @@ class SyncOfflineRecordsRequest extends FormRequest
     {
         return [
             'records' => 'required|array|min:1|max:50',
-            'records.*.type' => 'required|in:entrada,saida_almoco,volta_almoco,saida',
+            'records.*.type' => 'required|in:entrada,saida',
             'records.*.datetime' => 'required|date',
             'records.*.latitude' => 'nullable|numeric|between:-90,90',
             'records.*.longitude' => 'nullable|numeric|between:-180,180',

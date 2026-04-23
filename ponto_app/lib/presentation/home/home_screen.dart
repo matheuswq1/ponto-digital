@@ -237,19 +237,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Linha de progresso das batidas
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _PointStep(label: 'Entrada', type: 'entrada', data: state.data),
-              _StepConnector(active: state.data?.hasLunchStart == true),
-              _PointStep(label: 'Almoço', type: 'saida_almoco', data: state.data),
-              _StepConnector(active: state.data?.hasLunchEnd == true),
-              _PointStep(label: 'Volta', type: 'volta_almoco', data: state.data),
-              _StepConnector(active: state.data?.hasSaida == true),
-              _PointStep(label: 'Saída', type: 'saida', data: state.data),
-            ],
-          ),
+          // Linha de progresso: pares dinâmicos entrada/saída
+          _buildPairsRow(state.data),
         ],
       ),
     );
@@ -393,61 +382,122 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Color _typeColor(String type) {
     return switch (type) {
       'entrada' => AppColors.entrada,
-      'saida_almoco' => AppColors.saidaAlmoco,
-      'volta_almoco' => AppColors.voltaAlmoco,
       'saida' => AppColors.saida,
       _ => AppColors.primary,
     };
   }
+
+  /// Exibe os pares entrada/saída como indicadores circulares dinâmicos.
+  Widget _buildPairsRow(TodayStatusModel? data) {
+    if (data == null || data.records.isEmpty) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _PairDot(index: 0, entrada: null, saida: null, isNext: true),
+        ],
+      );
+    }
+
+    final pairs = data.pairs;
+    final showEmpty = !data.isComplete;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (int i = 0; i < pairs.length; i++) ...[
+            if (i > 0) _StepConnector(active: true),
+            _PairDot(
+              index: i,
+              entrada: pairs[i].entrada,
+              saida: pairs[i].saida,
+              isNext: false,
+            ),
+          ],
+          if (showEmpty && pairs.isNotEmpty) ...[
+            _StepConnector(active: false),
+            _PairDot(
+              index: pairs.length,
+              entrada: null,
+              saida: null,
+              isNext: true,
+            ),
+          ],
+          if (pairs.isEmpty && showEmpty)
+            _PairDot(index: 0, entrada: null, saida: null, isNext: true),
+        ],
+      ),
+    );
+  }
 }
 
-class _PointStep extends StatelessWidget {
-  final String label;
-  final String type;
-  final TodayStatusModel? data;
+/// Um par entrada/saída representado por dois pontos sobrepostos em coluna.
+class _PairDot extends StatelessWidget {
+  final int index;
+  final TimeRecordModel? entrada;
+  final TimeRecordModel? saida;
+  final bool isNext;
 
-  const _PointStep({required this.label, required this.type, this.data});
+  const _PairDot({
+    required this.index,
+    required this.entrada,
+    required this.saida,
+    required this.isNext,
+  });
 
-  bool get isDone {
-    return switch (type) {
-      'entrada' => data?.hasEntrada ?? false,
-      'saida_almoco' => data?.hasLunchStart ?? false,
-      'volta_almoco' => data?.hasLunchEnd ?? false,
-      'saida' => data?.hasSaida ?? false,
-      _ => false,
-    };
-  }
-
-  String? get time {
-    final record = data?.records.where((r) => r.type == type).firstOrNull;
-    if (record == null) return null;
-    return record.datetimeLocal.split(' ').last.substring(0, 5);
-  }
+  String _fmt(TimeRecordModel r) =>
+      r.datetimeLocal.split(' ').last.substring(0, 5);
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Entrada
+        _dot(
+          done: entrada != null,
+          isNext: isNext && entrada == null,
+          label: entrada != null ? _fmt(entrada!) : 'E${index + 1}',
+        ),
+        const SizedBox(height: 2),
+        // Saída
+        _dot(
+          done: saida != null,
+          isNext: entrada != null && saida == null,
+          label: saida != null ? _fmt(saida!) : 'S${index + 1}',
+        ),
+      ],
+    );
+  }
+
+  Widget _dot({required bool done, required bool isNext, required String label}) {
+    return Column(
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 26,
+          height: 26,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isDone ? Colors.white : Colors.white.withValues(alpha: 0.25),
+            color: done
+                ? Colors.white
+                : isNext
+                    ? Colors.white.withValues(alpha: 0.55)
+                    : Colors.white.withValues(alpha: 0.2),
           ),
           child: Icon(
-            isDone ? Icons.check : Icons.circle_outlined,
-            size: 18,
-            color: isDone ? AppColors.primary : Colors.white54,
+            done ? Icons.check : (isNext ? Icons.radio_button_unchecked : Icons.circle_outlined),
+            size: 14,
+            color: done ? AppColors.primary : (isNext ? Colors.white : Colors.white38),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
-          time ?? label,
+          label,
           style: TextStyle(
-            color: isDone ? Colors.white : Colors.white60,
-            fontSize: 9,
-            fontWeight: isDone ? FontWeight.bold : FontWeight.normal,
+            color: done ? Colors.white : (isNext ? Colors.white70 : Colors.white38),
+            fontSize: 8,
+            fontWeight: done ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ],
@@ -479,8 +529,6 @@ class _RecordTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = switch (record.type as String) {
       'entrada' => AppColors.entrada,
-      'saida_almoco' => AppColors.saidaAlmoco,
-      'volta_almoco' => AppColors.voltaAlmoco,
       'saida' => AppColors.saida,
       _ => AppColors.primary,
     };

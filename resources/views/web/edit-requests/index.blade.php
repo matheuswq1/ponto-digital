@@ -30,7 +30,7 @@
     @php
         $name = $e->timeRecord->employee->user->name ?? '—';
         $initial = strtoupper(substr($name, 0, 1));
-        $typeLabels = ['entrada'=>'Entrada','saida_almoco'=>'Saída Almoço','volta_almoco'=>'Volta Almoço','saida'=>'Saída'];
+        $typeLabels = ['entrada'=>'Entrada','saida'=>'Saída'];
         $origLabel = $typeLabels[$e->original_type] ?? $e->original_type;
         $newLabel  = $typeLabels[$e->new_type]      ?? $e->new_type;
         $created   = \Carbon\Carbon::parse($e->created_at);

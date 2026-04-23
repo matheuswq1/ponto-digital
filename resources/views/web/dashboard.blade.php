@@ -113,13 +113,11 @@
             @foreach($recentRecords as $rec)
             @php
                 $colors = [
-                    'entrada'      => ['dot'=>'bg-emerald-500','badge'=>'bg-emerald-100 text-emerald-700'],
-                    'saida_almoco' => ['dot'=>'bg-amber-500',  'badge'=>'bg-amber-100 text-amber-700'],
-                    'volta_almoco' => ['dot'=>'bg-sky-500',    'badge'=>'bg-sky-100 text-sky-700'],
-                    'saida'        => ['dot'=>'bg-rose-500',   'badge'=>'bg-rose-100 text-rose-700'],
+                    'entrada' => ['dot'=>'bg-emerald-500','badge'=>'bg-emerald-100 text-emerald-700'],
+                    'saida'   => ['dot'=>'bg-rose-500',   'badge'=>'bg-rose-100 text-rose-700'],
                 ];
                 $c = $colors[$rec->type] ?? ['dot'=>'bg-slate-400','badge'=>'bg-slate-100 text-slate-600'];
-                $labels = ['entrada'=>'Entrada','saida_almoco'=>'Saída Almoço','volta_almoco'=>'Volta Almoço','saida'=>'Saída'];
+                $labels = ['entrada'=>'Entrada','saida'=>'Saída'];
             @endphp
             <li class="flex items-center gap-3 px-5 py-2.5">
                 <span class="h-2 w-2 rounded-full {{ $c['dot'] }} shrink-0"></span>

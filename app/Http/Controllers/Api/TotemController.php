@@ -79,12 +79,17 @@ class TotemController extends Controller
             }
 
             // Calcula próximo tipo de ponto
-            $lastRecord = $employee->timeRecords()
-                ->whereDate('datetime', today())
-                ->orderBy('datetime', 'desc')
-                ->first();
+            $employee->loadMissing('company');
+            $maxRecords = $employee->company?->max_daily_records ?? 10;
 
-            $nextTypes = $this->getNextValidTypes($lastRecord?->type);
+            $todayRecords = $employee->timeRecords()
+                ->whereDate('datetime', today())
+                ->orderBy('datetime')
+                ->get();
+
+            $count = $todayRecords->count();
+            $lastType = $todayRecords->last()?->type;
+            $nextTypes = $this->timeRecordService->getNextValidTypes($lastType, $count, $maxRecords);
 
             return response()->json([
                 'match' => true,
@@ -99,7 +104,8 @@ class TotemController extends Controller
                 ],
                 'next_type' => $nextTypes[0] ?? null,
                 'next_types' => $nextTypes,
-                'is_complete' => $lastRecord?->type === 'saida',
+                'is_complete' => empty($nextTypes),
+                'max_daily_records' => $maxRecords,
             ]);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
@@ -120,7 +126,7 @@ class TotemController extends Controller
     {
         $request->validate([
             'employee_id' => 'required|integer|exists:employees,id',
-            'type'        => 'required|in:entrada,saida_almoco,volta_almoco,saida',
+            'type'        => 'required|in:entrada,saida',
             'photo'       => 'nullable|image|max:8192',
             'latitude'    => 'nullable|numeric',
             'longitude'   => 'nullable|numeric',
@@ -161,15 +167,4 @@ class TotemController extends Controller
         ], 201);
     }
 
-    private function getNextValidTypes(?string $lastType): array
-    {
-        return match ($lastType) {
-            null          => ['entrada'],
-            'entrada'     => ['saida_almoco', 'saida'],
-            'saida_almoco' => ['volta_almoco'],
-            'volta_almoco' => ['saida'],
-            'saida'       => [],
-            default       => ['entrada'],
-        };
-    }
 }

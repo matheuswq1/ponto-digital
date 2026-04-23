@@ -70,7 +70,7 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
       (c) => c.lensDirection == CameraLensDirection.front,
       orElse: () => cameras.first,
     );
-    _cam = CameraController(front, ResolutionPreset.medium, enableAudio: false);
+    _cam = CameraController(front, ResolutionPreset.low, enableAudio: false);
     await _cam!.initialize();
     if (!mounted) return;
     setState(() => _camReady = true);
@@ -155,16 +155,12 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
 
   String _typeLabel(String type) => switch (type) {
         'entrada' => 'Entrada',
-        'saida_almoco' => 'Saída Almoço',
-        'volta_almoco' => 'Volta Almoço',
         'saida' => 'Saída',
         _ => type,
       };
 
   Color _typeColor(String type) => switch (type) {
         'entrada' => AppColors.entrada,
-        'saida_almoco' => AppColors.saidaAlmoco,
-        'volta_almoco' => AppColors.voltaAlmoco,
         'saida' => AppColors.saida,
         _ => AppColors.primary,
       };

@@ -113,6 +113,7 @@ class TodayStatusModel {
   final String? nextType;
   final List<String> nextTypes;
   final bool isComplete;
+  final int maxDailyRecords;
 
   const TodayStatusModel({
     required this.date,
@@ -120,6 +121,7 @@ class TodayStatusModel {
     this.nextType,
     required this.nextTypes,
     required this.isComplete,
+    this.maxDailyRecords = 10,
   });
 
   factory TodayStatusModel.fromJson(Map<String, dynamic> json) => TodayStatusModel(
@@ -130,11 +132,28 @@ class TodayStatusModel {
         nextType: json['next_type'],
         nextTypes: List<String>.from(json['next_types'] ?? []),
         isComplete: json['is_complete'] ?? false,
+        maxDailyRecords: (json['max_daily_records'] as num?)?.toInt() ?? 10,
       );
 
   bool get hasEntrada => records.any((r) => r.type == 'entrada');
-  bool get hasLunchStart => records.any((r) => r.type == 'saida_almoco');
-  bool get hasLunchEnd => records.any((r) => r.type == 'volta_almoco');
   bool get hasSaida => records.any((r) => r.type == 'saida');
+
+  /// Retorna pares (entrada, saida?) para exibição na tela
+  List<({TimeRecordModel entrada, TimeRecordModel? saida})> get pairs {
+    final result = <({TimeRecordModel entrada, TimeRecordModel? saida})>[];
+    TimeRecordModel? openEntrada;
+    for (final r in records) {
+      if (r.type == 'entrada') {
+        openEntrada = r;
+      } else if (r.type == 'saida' && openEntrada != null) {
+        result.add((entrada: openEntrada, saida: r));
+        openEntrada = null;
+      }
+    }
+    if (openEntrada != null) {
+      result.add((entrada: openEntrada, saida: null));
+    }
+    return result;
+  }
 }
 

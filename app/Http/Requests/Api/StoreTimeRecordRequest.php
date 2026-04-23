@@ -14,7 +14,7 @@ class StoreTimeRecordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => 'required|in:entrada,saida_almoco,volta_almoco,saida',
+            'type' => 'required|in:entrada,saida',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'accuracy' => 'nullable|numeric|min:0',

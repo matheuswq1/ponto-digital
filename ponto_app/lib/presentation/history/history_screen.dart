@@ -253,8 +253,6 @@ class _RecordItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = switch (record.type) {
       'entrada' => AppColors.entrada,
-      'saida_almoco' => AppColors.saidaAlmoco,
-      'volta_almoco' => AppColors.voltaAlmoco,
       'saida' => AppColors.saida,
       _ => AppColors.primary,
     };
@@ -310,8 +308,6 @@ class _RecordItem extends StatelessWidget {
 
   IconData _typeIcon(String type) => switch (type) {
         'entrada' => Icons.login,
-        'saida_almoco' => Icons.restaurant,
-        'volta_almoco' => Icons.arrow_back,
         'saida' => Icons.logout,
         _ => Icons.access_time,
       };

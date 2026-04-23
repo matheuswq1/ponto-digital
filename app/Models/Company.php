@@ -30,6 +30,7 @@ class Company extends Model
         'work_start',
         'work_end',
         'lunch_duration',
+        'max_daily_records',
     ];
 
     protected function casts(): array
@@ -40,6 +41,7 @@ class Company extends Model
             'require_geolocation' => 'boolean',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'max_daily_records' => 'integer',
         ];
     }
 

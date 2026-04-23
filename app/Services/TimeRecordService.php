@@ -38,8 +38,8 @@ class TimeRecordService
                 'longitude' => $data['longitude'] ?? null,
                 'accuracy' => $data['accuracy'] ?? null,
                 'photo_url' => $data['photo_url'] ?? null,
-                'ip_address' => request()->ip(),
-                'device_info' => request()->userAgent(),
+                'ip_address' => isset($data['source']) && $data['source'] === 'totem' ? null : request()->ip(),
+                'device_info' => isset($data['source']) && $data['source'] === 'totem' ? 'totem' : request()->userAgent(),
                 'device_id' => $data['device_id'] ?? null,
                 'is_mock_location' => $data['is_mock_location'] ?? false,
                 'offline' => $data['offline'] ?? false,
@@ -47,6 +47,7 @@ class TimeRecordService
                 'status' => 'pendente',
             ]);
 
+            // Recalcula o dia de trabalho a cada saída
             if ($data['type'] === 'saida') {
                 ProcessWorkDay::dispatch($employee, $record->datetime->toDateString());
             }
@@ -95,18 +96,27 @@ class TimeRecordService
 
     public function validateSequence(Employee $employee, string $type): void
     {
-        $lastRecord = $employee->timeRecords()
-            ->whereDate('datetime', today())
-            ->latest('datetime')
-            ->first();
+        $employee->loadMissing('company');
+        $maxRecords = $employee->company?->max_daily_records ?? 10;
 
-        $validNext = $this->getNextValidTypes($lastRecord?->type);
+        $todayRecords = $employee->timeRecords()
+            ->whereDate('datetime', today())
+            ->orderBy('datetime')
+            ->get();
+
+        $count = $todayRecords->count();
+        $lastType = $todayRecords->last()?->type;
+
+        $validNext = $this->getNextValidTypes($lastType, $count, $maxRecords);
 
         if (!in_array($type, $validNext)) {
+            if (empty($validNext)) {
+                throw ValidationException::withMessages([
+                    'type' => ["Limite diário de batidas atingido ({$maxRecords})."]
+                ]);
+            }
             throw ValidationException::withMessages([
-                'type' => [
-                    "Tipo de ponto inválido. Próximo esperado: " . implode(' ou ', $validNext)
-                ]
+                'type' => ["Tipo de ponto inválido. Próximo esperado: " . implode(' ou ', $validNext)]
             ]);
         }
     }
@@ -115,13 +125,17 @@ class TimeRecordService
     {
         $date = Carbon::parse($datetime)->toDateString();
 
-        $lastRecord = $employee->timeRecords()
+        $records = $employee->timeRecords()
             ->whereDate('datetime', $date)
             ->where('datetime', '<', $datetime)
-            ->latest('datetime')
-            ->first();
+            ->orderBy('datetime')
+            ->get();
 
-        $validNext = $this->getNextValidTypes($lastRecord?->type);
+        $count = $records->count();
+        $lastType = $records->last()?->type;
+        $maxRecords = $employee->company?->max_daily_records ?? 10;
+
+        $validNext = $this->getNextValidTypes($lastType, $count, $maxRecords);
 
         if (!in_array($type, $validNext)) {
             throw new \InvalidArgumentException(
@@ -130,15 +144,17 @@ class TimeRecordService
         }
     }
 
-    private function getNextValidTypes(?string $lastType): array
+    public function getNextValidTypes(?string $lastType, int $currentCount = 0, int $maxRecords = 10): array
     {
-        return match($lastType) {
-            null => ['entrada'],
-            'entrada' => ['saida_almoco', 'saida'],
-            'saida_almoco' => ['volta_almoco'],
-            'volta_almoco' => ['saida'],
-            'saida' => [],
-            default => ['entrada'],
+        // Limite atingido
+        if ($currentCount >= $maxRecords) {
+            return [];
+        }
+
+        return match ($lastType) {
+            null, 'saida' => ['entrada'],
+            'entrada'     => ['saida'],
+            default       => ['entrada'],
         };
     }
 

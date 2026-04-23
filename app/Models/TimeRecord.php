@@ -65,8 +65,6 @@ class TimeRecord extends Model
     {
         return match($this->type) {
             'entrada' => 'Entrada',
-            'saida_almoco' => 'Saída Almoço',
-            'volta_almoco' => 'Volta Almoço',
             'saida' => 'Saída',
             default => $this->type,
         };

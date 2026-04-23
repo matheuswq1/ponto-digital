@@ -502,8 +502,6 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   Color _typeColor(String type) {
     return switch (type) {
       'entrada' => AppColors.entrada,
-      'saida_almoco' => AppColors.saidaAlmoco,
-      'volta_almoco' => AppColors.voltaAlmoco,
       'saida' => AppColors.saida,
       _ => AppColors.primary,
     };

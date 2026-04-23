@@ -22,7 +22,7 @@ class TimeRecordEditController extends Controller
     {
         $request->validate([
             'new_datetime' => 'required|date',
-            'new_type' => 'nullable|in:entrada,saida_almoco,volta_almoco,saida',
+            'new_type' => 'nullable|in:entrada,saida',
             'justification' => 'required|string|min:20|max:500',
         ]);
 

@@ -101,7 +101,7 @@ class TimeRecordController extends Controller
     public function getSignedUploadUrl(Request $request): JsonResponse
     {
         $request->validate([
-            'type' => 'required|in:entrada,saida_almoco,volta_almoco,saida',
+            'type' => 'required|in:entrada,saida',
             'extension' => 'required|in:jpg,jpeg,png,webp',
         ]);
 
@@ -130,32 +130,25 @@ class TimeRecordController extends Controller
             ]);
         }
 
+        $employee->loadMissing('company');
+        $maxRecords = $employee->company?->max_daily_records ?? 10;
+
         $records = $employee->timeRecords()
             ->whereDate('datetime', today())
             ->orderBy('datetime')
             ->get();
 
+        $count = $records->count();
         $lastRecord = $records->last();
-        $nextTypes = $this->getNextValidTypes($lastRecord?->type);
+        $nextTypes = $this->timeRecordService->getNextValidTypes($lastRecord?->type, $count, $maxRecords);
 
         return response()->json([
             'date' => today()->toDateString(),
             'records' => TimeRecordResource::collection($records),
             'next_type' => $nextTypes[0] ?? null,
             'next_types' => $nextTypes,
-            'is_complete' => $lastRecord?->type === 'saida',
+            'is_complete' => empty($nextTypes),
+            'max_daily_records' => $maxRecords,
         ]);
-    }
-
-    private function getNextValidTypes(?string $lastType): array
-    {
-        return match ($lastType) {
-            null => ['entrada'],
-            'entrada' => ['saida_almoco', 'saida'],
-            'saida_almoco' => ['volta_almoco'],
-            'volta_almoco' => ['saida'],
-            'saida' => [],
-            default => ['entrada'],
-        };
     }
 }

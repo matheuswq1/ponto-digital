@@ -128,6 +128,7 @@ class CompanyModel {
   final String cnpj;
   final bool requirePhoto;
   final bool requireGeolocation;
+  final int maxDailyRecords;
   final GeofenceModel? geofence;
 
   const CompanyModel({
@@ -136,6 +137,7 @@ class CompanyModel {
     required this.cnpj,
     required this.requirePhoto,
     required this.requireGeolocation,
+    this.maxDailyRecords = 10,
     this.geofence,
   });
 
@@ -148,6 +150,7 @@ class CompanyModel {
       cnpj: json['cnpj'],
       requirePhoto: settings?['require_photo'] ?? true,
       requireGeolocation: settings?['require_geolocation'] ?? false,
+      maxDailyRecords: (json['max_daily_records'] as num?)?.toInt() ?? 10,
       geofence: geofenceData != null ? GeofenceModel.fromJson(geofenceData) : null,
     );
   }
@@ -156,6 +159,7 @@ class CompanyModel {
         'id': id,
         'name': name,
         'cnpj': cnpj,
+        'max_daily_records': maxDailyRecords,
         'settings': {
           'require_photo': requirePhoto,
           'require_geolocation': requireGeolocation,

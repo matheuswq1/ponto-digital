@@ -123,6 +123,12 @@
                 <input type="number" name="lunch_duration" value="{{ old('lunch_duration', $company->lunch_duration) }}" min="0" max="120"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">
             </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Máx. batidas/dia</label>
+                <input type="number" name="max_daily_records" value="{{ old('max_daily_records', $company->max_daily_records ?? 10) }}" min="2" max="20"
+                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">
+                <p class="text-xs text-slate-400 mt-1">Limite de batidas de ponto por funcionário por dia (padrão: 10)</p>
+            </div>
         </div>
     </div>
 

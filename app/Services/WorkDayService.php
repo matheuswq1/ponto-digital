@@ -28,41 +28,39 @@ class WorkDayService
     {
         $schedule = $employee->workSchedule;
 
-        $entryRecord = $records->firstWhere('type', 'entrada');
-        $lunchStartRecord = $records->firstWhere('type', 'saida_almoco');
-        $lunchEndRecord = $records->firstWhere('type', 'volta_almoco');
-        $exitRecord = $records->firstWhere('type', 'saida');
+        // Separa por tipo para compatibilidade com campos legados
+        $firstEntry = $records->firstWhere('type', 'entrada');
+        $lastExit = $records->filter(fn ($r) => $r->type === 'saida')->last();
 
-        $entryTime = $entryRecord?->datetime?->format('H:i:s');
-        $lunchStart = $lunchStartRecord?->datetime?->format('H:i:s');
-        $lunchEnd = $lunchEndRecord?->datetime?->format('H:i:s');
-        $exitTime = $exitRecord?->datetime?->format('H:i:s');
+        $entryTime = $firstEntry?->datetime?->format('H:i:s');
+        $exitTime  = $lastExit?->datetime?->format('H:i:s');
 
+        // Calcula tempo trabalhado somando pares entrada→saída consecutivos
         $totalMinutes = 0;
-        $lunchMinutes = 0;
+        $openEntryAt  = null;
 
-        if ($entryRecord && $exitRecord) {
-            $totalMinutes = $exitRecord->datetime->diffInMinutes($entryRecord->datetime);
-
-            if ($lunchStartRecord && $lunchEndRecord) {
-                $lunchMinutes = $lunchEndRecord->datetime->diffInMinutes($lunchStartRecord->datetime);
-                $totalMinutes -= $lunchMinutes;
+        foreach ($records as $record) {
+            if ($record->type === 'entrada') {
+                $openEntryAt = $record->datetime;
+            } elseif ($record->type === 'saida' && $openEntryAt !== null) {
+                $totalMinutes += $record->datetime->diffInMinutes($openEntryAt);
+                $openEntryAt = null;
             }
         }
 
         $expectedMinutes = $schedule?->getExpectedMinutes() ?? $employee->dailyExpectedMinutes();
-        $extraMinutes = $totalMinutes - $expectedMinutes;
+        $extraMinutes    = $totalMinutes - $expectedMinutes;
 
         return [
-            'entry_time' => $entryTime,
-            'lunch_start' => $lunchStart,
-            'lunch_end' => $lunchEnd,
-            'exit_time' => $exitTime,
-            'total_minutes' => max(0, $totalMinutes),
+            'entry_time'       => $entryTime,
+            'lunch_start'      => null, // campo mantido por compatibilidade
+            'lunch_end'        => null,
+            'exit_time'        => $exitTime,
+            'total_minutes'    => max(0, $totalMinutes),
             'expected_minutes' => $expectedMinutes,
-            'extra_minutes' => $exitRecord ? $extraMinutes : 0,
-            'lunch_minutes' => $lunchMinutes,
-            'is_closed' => $exitRecord !== null,
+            'extra_minutes'    => $lastExit ? $extraMinutes : 0,
+            'lunch_minutes'    => 0,
+            'is_closed'        => $lastExit !== null,
         ];
     }
 
