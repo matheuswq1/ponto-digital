@@ -1,0 +1,68 @@
+name: ponto_app
+description: Sistema de Ponto Eletrônico Digital
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Estado
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # HTTP
+  dio: ^5.8.0+1
+  pretty_dio_logger: ^1.4.0
+
+  # Armazenamento local
+  shared_preferences: ^2.3.4
+  sqflite: ^2.4.2
+  path: ^1.9.1
+
+  # Câmera e mídia
+  camera: ^0.11.1
+  image_picker: ^1.1.2
+  image: ^4.5.4
+
+  # GPS / Localização
+  geolocator: ^13.0.4
+  permission_handler: ^11.4.0
+
+  # Navegação
+  go_router: ^14.8.1
+
+  # UI
+  flutter_svg: ^2.0.17
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+  lottie: ^3.3.1
+  intl: ^0.20.2
+  timeago: ^3.7.0
+
+  # Utilitários
+  uuid: ^4.5.3
+
+  # Ícones
+  cupertino_icons: ^1.0.8
+  iconsax: ^0.0.8
+  local_auth: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.14
+  riverpod_generator: ^2.6.5
+  custom_lint: ^0.7.5
+  riverpod_lint: ^2.6.5
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/icons/

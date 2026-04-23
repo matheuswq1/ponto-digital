@@ -1,0 +1,33 @@
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+firebase-credentials.json
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/storage/app/tmp
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db
+# Flutter
+ponto_app/build/
+ponto_app/.dart_tool/
+ponto_app/.flutter-plugins
+ponto_app/.flutter-plugins-dependencies
+# Face service data (embeddings são dados sensíveis, não versionar)
+face_service/data/
