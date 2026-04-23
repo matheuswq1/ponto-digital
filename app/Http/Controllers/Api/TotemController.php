@@ -38,11 +38,25 @@ class TotemController extends Controller
             return response()->json(['message' => 'Totem não vinculado a nenhuma empresa.'], 422);
         }
 
+        // Busca IDs dos funcionários ativos com rosto cadastrado nesta empresa
+        $employeeIds = Employee::where('company_id', $companyId)
+            ->where('active', true)
+            ->where('face_enrolled', true)
+            ->pluck('id')
+            ->all();
+
+        if (empty($employeeIds)) {
+            return response()->json([
+                'match' => false,
+                'message' => 'Nenhum funcionário com rosto cadastrado nesta empresa.',
+            ]);
+        }
+
         $path = $request->file('photo')->store('tmp/faces');
         $fullPath = Storage::disk('local')->path($path);
 
         try {
-            $result = $this->faceService->identify($companyId, $fullPath);
+            $result = $this->faceService->identify($employeeIds, $fullPath);
 
             // Serviço de IA não encontrou ninguém
             if (empty($result['match']) || empty($result['employee_id'])) {

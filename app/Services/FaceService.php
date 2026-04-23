@@ -51,17 +51,18 @@ class FaceService
     }
 
     /**
-     * Identifica a pessoa na foto comparando contra todos os embeddings de uma empresa.
-     * O serviço de IA recebe o company_id e retorna o melhor match.
+     * Identifica a pessoa na foto comparando contra os embeddings de uma lista de funcionários.
+     * O serviço de IA recebe a lista de employee_ids e retorna o melhor match.
      *
+     * @param  array<int|string>  $employeeIds
      * @return array{match: bool, employee_id: int|null, score: float, distance: float, threshold: float}
      */
-    public function identify(int|string $companyId, string $photoPath): array
+    public function identify(array $employeeIds, string $photoPath): array
     {
         $response = Http::withHeaders(['X-Face-Service-Key' => $this->apiKey])
             ->attach('photo', fopen($photoPath, 'r'), basename($photoPath))
             ->post("{$this->baseUrl}/identify", [
-                'company_id' => (string) $companyId,
+                'employee_ids' => implode(',', $employeeIds),
             ]);
 
         return $this->handleResponse($response, 'identify');
