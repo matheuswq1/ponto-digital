@@ -2,7 +2,7 @@ class AppConstants {
   // 10.0.2.2  = localhost do host no emulador Android
   // 192.168.x = IP real da máquina para dispositivo físico na mesma rede Wi-Fi
   // Emulador: 10.0.2.2. Celular físico: troque a URL abaixo para http://<IP-DA-MAQUINA>/projeto-ponto-web/public/api/v1
-  static const String baseUrl = 'http://10.0.2.2/projeto-ponto-web/public/api/v1';
+  static const String baseUrl = 'https://ponto.approsamistica.com/api/v1';
 
   static const String tokenKey = 'auth_token';
   static const String userKey = 'auth_user';
