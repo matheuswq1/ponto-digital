@@ -35,6 +35,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/colaboradores/{employee}/editar', [EmployeeWebController::class, 'edit'])->name('employees.edit');
         Route::match(['PUT', 'POST'], '/colaboradores/{employee}/atualizar', [EmployeeWebController::class, 'update'])->name('employees.update');
         Route::post('/colaboradores/{employee}/toggle', [EmployeeWebController::class, 'toggle'])->name('employees.toggle');
+        Route::post('/colaboradores/{employee}/senha', [EmployeeWebController::class, 'resetPassword'])->name('employees.reset-password');
 
         // Pontos
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');

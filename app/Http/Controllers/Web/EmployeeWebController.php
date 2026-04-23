@@ -178,6 +178,26 @@ class EmployeeWebController extends Controller
         return back()->with('success', $msg);
     }
 
+    public function resetPassword(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->authorize('manage-employees');
+
+        $request->validate([
+            'password' => 'required|string|min:6|confirmed',
+        ], [
+            'password.required'  => 'A nova senha é obrigatória.',
+            'password.min'       => 'A senha deve ter pelo menos 6 caracteres.',
+            'password.confirmed' => 'As senhas não coincidem.',
+        ]);
+
+        $employee->user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return redirect()->route('painel.employees.edit', $employee)
+            ->with('success', 'Senha do colaborador redefinida com sucesso.');
+    }
+
     public function export(Request $request)
     {
         $this->authorize('manage-employees');
