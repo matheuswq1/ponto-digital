@@ -78,8 +78,6 @@ class EmployeeWebController extends Controller
                 'role'     => 'funcionario',
                 'active'   => true,
             ]);
-            $user->assignRole(\Spatie\Permission\Models\Role::findByName('funcionario', 'sanctum'));
-
             Employee::create([
                 'user_id'             => $user->id,
                 'company_id'          => $request->company_id,
@@ -342,8 +340,6 @@ class EmployeeWebController extends Controller
                         'role'     => 'funcionario',
                         'active'   => true,
                     ]);
-                    $user->assignRole(\Spatie\Permission\Models\Role::findByName('funcionario', 'sanctum'));
-
                     Employee::create([
                         'user_id'             => $user->id,
                         'company_id'          => $companyId,

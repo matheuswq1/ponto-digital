@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
@@ -39,6 +40,14 @@ class AuthController extends Controller
             ['*'],
             now()->addDays(30)
         );
+
+        // Garantir que o role Spatie (guard sanctum) existe — cobre utilizadores criados pelo painel
+        if ($user->role && ! $user->hasRole($user->role)) {
+            $role = Role::where('name', $user->role)->where('guard_name', 'sanctum')->first();
+            if ($role) {
+                $user->assignRole($role);
+            }
+        }
 
         $user->load(['employee.company', 'company']);
 

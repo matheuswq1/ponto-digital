@@ -57,7 +57,6 @@ class UserWebController extends Controller
             'role'     => $request->role,
             'active'   => true,
         ]);
-        $user->assignRole(\Spatie\Permission\Models\Role::findByName($request->role, 'sanctum'));
 
         return redirect()->route('painel.users.index')
             ->with('success', 'Utilizador criado com sucesso.');
@@ -87,7 +86,6 @@ class UserWebController extends Controller
             'active' => $request->boolean('active'),
         ]);
 
-        $user->syncRoles([\Spatie\Permission\Models\Role::findByName($request->role, 'sanctum')]);
 
         return redirect()->route('painel.users.index')
             ->with('success', 'Utilizador atualizado.');
