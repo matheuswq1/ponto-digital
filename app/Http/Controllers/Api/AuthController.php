@@ -42,10 +42,11 @@ class AuthController extends Controller
         );
 
         // Garantir que o role Spatie (guard sanctum) existe — cobre utilizadores criados pelo painel
-        if ($user->role && ! $user->hasRole($user->role)) {
+        if ($user->role) {
             $role = Role::where('name', $user->role)->where('guard_name', 'sanctum')->first();
-            if ($role) {
-                $user->assignRole($role);
+            if ($role && ! $user->roles()->where('id', $role->id)->exists()) {
+                $user->roles()->attach($role->id);
+                app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
             }
         }
 
