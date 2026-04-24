@@ -130,10 +130,12 @@ class EmployeeWebController extends Controller
     {
         $this->authorize('manage-employees');
 
+        $isPending = $employee->user?->access_pending;
+
         $request->validate([
             'name'            => 'required|string|max:255',
             'email'           => 'required|email|unique:users,email,' . $employee->user_id,
-            'cpf'             => 'required|string|size:14|unique:employees,cpf,' . $employee->id,
+            'cpf'             => 'nullable|string|size:14|unique:employees,cpf,' . $employee->id,
             'cargo'           => 'required|string|max:100',
             'department'      => 'nullable|string|max:100',
             'company_id'      => 'required|exists:companies,id',
@@ -150,15 +152,25 @@ class EmployeeWebController extends Controller
             'ws_work_days.*'   => 'integer|min:0|max:6',
         ]);
 
-        DB::transaction(function () use ($request, $employee) {
-            $employee->user->update([
+        DB::transaction(function () use ($request, $employee, $isPending) {
+            $userUpdate = [
                 'name'  => $request->name,
                 'email' => $request->email,
-            ]);
+            ];
+
+            // Se estava com acesso pendente e agora tem um e-mail real definido,
+            // libera o acesso ao app
+            if ($isPending && $request->filled('email')
+                && !str_ends_with($request->email, '@importado.local')) {
+                $userUpdate['access_pending'] = false;
+                $userUpdate['active']         = true;
+            }
+
+            $employee->user->update($userUpdate);
 
             $employee->update([
                 'company_id'          => $request->company_id,
-                'cpf'                 => $request->cpf,
+                'cpf'                 => $request->cpf ?: null,
                 'cargo'               => $request->cargo,
                 'department'          => $request->department,
                 'registration_number' => $request->registration_number,
@@ -191,8 +203,13 @@ class EmployeeWebController extends Controller
             }
         });
 
-        return redirect()->route('painel.employees.show', $employee)
-            ->with('success', 'Colaborador atualizado com sucesso.');
+        $msg = 'Colaborador atualizado com sucesso.';
+        if ($isPending && !str_ends_with($request->email, '@importado.local')) {
+            $msg = 'Colaborador atualizado. Acesso ao app liberado — defina a senha na seção abaixo.';
+        }
+
+        return redirect()->route('painel.employees.edit', $employee)
+            ->with('success', $msg);
     }
 
     public function toggle(Employee $employee): RedirectResponse
@@ -392,6 +409,135 @@ class EmployeeWebController extends Controller
         fclose($handle);
 
         $msg = "Importação concluída: {$success} colaborador(es) criado(s).";
+        if ($errors) {
+            session()->flash('import_errors', $errors);
+        }
+
+        return redirect()->route('painel.employees.index')->with('success', $msg);
+    }
+
+    /**
+     * Importa colaboradores de arquivo legado com formato:
+     * pis;nome;administrador;matricula;rfid;codigo;senha;barras;digitais
+     */
+    public function importFromLegacy(Request $request): RedirectResponse
+    {
+        $this->authorize('manage-employees');
+
+        $request->validate([
+            'file'       => 'required|file|mimes:txt,csv|max:10240',
+            'company_id' => 'required|exists:companies,id',
+        ], [
+            'file.required'       => 'Selecione o arquivo exportado do sistema legado.',
+            'company_id.required' => 'Selecione a empresa para os colaboradores.',
+            'company_id.exists'   => 'Empresa inválida.',
+        ]);
+
+        $file      = $request->file('file');
+        $companyId = $request->company_id;
+        $handle    = fopen($file->getRealPath(), 'r');
+
+        // Remover BOM se existir
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($handle);
+        }
+
+        // Primeira linha é o cabeçalho: pis;nome;administrador;matricula;rfid;codigo;senha;barras;digitais
+        $header = fgetcsv($handle, 0, ';');
+        if (!$header) {
+            fclose($handle);
+            return back()->with('error', 'Arquivo inválido ou vazio.');
+        }
+        $header = array_map('trim', $header);
+
+        // Validar que é o formato legado esperado
+        if (!in_array('pis', $header) || !in_array('nome', $header)) {
+            fclose($handle);
+            return back()->with('error', 'Formato de arquivo não reconhecido. O arquivo deve ter as colunas "pis" e "nome".');
+        }
+
+        $errors  = [];
+        $success = 0;
+        $skipped = 0;
+        $row     = 1;
+
+        while (($data = fgetcsv($handle, 0, ';')) !== false) {
+            $row++;
+            if (count($data) < 2) {
+                continue;
+            }
+
+            // Mapear colunas disponíveis
+            $colCount = min(count($header), count($data));
+            $line     = array_combine(
+                array_slice($header, 0, $colCount),
+                array_map('trim', array_slice($data, 0, $colCount))
+            );
+
+            $nome       = $line['nome']      ?? '';
+            $pis        = $line['pis']       ?? '';
+            $matricula  = $line['matricula'] ?? '';
+
+            // Ignorar linhas sem nome ou PIS
+            if (empty($nome) || empty($pis)) {
+                continue;
+            }
+
+            // Ignorar administradores (campo administrador = 1)
+            if (($line['administrador'] ?? '0') === '1') {
+                $skipped++;
+                continue;
+            }
+
+            // Verificar se PIS já existe
+            if (Employee::where('pis', $pis)->exists()) {
+                $errors[] = "Linha {$row} ({$nome}): PIS '{$pis}' já cadastrado, ignorado.";
+                $skipped++;
+                continue;
+            }
+
+            try {
+                DB::transaction(function () use ($nome, $pis, $matricula, $companyId) {
+                    // Cria user com email placeholder e sem senha definida
+                    // access_pending = true indica que o admin precisa configurar o acesso
+                    $emailPlaceholder = 'pendente_' . Str::slug($pis) . '@importado.local';
+                    $user = User::create([
+                        'name'           => $nome,
+                        'email'          => $emailPlaceholder,
+                        'password'       => Hash::make(Str::random(32)),
+                        'role'           => 'funcionario',
+                        'active'         => false,
+                        'access_pending' => true,
+                        'company_id'     => $companyId,
+                    ]);
+
+                    Employee::create([
+                        'user_id'             => $user->id,
+                        'company_id'          => $companyId,
+                        'cpf'                 => null,
+                        'cargo'               => 'A definir',
+                        'registration_number' => $matricula ?: null,
+                        'admission_date'      => now()->toDateString(),
+                        'contract_type'       => 'clt',
+                        'weekly_hours'        => 44,
+                        'pis'                 => $pis,
+                        'active'              => true,
+                    ]);
+                });
+                $success++;
+            } catch (\Throwable $e) {
+                $errors[] = "Linha {$row} ({$nome}): erro — {$e->getMessage()}";
+            }
+        }
+        fclose($handle);
+
+        $msg = "Importação legada concluída: {$success} colaborador(es) criado(s)";
+        if ($skipped > 0) {
+            $msg .= ", {$skipped} ignorado(s) (já existiam ou administradores)";
+        }
+        $msg .= '.';
+
         if ($errors) {
             session()->flash('import_errors', $errors);
         }

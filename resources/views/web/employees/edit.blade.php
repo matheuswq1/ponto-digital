@@ -27,6 +27,17 @@
 <form method="post" action="{{ route('painel.employees.update', $employee) }}" class="space-y-6">
     @csrf
 
+    {{-- Banner de acesso pendente --}}
+    @if($employee->user?->access_pending)
+    <div class="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 flex items-start gap-3">
+        <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+        <div>
+            <p class="font-semibold">Acesso ao app pendente</p>
+            <p class="text-xs mt-0.5">Este colaborador foi importado do sistema legado. Defina o <strong>e-mail</strong> e a <strong>senha</strong> abaixo para liberar o acesso ao aplicativo.</p>
+        </div>
+    </div>
+    @endif
+
     {{-- Dados pessoais --}}
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h2 class="text-sm font-semibold text-slate-700 mb-4">Dados pessoais</h2>
@@ -37,13 +48,21 @@
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">E-mail <span class="text-rose-500">*</span></label>
-                <input type="email" name="email" value="{{ old('email', $employee->user->email) }}" required
-                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                    E-mail <span class="text-rose-500">*</span>
+                    @if($employee->user?->access_pending)
+                        <span class="ml-1 text-amber-600 font-semibold">(definir para liberar acesso)</span>
+                    @endif
+                </label>
+                <input type="email" name="email"
+                       value="{{ old('email', $employee->user?->access_pending ? '' : $employee->user->email) }}"
+                       required
+                       placeholder="{{ $employee->user?->access_pending ? 'Digite o e-mail real do colaborador' : '' }}"
+                       class="w-full text-sm border {{ $employee->user?->access_pending ? 'border-amber-400 bg-amber-50' : 'border-slate-300' }} rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">CPF <span class="text-rose-500">*</span></label>
-                <input type="text" name="cpf" value="{{ old('cpf', $employee->cpf) }}" required maxlength="14"
+                <label class="block text-xs font-medium text-slate-600 mb-1">CPF</label>
+                <input type="text" name="cpf" value="{{ old('cpf', $employee->cpf) }}" maxlength="14"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
             </div>
             <div>
@@ -208,7 +227,7 @@
 </form>
 
 {{-- Redefinir senha --}}
-<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mt-6">
+<div class="bg-white rounded-xl border {{ $employee->user?->access_pending ? 'border-amber-300' : 'border-slate-200' }} shadow-sm p-6 mt-6">
     <div class="flex items-center gap-3 mb-4">
         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
             <svg class="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
@@ -216,8 +235,20 @@
             </svg>
         </div>
         <div>
-            <h2 class="text-sm font-semibold text-slate-700">Redefinir senha de acesso</h2>
-            <p class="text-xs text-slate-400">A nova senha será aplicada imediatamente no app do colaborador.</p>
+            <h2 class="text-sm font-semibold text-slate-700">
+                @if($employee->user?->access_pending)
+                    Definir senha de acesso ao app
+                @else
+                    Redefinir senha de acesso
+                @endif
+            </h2>
+            <p class="text-xs text-slate-400">
+                @if($employee->user?->access_pending)
+                    Defina a senha para liberar o acesso do colaborador ao aplicativo. Salve o e-mail acima primeiro.
+                @else
+                    A nova senha será aplicada imediatamente no app do colaborador.
+                @endif
+            </p>
         </div>
     </div>
     <form method="post" action="{{ route('painel.employees.reset-password', $employee) }}" class="space-y-4 max-w-sm">

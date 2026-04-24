@@ -31,6 +31,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/colaboradores/exportar', [EmployeeWebController::class, 'export'])->name('employees.export');
         Route::get('/colaboradores/importar/template', [EmployeeWebController::class, 'importTemplate'])->name('employees.import.template');
         Route::post('/colaboradores/importar', [EmployeeWebController::class, 'import'])->name('employees.import');
+        Route::post('/colaboradores/importar-legado', [EmployeeWebController::class, 'importFromLegacy'])->name('employees.import.legacy');
         Route::get('/colaboradores/criar', [EmployeeWebController::class, 'create'])->name('employees.create');
         Route::post('/colaboradores', [EmployeeWebController::class, 'store'])->name('employees.store');
         Route::get('/colaboradores/{employee}', [EmployeeWebController::class, 'show'])->name('employees.show');

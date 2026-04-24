@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'active',
+        'access_pending',
         'company_id',
     ];
 
@@ -35,9 +36,10 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'active' => 'boolean',
+            'email_verified_at'  => 'datetime',
+            'password'           => 'hashed',
+            'active'             => 'boolean',
+            'access_pending'     => 'boolean',
         ];
     }
 

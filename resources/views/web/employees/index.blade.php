@@ -47,11 +47,17 @@
 
     {{-- Acções --}}
     <div class="flex items-center gap-2 shrink-0">
-        {{-- Importar --}}
+        {{-- Importar sistema legado --}}
+        <button type="button" onclick="document.getElementById('importLegacyModal').classList.remove('hidden')"
+                class="inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 border border-amber-300 bg-amber-50 px-3 py-2 rounded-lg hover:bg-amber-100 transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/></svg>
+            Importar Legado
+        </button>
+        {{-- Importar CSV --}}
         <button type="button" onclick="document.getElementById('importModal').classList.remove('hidden')"
                 class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-300 bg-white px-3 py-2 rounded-lg hover:bg-slate-50 transition">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
-            Importar
+            Importar CSV
         </button>
         {{-- Exportar --}}
         <a href="{{ route('painel.employees.export', ['status' => $status, 'q' => $search]) }}"
@@ -101,8 +107,19 @@
                                 {{ strtoupper(substr($emp->user->name ?? '?', 0, 1)) }}
                             </div>
                             <div>
-                                <p class="font-medium text-slate-800">{{ $emp->user->name ?? '—' }}</p>
-                                <p class="text-xs text-slate-400">{{ $emp->user->email ?? '' }}</p>
+                                <div class="flex items-center gap-1.5">
+                                    <p class="font-medium text-slate-800">{{ $emp->user->name ?? '—' }}</p>
+                                    @if($emp->user?->access_pending)
+                                        <span class="inline-flex items-center text-[10px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5 leading-none">Acesso pendente</span>
+                                    @endif
+                                </div>
+                                <p class="text-xs text-slate-400">
+                                    @if($emp->user?->access_pending)
+                                        <span class="italic">E-mail não definido</span>
+                                    @else
+                                        {{ $emp->user->email ?? '' }}
+                                    @endif
+                                </p>
                             </div>
                         </div>
                     </td>
@@ -185,6 +202,57 @@
         @endif
     </div>
     @endif
+</div>
+
+{{-- Modal de importação legada --}}
+<div id="importLegacyModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="font-semibold text-slate-800 text-base">Importar do sistema legado</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Formato: pis;nome;administrador;matricula;rfid;...</p>
+            </div>
+            <button onclick="document.getElementById('importLegacyModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 mb-4 text-xs text-amber-800">
+            <p class="font-semibold mb-1">ℹ️ O que acontece na importação:</p>
+            <ul class="list-disc pl-4 space-y-0.5">
+                <li>Colaboradores são criados com base no <strong>PIS</strong> e <strong>Nome</strong></li>
+                <li>O <strong>acesso ao app fica bloqueado</strong> até o admin definir e-mail e senha</li>
+                <li>Registros com PIS já existente são ignorados</li>
+                <li>Administradores do sistema legado são ignorados</li>
+            </ul>
+        </div>
+
+        <form method="post" action="{{ route('painel.employees.import.legacy') }}" enctype="multipart/form-data">
+            @csrf
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-xs font-medium text-slate-600 mb-1 block">Empresa dos colaboradores</span>
+                    <select name="company_id" required
+                            class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-200 outline-none">
+                        <option value="">Selecione a empresa…</option>
+                        @foreach(\App\Models\Company::where('active', true)->orderBy('name')->get() as $company)
+                            <option value="{{ $company->id }}">{{ $company->name }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-medium text-slate-600 mb-1 block">Arquivo do sistema legado (.txt ou .csv)</span>
+                    <input type="file" name="file" accept=".csv,.txt" required
+                           class="block w-full text-sm text-slate-500 border border-slate-300 rounded-lg cursor-pointer bg-slate-50 focus:outline-none file:mr-3 file:py-2 file:px-4 file:border-0 file:bg-amber-50 file:text-amber-700 file:text-sm file:font-medium">
+                </label>
+            </div>
+            <div class="flex justify-end gap-2 mt-5">
+                <button type="button" onclick="document.getElementById('importLegacyModal').classList.add('hidden')"
+                        class="text-sm px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition">Cancelar</button>
+                <button type="submit" class="text-sm px-4 py-2 rounded-lg bg-amber-600 text-white font-medium hover:bg-amber-700 transition">Importar</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 {{-- Modal de importação --}}
