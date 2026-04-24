@@ -43,6 +43,7 @@ Route::middleware('auth')->group(function () {
         // Pontos
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');
         Route::get('/pontos/exportar', [TimeRecordWebController::class, 'export'])->name('pontos.export');
+        Route::get('/pontos/cartao', [TimeRecordWebController::class, 'cartaoPonto'])->name('pontos.cartao');
 
         // Banco de Horas
         Route::get('/banco-horas', [HourBankWebController::class, 'index'])->name('hour-bank.index');
