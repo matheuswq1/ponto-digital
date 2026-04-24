@@ -50,15 +50,19 @@ class TimeRecord extends Model
     }
 
     /**
-     * Lê o campo datetime do banco (armazenado em UTC) e interpreta
-     * como UTC antes de qualquer conversão de timezone.
+     * Lê o campo datetime do banco (armazenado em UTC) e garante que
+     * o Carbon resultante está em UTC, ignorando o timezone do PHP runtime.
      */
     protected function asDateTime($value): Carbon
     {
-        $carbon = parent::asDateTime($value);
-        // O banco guarda em UTC; forçamos o timezone a UTC para que
-        // conversões posteriores (ex: setTimezone) funcionem corretamente.
-        return $carbon->setTimezone('UTC');
+        if ($value instanceof Carbon) {
+            return $value->copy()->utc();
+        }
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->utc();
+        }
+        // String do banco: '2026-04-24 08:55:30' — interpreta como UTC
+        return Carbon::createFromFormat('Y-m-d H:i:s', $value, 'UTC');
     }
 
     /**

@@ -39,8 +39,13 @@ class TimeRecordEdit extends Model
      */
     protected function asDateTime($value): Carbon
     {
-        $carbon = parent::asDateTime($value);
-        return $carbon->setTimezone('UTC');
+        if ($value instanceof Carbon) {
+            return $value->copy()->utc();
+        }
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->utc();
+        }
+        return Carbon::createFromFormat('Y-m-d H:i:s', $value, 'UTC');
     }
 
     public function getOriginalDatetimeLocalAttribute(): ?Carbon
