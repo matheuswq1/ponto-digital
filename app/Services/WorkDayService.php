@@ -12,6 +12,9 @@ class WorkDayService
 {
     public function calculateAndSave(Employee $employee, string $date): WorkDay
     {
+        // Garantir que departamento e escala individual estão carregados
+        $employee->loadMissing(['workSchedule', 'dept']);
+
         $records = $employee->timeRecords()
             ->whereDate('datetime', $date)
             ->orderBy('datetime')
@@ -66,41 +69,62 @@ class WorkDayService
     public function calculate(Employee $employee, $records, string $date): array
     {
         $schedule = $employee->workSchedule;
+        $dept     = $employee->dept;
+        $deptRef  = ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
 
-        // Separa por tipo para compatibilidade com campos legados
+        // Dia da semana (0=Dom … 6=Sáb) para expected e tolerância por dia
+        $dayOfWeek = (int) Carbon::parse($date)->format('w');
+
+        // Separar entradas e saídas em ordem
         $firstEntry = $records->firstWhere('type', 'entrada');
-        $lastExit = $records->filter(fn ($r) => $r->type === 'saida')->last();
+        $lastExit   = $records->filter(fn ($r) => $r->type === 'saida')->last();
 
         $entryTime = $firstEntry?->datetime?->format('H:i:s');
         $exitTime  = $lastExit?->datetime?->format('H:i:s');
 
-        // Calcula tempo trabalhado somando pares entrada→saída consecutivos
-        // O intervalo de almoço é naturalmente deduzido: quando o colaborador bate
-        // "saída" para almoço e "entrada" ao retornar, esse tempo não entra no total.
-        $totalMinutes    = 0;
-        $totalIntervals  = 0; // minutos fora do trabalho (almoço, pausas)
-        $openEntryAt     = null;
-        $firstExit       = null;
-        $lastEntryAfterExit = null;
+        // Calcula tempo trabalhado somando pares entrada→saída consecutivos.
+        // O intervalo de almoço é naturalmente deduzido: saída para almoço + entrada
+        // ao retornar — esse tempo não entra no total trabalhado.
+        $totalMinutes   = 0;
+        $totalIntervals = 0;
+        $openEntryAt    = null;
+        $firstExit      = null;
 
         foreach ($records as $record) {
             if ($record->type === 'entrada') {
                 if ($firstExit !== null) {
-                    // Retorno de intervalo: acumula o tempo de pausa
                     $totalIntervals += $record->datetime->diffInMinutes($firstExit);
                     $firstExit = null;
                 }
                 $openEntryAt = $record->datetime;
-                $lastEntryAfterExit = $record->datetime;
             } elseif ($record->type === 'saida' && $openEntryAt !== null) {
                 $totalMinutes += $record->datetime->diffInMinutes($openEntryAt);
-                $firstExit   = $record->datetime;
-                $openEntryAt = null;
+                $firstExit    = $record->datetime;
+                $openEntryAt  = null;
             }
         }
 
-        $expectedMinutes = $schedule?->getExpectedMinutes() ?? $employee->dailyExpectedMinutes();
-        $extraMinutes    = $totalMinutes - $expectedMinutes;
+        // Minutos esperados — prioriza departamento (por dia), depois escala individual
+        $expectedMinutes = $deptRef
+            ? $deptRef->getExpectedMinutesForDay($dayOfWeek)
+            : ($schedule?->getExpectedMinutes() ?? $employee->dailyExpectedMinutes());
+
+        // Tolerância — prioriza departamento, depois escala, depois 5 min padrão
+        $tolerance = (int) ($deptRef?->tolerance_minutes ?? $schedule?->tolerance_minutes ?? 5);
+
+        // Diferença bruta entre trabalhado e esperado
+        $diff = $totalMinutes - $expectedMinutes;
+
+        // Só conta como extra/falta se ultrapassar a tolerância
+        $extraMinutes = 0;
+        if ($lastExit !== null) {
+            if ($diff > $tolerance) {
+                $extraMinutes = $diff; // extra → banco de horas (crédito)
+            } elseif ($diff < -$tolerance) {
+                $extraMinutes = $diff; // falta → banco de horas (débito)
+            }
+            // Dentro da tolerância: extraMinutes = 0 (sem movimentação no banco)
+        }
 
         return [
             'entry_time'       => $entryTime,
@@ -109,8 +133,8 @@ class WorkDayService
             'exit_time'        => $exitTime,
             'total_minutes'    => max(0, $totalMinutes),
             'expected_minutes' => $expectedMinutes,
-            'extra_minutes'    => $lastExit ? $extraMinutes : 0,
-            'lunch_minutes'    => $totalIntervals, // total de minutos de pausa registrados
+            'extra_minutes'    => $extraMinutes,
+            'lunch_minutes'    => $totalIntervals,
             'is_closed'        => $lastExit !== null,
         ];
     }

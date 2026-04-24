@@ -204,6 +204,9 @@ class TimeRecordWebController extends Controller
                         ? $ws->getExpectedMinutes()
                         : $emp->dailyExpectedMinutes());
 
+                // Tolerância: usa departamento, depois escala individual, default 5 min
+                $tolerance = (int) ($deptRef?->tolerance_minutes ?? $ws?->tolerance_minutes ?? 5);
+
                 $extraMin     = 0;
                 $extra50Min   = 0;  // sábado
                 $extra100Min  = 0;  // domingo / feriado
@@ -211,17 +214,16 @@ class TimeRecordWebController extends Controller
 
                 if (count($recs) > 0) {
                     if ($isWorkDay) {
-                        // Dia de trabalho: calcular falta/extra vs expected
+                        // Dia de trabalho: só conta extra/falta se ultrapassar tolerância
                         $diff = $workedMin - $expectedMin;
-                        if ($diff > 0) {
+                        if ($diff > $tolerance) {
                             $extraMin = $diff;
                             if ($isSunday)       $extra100Min = $diff;
                             elseif ($isSaturday) $extra50Min  = $diff;
-                            // dias úteis: fica em extraMin normal
                         }
-                        if ($diff < 0) $faltaMin = abs($diff);
+                        if ($diff < -$tolerance) $faltaMin = abs($diff);
                     } else {
-                        // Folga com batidas (trabalhou num dia de descanso)
+                        // Folga com batidas (trabalhou num dia de descanso → tudo é extra)
                         if ($isSunday)       { $extra100Min = $workedMin; $extraMin = $workedMin; }
                         elseif ($isSaturday) { $extra50Min  = $workedMin; $extraMin = $workedMin; }
                         else                 { $extraMin    = $workedMin; }
