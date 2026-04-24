@@ -27,6 +27,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Força o timezone do PHP runtime para o valor configurado no .env
+        // independente do timezone do sistema operacional do servidor
+        date_default_timezone_set(config('app.timezone', 'America/Sao_Paulo'));
+
         Gate::define('manage-companies', [AppPolicy::class, 'manageCompanies']);
         Gate::define('manage-employees', [AppPolicy::class, 'manageEmployees']);
         Gate::define('approve-edit-requests', [AppPolicy::class, 'approveEditRequests']);
