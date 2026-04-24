@@ -34,8 +34,12 @@
                 <div class="flex gap-2">
                     <input type="number" name="minutes" placeholder="Min (ex: 60 ou -30)" required
                            class="flex-1 text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-200 outline-none">
-                    <input type="date" name="date" value="{{ now()->toDateString() }}" required
-                           class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-200 outline-none">
+                    @include('web.components.date-input', [
+                        'name'     => 'date',
+                        'value'    => now()->toDateString(),
+                        'required' => true,
+                        'class'    => 'text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-200 outline-none',
+                    ])
                 </div>
                 <input type="text" name="description" placeholder="Descrição do ajuste" required maxlength="200"
                        class="w-full text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-200 outline-none">

@@ -100,9 +100,13 @@
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Data de admissão <span class="text-rose-500">*</span></label>
-                <input type="date" name="admission_date" value="{{ old('admission_date') }}" required
-                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+                @include('web.components.date-input', [
+                    'name'     => 'admission_date',
+                    'value'    => old('admission_date'),
+                    'label'    => 'Data de admissão <span class="text-rose-500">*</span>',
+                    'required' => true,
+                    'class'    => 'w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none',
+                ])
             </div>
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Matrícula</label>

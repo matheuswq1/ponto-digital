@@ -375,5 +375,51 @@
 })();
 </script>
 
+{{-- ── Máscara de data brasileira (dd/mm/aaaa) ── --}}
+<script>
+(function () {
+    function initDateBr() {
+        document.querySelectorAll('[data-datebr]').forEach(function (inp) {
+            if (inp.dataset.dateBrInit) return;
+            inp.dataset.dateBrInit = '1';
+
+            var hidden = document.getElementById(inp.id + '_iso');
+
+            // Máscara ao digitar
+            inp.addEventListener('input', function () {
+                var v = inp.value.replace(/\D/g, '').substring(0, 8);
+                if (v.length > 4)      v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+                else if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2);
+                inp.value = v;
+                syncIso(v);
+            });
+
+            // Ao sair do campo: valida e formata
+            inp.addEventListener('blur', function () {
+                syncIso(inp.value);
+            });
+
+            function syncIso(br) {
+                if (!hidden) return;
+                var parts = br.split('/');
+                if (parts.length === 3 && parts[2].length === 4) {
+                    var d = parseInt(parts[0],10), m = parseInt(parts[1],10), y = parseInt(parts[2],10);
+                    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1900) {
+                        hidden.value = y + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+                        return;
+                    }
+                }
+                hidden.value = '';
+            }
+        });
+    }
+
+    // Inicializar no carregamento e depois de qualquer mutação DOM (Alpine, etc.)
+    document.addEventListener('DOMContentLoaded', initDateBr);
+    var obs = new MutationObserver(initDateBr);
+    obs.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+
 </body>
 </html>

@@ -287,11 +287,11 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                 @endforeach
             </select>
         </label>
-        <label>
-            De: <input type="date" name="date_from" value="{{ $dateFrom }}">
+        <label style="display:flex;align-items:center;gap:6px;">
+            De: @include('web.components.date-input', ['name'=>'date_from','value'=>$dateFrom,'class'=>'text-sm border border-slate-300 rounded px-2 py-1 bg-slate-700 text-white focus:outline-none'])
         </label>
-        <label>
-            Até: <input type="date" name="date_to" value="{{ $dateTo }}">
+        <label style="display:flex;align-items:center;gap:6px;">
+            Até: @include('web.components.date-input', ['name'=>'date_to','value'=>$dateTo,'class'=>'text-sm border border-slate-300 rounded px-2 py-1 bg-slate-700 text-white focus:outline-none'])
         </label>
         <button type="submit" class="btn-print">Gerar</button>
     </form>

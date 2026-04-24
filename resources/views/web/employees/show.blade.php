@@ -74,11 +74,9 @@
     <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
         <h2 class="text-sm font-semibold text-slate-700">Histórico de pontos</h2>
         <form method="get" class="flex items-center gap-2">
-            <input type="date" name="date_from" value="{{ $dateFrom }}"
-                   class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            @include('web.components.date-input', ['name'=>'date_from','value'=>$dateFrom,'class'=>'text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-200 outline-none'])
             <span class="text-slate-400 text-xs">até</span>
-            <input type="date" name="date_to" value="{{ $dateTo }}"
-                   class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            @include('web.components.date-input', ['name'=>'date_to','value'=>$dateTo,'class'=>'text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-200 outline-none'])
             <button type="submit" class="text-sm font-medium text-white bg-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition">Filtrar</button>
             <a href="{{ route('painel.pontos.cartao', ['employee_id' => $employee->id, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                target="_blank"

@@ -24,13 +24,11 @@
     <div class="flex flex-wrap items-end gap-3">
         <div>
             <label class="block text-xs font-medium text-slate-500 mb-1">De</label>
-            <input type="date" name="date_from" value="{{ $dateFrom }}"
-                   class="text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white">
+            @include('web.components.date-input', ['name'=>'date_from','value'=>$dateFrom])
         </div>
         <div>
             <label class="block text-xs font-medium text-slate-500 mb-1">Até</label>
-            <input type="date" name="date_to" value="{{ $dateTo }}"
-                   class="text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white">
+            @include('web.components.date-input', ['name'=>'date_to','value'=>$dateTo])
         </div>
         <div>
             <label class="block text-xs font-medium text-slate-500 mb-1">Colaborador</label>
