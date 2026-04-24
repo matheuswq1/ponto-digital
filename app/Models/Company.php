@@ -20,6 +20,7 @@ class Company extends Model
         'city',
         'state',
         'zipcode',
+        'ibge_code',
         'logo_url',
         'active',
         'latitude',

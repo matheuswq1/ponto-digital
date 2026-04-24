@@ -69,6 +69,20 @@
                 <input type="text" name="zipcode" value="{{ old('zipcode', $company->zipcode) }}"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">
             </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                    Código IBGE do município
+                    <span class="text-slate-400 font-normal ml-1">— para feriados regionais</span>
+                </label>
+                <input type="text" name="ibge_code" value="{{ old('ibge_code', $company->ibge_code) }}"
+                       maxlength="10" placeholder="Ex: 3550308 (São Paulo/SP)"
+                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">
+                <p class="text-[11px] text-slate-400 mt-1">
+                    Consulte em
+                    <a href="https://servicodados.ibge.gov.br/api/v1/localidades/municipios" target="_blank" class="text-indigo-500 hover:underline">ibge.gov.br</a>
+                    ou pesquise pelo nome do município.
+                </p>
+            </div>
         </div>
     </div>
 

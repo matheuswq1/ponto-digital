@@ -45,6 +45,12 @@ Artisan::command('ponto:sync-offline', function () {
 // Agendamentos
 Schedule::job(new SyncPendingTimeRecords())->hourly()->name('sync-offline-records');
 
+// Sincronizar feriados 1× por ano (1 de novembro às 03:00)
+Schedule::command('ponto:sync-holidays')
+    ->yearlyOn(11, 1, '03:00')
+    ->name('sync-holidays')
+    ->withoutOverlapping();
+
 // Alerta de atraso — roda a cada 15 min entre 06:00 e 11:00
 // O job filtra apenas quem passou do horário+tolerância sem bater entrada
 Schedule::job(new CheckLateArrivals())
