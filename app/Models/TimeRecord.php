@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,18 +33,29 @@ class TimeRecord extends Model
         'original_record_id',
     ];
 
+    protected $appTimezone;
+
     protected function casts(): array
     {
         return [
-            'datetime' => 'datetime',
-            'synced_at' => 'datetime',
-            'latitude' => 'decimal:7',
-            'longitude' => 'decimal:7',
-            'accuracy' => 'decimal:2',
+            'datetime'        => 'datetime',
+            'synced_at'       => 'datetime',
+            'latitude'        => 'decimal:7',
+            'longitude'       => 'decimal:7',
+            'accuracy'        => 'decimal:2',
             'is_mock_location' => 'boolean',
-            'offline' => 'boolean',
-            'is_edited' => 'boolean',
+            'offline'         => 'boolean',
+            'is_edited'       => 'boolean',
         ];
+    }
+
+    /**
+     * Retorna o datetime sempre convertido para o timezone da aplicação.
+     * Substitui o acesso direto a $this->datetime em toda a aplicação.
+     */
+    public function getDatetimeLocalAttribute(): ?Carbon
+    {
+        return $this->datetime?->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
     }
 
     public function employee(): BelongsTo

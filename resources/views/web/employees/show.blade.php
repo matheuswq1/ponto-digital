@@ -105,7 +105,7 @@
             <tbody class="divide-y divide-slate-100">
                 @foreach($records as $rec)
                 <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="px-5 py-3 font-medium text-slate-700">{{ $rec->datetime?->format('d/m/Y H:i') ?? '—' }}</td>
+                    <td class="px-5 py-3 font-medium text-slate-700">{{ $rec->datetime_local?->format('d/m/Y H:i') ?? '—' }}</td>
                     <td class="px-5 py-3">
                         @php
                             $typeColors = ['entrada'=>'emerald','saida'=>'rose','intervalo_inicio'=>'amber','intervalo_fim'=>'sky'];

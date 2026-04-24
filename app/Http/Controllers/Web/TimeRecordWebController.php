@@ -7,7 +7,6 @@ use App\Models\Employee;
 use App\Models\TimeRecord;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class TimeRecordWebController extends Controller
@@ -21,8 +20,12 @@ class TimeRecordWebController extends Controller
         $search      = $request->get('q');
         $employeeId  = $request->get('employee_id');
 
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+
         $records = TimeRecord::with('employee.user')
-            ->whereBetween(DB::raw('DATE(datetime)'), [$dateFrom, $dateTo])
+            ->whereBetween('datetime', [$from, $to])
             ->when($search, fn($q) => $q->whereHas('employee.user', fn($u) =>
                 $u->where('name', 'like', "%{$search}%")
             ))
@@ -46,8 +49,12 @@ class TimeRecordWebController extends Controller
         $dateTo     = $request->get('date_to', today()->toDateString());
         $employeeId = $request->get('employee_id');
 
+        $tz   = config('app.timezone', 'America/Sao_Paulo');
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+
         $records = TimeRecord::with('employee.user')
-            ->whereBetween(DB::raw('DATE(datetime)'), [$dateFrom, $dateTo])
+            ->whereBetween('datetime', [$from, $to])
             ->when($employeeId, fn($q) => $q->where('employee_id', $employeeId))
             ->orderBy('datetime')
             ->get();
@@ -72,8 +79,8 @@ class TimeRecordWebController extends Controller
                     $rec->id,
                     $rec->employee->user->name ?? '',
                     $rec->employee->user->email ?? '',
-                    $rec->type,
-                    $rec->datetime?->format('d/m/Y H:i:s') ?? '',
+                    $rec->getTypeLabel(),
+                    $rec->datetime_local?->format('d/m/Y H:i:s') ?? '',
                     $rec->latitude ?? '',
                     $rec->longitude ?? '',
                     $rec->offline ? 'Offline' : 'Online',

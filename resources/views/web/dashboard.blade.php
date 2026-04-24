@@ -123,7 +123,7 @@
                 <span class="h-2 w-2 rounded-full {{ $c['dot'] }} shrink-0"></span>
                 <p class="flex-1 text-sm text-slate-700 truncate">{{ $rec->employee->user->name ?? '—' }}</p>
                 <span class="text-xs px-2 py-0.5 rounded-full {{ $c['badge'] }}">{{ $labels[$rec->type] ?? $rec->type }}</span>
-                <span class="text-xs text-slate-400 shrink-0">{{ \Carbon\Carbon::parse($rec->datetime)->format('H:i') }}</span>
+                <span class="text-xs text-slate-400 shrink-0">{{ $rec->datetime_local?->format('H:i') }}</span>
             </li>
             @endforeach
         </ul>

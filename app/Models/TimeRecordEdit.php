@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,6 +32,16 @@ class TimeRecordEdit extends Model
             'new_datetime' => 'datetime',
             'approved_at' => 'datetime',
         ];
+    }
+
+    public function getOriginalDatetimeLocalAttribute(): ?Carbon
+    {
+        return $this->original_datetime?->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+    }
+
+    public function getNewDatetimeLocalAttribute(): ?Carbon
+    {
+        return $this->new_datetime?->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
     }
 
     public function timeRecord(): BelongsTo

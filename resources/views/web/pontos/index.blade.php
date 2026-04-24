@@ -93,7 +93,7 @@
                     $initial = strtoupper(substr($name, 0, 1));
                     $colorCls = $typeColors[$rec->type] ?? 'bg-slate-100 text-slate-600';
                     $label    = $typeLabels[$rec->type] ?? $rec->type;
-                    $dt = \Carbon\Carbon::parse($rec->datetime);
+                    $dt = $rec->datetime_local;
                 @endphp
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="px-5 py-3">

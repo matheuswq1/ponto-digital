@@ -57,16 +57,16 @@
             <div class="px-5 py-4">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Registro original</p>
                 <p class="text-sm font-semibold text-slate-700">{{ $origLabel }}</p>
-                <p class="text-sm text-slate-500">{{ $e->original_datetime?->format('d/m/Y') }}</p>
-                <p class="text-xl font-bold text-slate-800 mt-1">{{ $e->original_datetime?->format('H:i') }}</p>
+                <p class="text-sm text-slate-500">{{ $e->original_datetime_local?->format('d/m/Y') }}</p>
+                <p class="text-xl font-bold text-slate-800 mt-1">{{ $e->original_datetime_local?->format('H:i') }}</p>
             </div>
 
             {{-- Seta + Novo --}}
             <div class="px-5 py-4">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Novo valor proposto</p>
                 <p class="text-sm font-semibold text-indigo-700">{{ $newLabel }}</p>
-                <p class="text-sm text-slate-500">{{ $e->new_datetime?->format('d/m/Y') }}</p>
-                <p class="text-xl font-bold text-indigo-700 mt-1">{{ $e->new_datetime?->format('H:i') }}</p>
+                <p class="text-sm text-slate-500">{{ $e->new_datetime_local?->format('d/m/Y') }}</p>
+                <p class="text-xl font-bold text-indigo-700 mt-1">{{ $e->new_datetime_local?->format('H:i') }}</p>
             </div>
 
             {{-- Justificativa --}}
