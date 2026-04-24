@@ -3,8 +3,7 @@ class TimeRecordModel {
   final int employeeId;
   final String type;
   final String typeLabel;
-  final DateTime datetime;
-  final String datetimeLocal;
+  final DateTime datetime; // sempre em hora local do dispositivo
   final double? latitude;
   final double? longitude;
   final String? photoUrl;
@@ -20,7 +19,6 @@ class TimeRecordModel {
     required this.type,
     required this.typeLabel,
     required this.datetime,
-    required this.datetimeLocal,
     this.latitude,
     this.longitude,
     this.photoUrl,
@@ -31,6 +29,13 @@ class TimeRecordModel {
     this.deviceId,
   });
 
+  /// Horário formatado no fuso do dispositivo: "dd/MM/yyyy HH:mm:ss"
+  String get datetimeLocal {
+    final d = datetime; // já está em local após .toLocal() no fromJson
+    final pad = (int n) => n.toString().padLeft(2, '0');
+    return '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}:${pad(d.second)}';
+  }
+
   factory TimeRecordModel.fromJson(Map<String, dynamic> json) {
     final loc = json['location'] as Map<String, dynamic>?;
     return TimeRecordModel(
@@ -38,8 +43,7 @@ class TimeRecordModel {
       employeeId: json['employee_id'],
       type: json['type'],
       typeLabel: json['type_label'] ?? json['type'],
-      datetime: DateTime.parse(json['datetime']).toLocal(),
-      datetimeLocal: json['datetime_local'] ?? '',
+      datetime: DateTime.parse(json['datetime']).toLocal(), // UTC → fuso do dispositivo
       latitude: _toDouble(loc?['latitude']),
       longitude: _toDouble(loc?['longitude']),
       photoUrl: json['photo_url'],
@@ -64,7 +68,6 @@ class TimeRecordModel {
         'type': type,
         'type_label': typeLabel,
         'datetime': datetime.toUtc().toIso8601String(),
-        'datetime_local': datetimeLocal,
         'location': {
           'latitude': latitude,
           'longitude': longitude,
@@ -95,7 +98,6 @@ class TimeRecordModel {
         type: type,
         typeLabel: typeLabel,
         datetime: datetime,
-        datetimeLocal: datetimeLocal,
         latitude: latitude,
         longitude: longitude,
         photoUrl: photoUrl ?? this.photoUrl,

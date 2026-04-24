@@ -14,8 +14,7 @@ class TimeRecordResource extends JsonResource
             'employee_id' => $this->employee_id,
             'type' => $this->type,
             'type_label' => $this->getTypeLabel(),
-            'datetime' => $this->datetime?->toISOString(),
-            'datetime_local' => $this->datetime?->setTimezone(config('app.timezone'))->format('d/m/Y H:i:s'),
+            'datetime' => $this->datetime?->toISOString(), // sempre UTC — o cliente converte para fuso local
             'location' => [
                 'latitude' => $this->latitude,
                 'longitude' => $this->longitude,
