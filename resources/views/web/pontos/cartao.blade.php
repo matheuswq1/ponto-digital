@@ -431,31 +431,33 @@ if (!function_exists('ponto_cartao_fmt_min')) {
     <table class="ponto-table">
         <thead>
             <tr>
-                <th rowspan="2" style="width:18mm;">Data</th>
-                <th rowspan="2" style="width:8mm;">Dia</th>
+                <th rowspan="2" style="width:16mm;">Data</th>
+                <th rowspan="2" style="width:7mm;">Dia</th>
                 <th colspan="2">1ª Batida</th>
                 <th colspan="2">2ª Batida</th>
                 <th colspan="2">3ª Batida</th>
-                <th rowspan="2" style="width:12mm;">Trabalhado</th>
-                <th rowspan="2" style="width:10mm;">Extra</th>
-                <th rowspan="2" style="width:10mm;">Falta</th>
-                <th rowspan="2" style="width:14mm;">Obs</th>
+                <th rowspan="2" style="width:11mm;">Trabalhado</th>
+                <th rowspan="2" style="width:9mm;">Faltas</th>
+                <th rowspan="2" style="width:9mm;">EX 50%</th>
+                <th rowspan="2" style="width:9mm;">EX 100%</th>
+                <th rowspan="2" style="width:9mm; color:#94a3b8;">EXF01</th>
+                <th rowspan="2" style="width:9mm;">Extras</th>
             </tr>
             <tr class="sub-header">
-                <th style="width:11mm;">ENT 1</th>
-                <th style="width:11mm;">SAI 1</th>
-                <th style="width:11mm;">ENT 2</th>
-                <th style="width:11mm;">SAI 2</th>
-                <th style="width:11mm;">ENT 3</th>
-                <th style="width:11mm;">SAI 3</th>
+                <th style="width:10mm;">ENT 1</th>
+                <th style="width:10mm;">SAI 1</th>
+                <th style="width:10mm;">ENT 2</th>
+                <th style="width:10mm;">SAI 2</th>
+                <th style="width:10mm;">ENT 3</th>
+                <th style="width:10mm;">SAI 3</th>
             </tr>
         </thead>
         <tbody>
             @foreach($card['days'] as $day)
             @php
-                $dw       = (int) $day['date']->format('w');
-                $isWeekend= in_array($dw, [0,6]);
-                $rowClass = $day['folga'] ? 'folga' : ($day['sem_ponto'] ? 'sem-ponto' : '');
+                $dw        = (int) $day['date']->format('w');
+                $isWeekend = in_array($dw, [0,6]);
+                $rowClass  = $day['folga'] ? 'folga' : ($day['sem_ponto'] ? 'sem-ponto' : '');
             @endphp
             <tr class="{{ $rowClass }}">
                 <td class="td-date">{{ $day['date']->format('d/m/Y') }}</td>
@@ -464,17 +466,18 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                     <td colspan="6" class="folga-label">
                         {{ $isWeekend ? 'Folga' : 'Folga / Feriado' }}
                     </td>
-                    <td colspan="3"></td>
-                    <td></td>
+                    <td colspan="6"></td>
                 @else
                     @foreach($day['batidas'] as $bat)
                         <td>{{ $bat['ent'] }}</td>
                         <td>{{ $bat['sai'] }}</td>
                     @endforeach
                     <td class="td-horas">{{ ponto_cartao_fmt_min($day['worked_min']) }}</td>
-                    <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_min']) }}</td>
                     <td class="td-falta {{ $day['sem_ponto'] ? 'falta-col' : '' }}">{{ ponto_cartao_fmt_min($day['falta_min']) }}</td>
-                    <td></td>
+                    <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_50_min']) }}</td>
+                    <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_100_min']) }}</td>
+                    <td style="color:#cbd5e1;">—</td>
+                    <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_min']) }}</td>
                 @endif
             </tr>
             @endforeach
@@ -483,9 +486,11 @@ if (!function_exists('ponto_cartao_fmt_min')) {
             <tr>
                 <td colspan="8" style="text-align:right;padding-right:6px;">TOTAIS</td>
                 <td>{{ ponto_cartao_fmt_min($card['total_worked']) }}</td>
-                <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra']) }}</td>
                 <td style="color:#fca5a5;">{{ ponto_cartao_fmt_min($card['total_falta']) }}</td>
-                <td></td>
+                <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra_50']) }}</td>
+                <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra_100']) }}</td>
+                <td style="color:#64748b;">—</td>
+                <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra']) }}</td>
             </tr>
         </tfoot>
     </table>

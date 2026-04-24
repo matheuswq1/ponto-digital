@@ -162,15 +162,19 @@ class TimeRecordWebController extends Controller
 
             $days   = [];
             $totalWorkedMin  = 0;
-            $totalExtraMin   = 0;
+            $totalExtraMin   = 0;  // extras em dias úteis (seg–sex não feriado)
+            $totalExtra50Min = 0;  // extras em sábado
+            $totalExtra100Min= 0;  // extras em domingo ou feriado
             $totalFaltaMin   = 0;
 
             $period = CarbonPeriod::create($dateFrom, $dateTo);
             foreach ($period as $date) {
-                $dateStr  = $date->toDateString();
+                $dateStr   = $date->toDateString();
                 $dayOfWeek = (int) $date->format('w'); // 0=Dom, 6=Sab
                 $isWorkDay = in_array($dayOfWeek, $workDays);
-                $recs     = $byDay[$dateStr] ?? [];
+                $recs      = $byDay[$dateStr] ?? [];
+                $isSunday  = ($dayOfWeek === 0);
+                $isSaturday= ($dayOfWeek === 6);
 
                 // Separar entradas e saídas em ordem
                 $entries = array_values(array_filter($recs, fn($r) => $r->type === 'entrada'));
@@ -185,7 +189,7 @@ class TimeRecordWebController extends Controller
                     ];
                 }
 
-                // Calcular minutos trabalhados no dia
+                // Calcular minutos trabalhados (soma dos pares ENT→SAI)
                 $workedMin = 0;
                 foreach ($entries as $idx => $ent) {
                     $sai = $exits[$idx] ?? null;
@@ -199,39 +203,62 @@ class TimeRecordWebController extends Controller
                     : (($ws && $ws->entry_time && $ws->exit_time)
                         ? $ws->getExpectedMinutes()
                         : $emp->dailyExpectedMinutes());
-                $extraMin    = 0;
-                $faltaMin    = 0;
 
-                if ($isWorkDay && count($recs) > 0) {
-                    $diff = $workedMin - $expectedMin;
-                    if ($diff > 0)  $extraMin = $diff;
-                    if ($diff < 0)  $faltaMin = abs($diff);
-                    $totalWorkedMin += $workedMin;
-                    $totalExtraMin  += $extraMin;
-                    $totalFaltaMin  += $faltaMin;
+                $extraMin     = 0;
+                $extra50Min   = 0;  // sábado
+                $extra100Min  = 0;  // domingo / feriado
+                $faltaMin     = 0;
+
+                if (count($recs) > 0) {
+                    if ($isWorkDay) {
+                        // Dia de trabalho: calcular falta/extra vs expected
+                        $diff = $workedMin - $expectedMin;
+                        if ($diff > 0) {
+                            $extraMin = $diff;
+                            if ($isSunday)       $extra100Min = $diff;
+                            elseif ($isSaturday) $extra50Min  = $diff;
+                            // dias úteis: fica em extraMin normal
+                        }
+                        if ($diff < 0) $faltaMin = abs($diff);
+                    } else {
+                        // Folga com batidas (trabalhou num dia de descanso)
+                        if ($isSunday)       { $extra100Min = $workedMin; $extraMin = $workedMin; }
+                        elseif ($isSaturday) { $extra50Min  = $workedMin; $extraMin = $workedMin; }
+                        else                 { $extraMin    = $workedMin; }
+                    }
+
+                    $totalWorkedMin  += $workedMin;
+                    $totalExtraMin   += $extraMin;
+                    $totalExtra50Min += $extra50Min;
+                    $totalExtra100Min+= $extra100Min;
+                    $totalFaltaMin   += $faltaMin;
                 }
 
                 $days[] = [
-                    'date'       => $date->copy(),
-                    'date_str'   => $dateStr,
-                    'is_work_day'=> $isWorkDay,
-                    'batidas'    => $batidas,
-                    'worked_min' => $workedMin,
-                    'extra_min'  => $extraMin,
-                    'falta_min'  => $faltaMin,
-                    'folga'      => !$isWorkDay,
-                    'sem_ponto'  => $isWorkDay && count($recs) === 0,
+                    'date'        => $date->copy(),
+                    'date_str'    => $dateStr,
+                    'is_work_day' => $isWorkDay,
+                    'batidas'     => $batidas,
+                    'worked_min'  => $workedMin,
+                    'extra_min'   => $extraMin,
+                    'extra_50_min'=> $extra50Min,
+                    'extra_100_min'=> $extra100Min,
+                    'falta_min'   => $faltaMin,
+                    'folga'       => !$isWorkDay && count($recs) === 0,
+                    'sem_ponto'   => $isWorkDay && count($recs) === 0,
                 ];
             }
 
             $cards[] = [
-                'employee'        => $emp,
-                'days'            => $days,
-                'total_worked'    => $totalWorkedMin,
-                'total_extra'     => $totalExtraMin,
-                'total_falta'     => $totalFaltaMin,
-                'date_from'       => $dateFrom,
-                'date_to'         => $dateTo,
+                'employee'          => $emp,
+                'days'              => $days,
+                'total_worked'      => $totalWorkedMin,
+                'total_extra'       => $totalExtraMin,
+                'total_extra_50'    => $totalExtra50Min,
+                'total_extra_100'   => $totalExtra100Min,
+                'total_falta'       => $totalFaltaMin,
+                'date_from'         => $dateFrom,
+                'date_to'           => $dateTo,
             ];
         }
 
