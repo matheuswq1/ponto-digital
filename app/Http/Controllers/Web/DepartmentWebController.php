@@ -206,8 +206,9 @@ class DepartmentWebController extends Controller
         }
         $unique = array_unique(array_values($vals));
         if (count($unique) === 1) {
+            // Todos os dias iguais → usa o campo "Intervalo padrão" como fonte da verdade
             return [
-                'lunch_minutes'        => (int) reset($unique),
+                'lunch_minutes'        => $defaultLunch,
                 'lunch_minutes_by_day' => null,
             ];
         }
