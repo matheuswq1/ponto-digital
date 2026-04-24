@@ -24,10 +24,11 @@ class Department extends Model
     protected function casts(): array
     {
         return [
-            'work_days'         => 'array',
-            'active'            => 'boolean',
-            'lunch_minutes'     => 'integer',
-            'tolerance_minutes' => 'integer',
+            'work_days'              => 'array',
+            'active'                 => 'boolean',
+            'lunch_minutes'          => 'integer',
+            'tolerance_minutes'      => 'integer',
+            'lunch_minutes_by_day'   => 'array',
         ];
     }
 
