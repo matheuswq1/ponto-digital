@@ -201,8 +201,8 @@ class TimeRecordWebController extends Controller
             $workDaysProcessed = $emp->workDays()
                 ->whereBetween('date', [$dateFrom, $dateTo])
                 ->where('is_closed', true)
-                ->pluck('extra_minutes', 'date')
-                ->mapKeys(fn($v, $k) => \Carbon\Carbon::parse($k)->toDateString())
+                ->get(['date', 'extra_minutes'])
+                ->mapWithKeys(fn($wd) => [\Carbon\Carbon::parse($wd->date)->toDateString() => $wd->extra_minutes])
                 ->toArray();
 
             // Agrupar batidas por dia (horário local)
