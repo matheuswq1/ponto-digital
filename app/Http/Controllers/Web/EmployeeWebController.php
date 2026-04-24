@@ -449,7 +449,13 @@ class EmployeeWebController extends Controller
             fclose($handle);
             return back()->with('error', 'Arquivo inválido ou vazio.');
         }
-        $header = array_map('trim', $header);
+        $header = array_map(function ($val) {
+            $val = trim($val);
+            if (!mb_detect_encoding($val, 'UTF-8', true)) {
+                $val = mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+            }
+            return strtolower($val);
+        }, $header);
 
         // Validar que é o formato legado esperado
         if (!in_array('pis', $header) || !in_array('nome', $header)) {
@@ -467,6 +473,14 @@ class EmployeeWebController extends Controller
             if (count($data) < 2) {
                 continue;
             }
+
+            // Converter encoding: o arquivo legado pode estar em Latin-1/Windows-1252
+            $data = array_map(function ($val) {
+                if (!mb_detect_encoding($val, 'UTF-8', true)) {
+                    return mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+                }
+                return $val;
+            }, $data);
 
             // Mapear colunas disponíveis
             $colCount = min(count($header), count($data));
