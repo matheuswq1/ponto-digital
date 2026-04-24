@@ -132,7 +132,7 @@
     </div>
 
     {{-- Escala de trabalho --}}
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6" data-schedule-box>
         <div class="flex items-center gap-2 mb-4">
             <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
             <h2 class="text-sm font-semibold text-slate-700">Escala de trabalho</h2>
@@ -286,16 +286,75 @@
 <script>
 (function () {
     const company = document.getElementById('employee_company_id');
-    const dept = document.getElementById('employee_department_id');
+    const dept    = document.getElementById('employee_department_id');
     if (!company || !dept) return;
+
+    /* --- filtrar departamentos por empresa --- */
     function filterDept() {
         const cid = company.value;
         dept.querySelectorAll('option[data-company]').forEach(function (o) {
             o.hidden = cid && o.dataset.company !== cid;
         });
     }
-    company.addEventListener('change', filterDept);
+    company.addEventListener('change', function () {
+        filterDept();
+        /* ao mudar empresa, reset departamento → limpa aviso */
+        dept.value = '';
+        removeNotice();
+    });
     filterDept();
+
+    /* --- preencher escala ao selecionar departamento --- */
+    const baseUrl = '{{ url("painel/departamentos") }}';
+
+    function removeNotice() {
+        const n = document.getElementById('dept-notice');
+        if (n) n.remove();
+    }
+
+    function showNotice() {
+        removeNotice();
+        const box = document.querySelector('[data-schedule-box]');
+        if (!box) return;
+        const div = document.createElement('div');
+        div.id = 'dept-notice';
+        div.className = 'mb-3 flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2 text-xs text-indigo-700';
+        div.innerHTML = '<svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>'
+            + 'Escala preenchida com os dados do departamento. Pode ajustar manualmente se necessário.';
+        box.insertBefore(div, box.firstChild);
+    }
+
+    dept.addEventListener('change', function () {
+        const deptId = this.value;
+        if (!deptId) { removeNotice(); return; }
+
+        fetch(baseUrl + '/' + deptId + '/dados-escala', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            if (!data) return;
+
+            /* Horários */
+            var entry = document.querySelector('[name="ws_entry_time"]');
+            var exit  = document.querySelector('[name="ws_exit_time"]');
+            var lunch = document.querySelector('[name="ws_lunch_minutes"]');
+            var tol   = document.querySelector('[name="ws_tolerance"]');
+
+            if (entry && data.entry_time) entry.value = data.entry_time;
+            if (exit  && data.exit_time)  exit.value  = data.exit_time;
+            if (lunch) lunch.value = data.lunch_minutes || '';
+            if (tol)   tol.value  = data.tolerance || 5;
+
+            /* Dias de trabalho */
+            document.querySelectorAll('[name="ws_work_days[]"]').forEach(function (cb) {
+                cb.checked = data.work_days.indexOf(parseInt(cb.value, 10)) !== -1;
+            });
+
+            showNotice();
+        })
+        .catch(function () { /* silently ignore */ });
+    });
 })();
 </script>
 @endsection

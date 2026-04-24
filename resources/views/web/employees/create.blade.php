@@ -124,7 +124,7 @@
 <script>
 (function () {
     const company = document.getElementById('employee_company_id');
-    const dept = document.getElementById('employee_department_id');
+    const dept    = document.getElementById('employee_department_id');
     if (!company || !dept) return;
     function filterDept() {
         const cid = company.value;
@@ -132,7 +132,7 @@
             o.hidden = cid && o.dataset.company !== cid;
         });
     }
-    company.addEventListener('change', filterDept);
+    company.addEventListener('change', function () { filterDept(); dept.value = ''; });
     filterDept();
 })();
 </script>

@@ -47,6 +47,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/departamentos', [DepartmentWebController::class, 'store'])->name('departments.store');
         Route::get('/departamentos/{department}/editar', [DepartmentWebController::class, 'edit'])->name('departments.edit');
         Route::post('/departamentos/{department}/atualizar', [DepartmentWebController::class, 'update'])->name('departments.update');
+        Route::get('/departamentos/{department}/dados-escala', [DepartmentWebController::class, 'dadosEscala'])->name('departments.dados-escala');
 
         // Pontos
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');

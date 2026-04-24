@@ -175,6 +175,26 @@ class DepartmentWebController extends Controller
             ->with('success', 'Departamento atualizado com sucesso.');
     }
 
+    public function dadosEscala(Department $department): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('manage-employees');
+        $this->ensureCanAccessDepartment($department);
+
+        $workDays = is_array($department->work_days) ? $department->work_days : [1,2,3,4,5];
+
+        return response()->json([
+            'entry_time'     => $department->entry_time
+                ? \Carbon\Carbon::parse($department->entry_time)->format('H:i')
+                : null,
+            'exit_time'      => $department->exit_time
+                ? \Carbon\Carbon::parse($department->exit_time)->format('H:i')
+                : null,
+            'lunch_minutes'  => $department->lunch_minutes,
+            'tolerance'      => $department->tolerance_minutes ?? 5,
+            'work_days'      => array_values(array_map('intval', $workDays)),
+        ]);
+    }
+
     private function ensureCanAccessDepartment(Department $department): void
     {
         if (auth()->user()->isGestor() && (int) $department->company_id !== (int) auth()->user()->company_id) {
