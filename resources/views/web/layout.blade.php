@@ -154,6 +154,14 @@
             <span>Colaboradores</span>
         </a>
 
+        <a href="{{ route('painel.departments.index') }}"
+           class="nav-item {{ request()->routeIs('painel.departments.*') ? 'active' : '' }}">
+            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.5h19.5M2.25 12h19.5m-19.5 4.5h19.5M4.5 2.25h4.5v4.5H4.5V2.25Zm10.5 0h4.5v4.5H15V2.25Zm-10.5 15h4.5v4.5H4.5v-4.5Zm10.5 0h4.5v4.5H15v-4.5Z"/>
+            </svg>
+            <span>Departamentos</span>
+        </a>
+
         @php $pendingHourBank = \App\Models\HourBankRequest::where('status','pendente')->count(); @endphp
         <a href="{{ route('painel.hour-bank.index') }}"
            class="nav-item {{ request()->routeIs('painel.hour-bank.*') ? 'active' : '' }}">

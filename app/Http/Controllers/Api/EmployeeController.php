@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Services\EmployeeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
@@ -37,7 +38,7 @@ class EmployeeController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Employee::with('user', 'company', 'workSchedule')
+        $query = Employee::with('user', 'company', 'workSchedule', 'dept')
             ->when($request->company_id, fn ($q) => $q->where('company_id', $request->company_id))
             ->when($request->search, function ($q) use ($request) {
                 $q->whereHas('user', function ($uq) use ($request) {
@@ -79,6 +80,10 @@ class EmployeeController extends Controller
             'cpf' => 'required|string|max:14|unique:employees,cpf',
             'cargo' => 'required|string|max:100',
             'department' => 'nullable|string|max:100',
+            'department_id' => [
+                'nullable',
+                Rule::exists('departments', 'id')->where(fn ($q) => $q->where('company_id', (int) $request->company_id)),
+            ],
             'registration_number' => 'nullable|string|max:50',
             'admission_date' => 'required|date',
             'contract_type' => 'nullable|in:clt,pj,estagio,temporario',
@@ -113,7 +118,7 @@ class EmployeeController extends Controller
     {
         $this->assertCanAccessEmployee($request, $employee);
 
-        $employee->load('user', 'company', 'workSchedule', 'workSchedules');
+        $employee->load('user', 'company', 'workSchedule', 'workSchedules', 'dept');
 
         return response()->json(['data' => new EmployeeResource($employee)]);
     }
@@ -126,6 +131,10 @@ class EmployeeController extends Controller
             'name' => 'nullable|string|max:255',
             'cargo' => 'nullable|string|max:100',
             'department' => 'nullable|string|max:100',
+            'department_id' => [
+                'nullable',
+                Rule::exists('departments', 'id')->where(fn ($q) => $q->where('company_id', (int) $employee->company_id)),
+            ],
             'weekly_hours' => 'nullable|integer|min:1|max:60',
             'active' => 'nullable|boolean',
         ]);

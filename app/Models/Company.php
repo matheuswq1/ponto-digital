@@ -55,6 +55,11 @@ class Company extends Model
         return $this->hasMany(Employee::class);
     }
 
+    public function departments(): HasMany
+    {
+        return $this->hasMany(Department::class);
+    }
+
     public function activeEmployees(): HasMany
     {
         return $this->hasMany(Employee::class)->where('active', true);

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DepartmentWebController;
 use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
 use App\Http\Controllers\Web\HourBankWebController;
@@ -39,6 +40,13 @@ Route::middleware('auth')->group(function () {
         Route::match(['PUT', 'POST'], '/colaboradores/{employee}/atualizar', [EmployeeWebController::class, 'update'])->name('employees.update');
         Route::post('/colaboradores/{employee}/toggle', [EmployeeWebController::class, 'toggle'])->name('employees.toggle');
         Route::post('/colaboradores/{employee}/senha', [EmployeeWebController::class, 'resetPassword'])->name('employees.reset-password');
+
+        // Departamentos
+        Route::get('/departamentos', [DepartmentWebController::class, 'index'])->name('departments.index');
+        Route::get('/departamentos/criar', [DepartmentWebController::class, 'create'])->name('departments.create');
+        Route::post('/departamentos', [DepartmentWebController::class, 'store'])->name('departments.store');
+        Route::get('/departamentos/{department}/editar', [DepartmentWebController::class, 'edit'])->name('departments.edit');
+        Route::post('/departamentos/{department}/atualizar', [DepartmentWebController::class, 'update'])->name('departments.update');
 
         // Pontos
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');

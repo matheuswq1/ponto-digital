@@ -83,16 +83,23 @@
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Departamento</label>
-                <input type="text" name="department" value="{{ old('department', $employee->department) }}"
-                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
-            </div>
-            <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Empresa <span class="text-rose-500">*</span></label>
-                <select name="company_id" required
+                <select name="company_id" id="employee_company_id" required
                         class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white">
                     @foreach($companies as $company)
                         <option value="{{ $company->id }}" @selected(old('company_id', $employee->company_id) == $company->id)>{{ $company->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Departamento</label>
+                <select name="department_id" id="employee_department_id"
+                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white">
+                    <option value="">— Nenhum —</option>
+                    @foreach($departments as $d)
+                        <option value="{{ $d->id }}" data-company="{{ $d->company_id }}" @selected(old('department_id', $employee->department_id) == $d->id)>
+                            {{ $d->company?->name ?? '' }} — {{ $d->name }}
+                        </option>
                     @endforeach
                 </select>
             </div>
@@ -276,5 +283,19 @@
 </div>
 
 </div>
-
+<script>
+(function () {
+    const company = document.getElementById('employee_company_id');
+    const dept = document.getElementById('employee_department_id');
+    if (!company || !dept) return;
+    function filterDept() {
+        const cid = company.value;
+        dept.querySelectorAll('option[data-company]').forEach(function (o) {
+            o.hidden = cid && o.dataset.company !== cid;
+        });
+    }
+    company.addEventListener('change', filterDept);
+    filterDept();
+})();
+</script>
 @endsection

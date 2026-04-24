@@ -16,6 +16,7 @@ class Employee extends Model
     protected $fillable = [
         'user_id',
         'company_id',
+        'department_id',
         'cpf',
         'cargo',
         'department',
@@ -49,6 +50,12 @@ class Employee extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    /** Departamento cadastrado (escala do menu Departamentos). */
+    public function dept(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id');
     }
 
     public function timeRecords(): HasMany

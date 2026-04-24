@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\TimeRecord;
 use App\Models\User;
@@ -13,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class EmployeeWebController extends Controller
@@ -24,7 +26,7 @@ class EmployeeWebController extends Controller
         $search = $request->get('q');
         $status = $request->get('status', 'active');
 
-        $employees = Employee::with('user', 'company')
+        $employees = Employee::with('user', 'company', 'dept')
             ->when($status === 'inactive', fn($q) => $q->where('active', false))
             ->when($status === 'all', fn($q) => $q)
             ->when($status === 'active' || !$status, fn($q) => $q->where('active', true))
@@ -44,8 +46,10 @@ class EmployeeWebController extends Controller
     public function create(): View
     {
         $this->authorize('manage-employees');
-        $companies = Company::where('active', true)->orderBy('name')->get();
-        return view('web.employees.create', compact('companies'));
+        $companies   = Company::where('active', true)->orderBy('name')->get();
+        $departments = $this->departmentsForForm();
+
+        return view('web.employees.create', compact('companies', 'departments'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -57,8 +61,11 @@ class EmployeeWebController extends Controller
             'email'             => 'required|email|unique:users,email',
             'cpf'               => 'required|string|size:14|unique:employees,cpf',
             'cargo'             => 'required|string|max:100',
-            'department'        => 'nullable|string|max:100',
             'company_id'        => 'required|exists:companies,id',
+            'department_id'     => [
+                'nullable',
+                Rule::exists('departments', 'id')->where(fn ($q) => $q->where('company_id', (int) $request->company_id)),
+            ],
             'admission_date'    => 'required|date',
             'contract_type'     => 'required|in:clt,pj,estagio,temporario',
             'weekly_hours'      => 'required|integer|min:1|max:60',
@@ -72,6 +79,10 @@ class EmployeeWebController extends Controller
         ]);
 
         DB::transaction(function () use ($request) {
+            $dept = $request->filled('department_id')
+                ? Department::find($request->integer('department_id'))
+                : null;
+
             $user = User::create([
                 'name'     => $request->name,
                 'email'    => $request->email,
@@ -82,9 +93,10 @@ class EmployeeWebController extends Controller
             Employee::create([
                 'user_id'             => $user->id,
                 'company_id'          => $request->company_id,
+                'department_id'       => $dept?->id,
                 'cpf'                 => $request->cpf,
                 'cargo'               => $request->cargo,
-                'department'          => $request->department,
+                'department'          => $dept?->name,
                 'registration_number' => $request->registration_number,
                 'admission_date'      => $request->admission_date,
                 'contract_type'       => $request->contract_type,
@@ -102,7 +114,7 @@ class EmployeeWebController extends Controller
     {
         $this->authorize('manage-employees');
 
-        $employee->load('user', 'company', 'workSchedule');
+        $employee->load('user', 'company', 'workSchedule', 'dept');
 
         $dateFrom = $request->get('date_from', now()->startOfMonth()->toDateString());
         $dateTo   = $request->get('date_to', now()->toDateString());
@@ -121,9 +133,11 @@ class EmployeeWebController extends Controller
     public function edit(Employee $employee): View
     {
         $this->authorize('manage-employees');
-        $employee->load('user', 'company', 'workSchedule');
-        $companies = Company::where('active', true)->orderBy('name')->get();
-        return view('web.employees.edit', compact('employee', 'companies'));
+        $employee->load('user', 'company', 'workSchedule', 'dept');
+        $companies   = Company::where('active', true)->orderBy('name')->get();
+        $departments = $this->departmentsForForm();
+
+        return view('web.employees.edit', compact('employee', 'companies', 'departments'));
     }
 
     public function update(Request $request, Employee $employee): RedirectResponse
@@ -137,8 +151,11 @@ class EmployeeWebController extends Controller
             'email'           => 'required|email|unique:users,email,' . $employee->user_id,
             'cpf'             => 'nullable|string|size:14|unique:employees,cpf,' . $employee->id,
             'cargo'           => 'required|string|max:100',
-            'department'      => 'nullable|string|max:100',
             'company_id'      => 'required|exists:companies,id',
+            'department_id'   => [
+                'nullable',
+                Rule::exists('departments', 'id')->where(fn ($q) => $q->where('company_id', (int) $request->company_id)),
+            ],
             'admission_date'  => 'required|date',
             'contract_type'   => 'required|in:clt,pj,estagio,temporario',
             'weekly_hours'    => 'required|integer|min:1|max:60',
@@ -153,6 +170,10 @@ class EmployeeWebController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $employee, $isPending) {
+            $dept = $request->filled('department_id')
+                ? Department::find($request->integer('department_id'))
+                : null;
+
             $userUpdate = [
                 'name'  => $request->name,
                 'email' => $request->email,
@@ -170,9 +191,10 @@ class EmployeeWebController extends Controller
 
             $employee->update([
                 'company_id'          => $request->company_id,
+                'department_id'       => $dept?->id,
                 'cpf'                 => $request->cpf ?: null,
                 'cargo'               => $request->cargo,
-                'department'          => $request->department,
+                'department'          => $dept?->name,
                 'registration_number' => $request->registration_number,
                 'admission_date'      => $request->admission_date,
                 'contract_type'       => $request->contract_type,
@@ -248,7 +270,7 @@ class EmployeeWebController extends Controller
 
         $status = $request->get('status', 'active');
 
-        $employees = Employee::with('user', 'company')
+        $employees = Employee::with('user', 'company', 'dept')
             ->when($status === 'active', fn($q) => $q->where('active', true))
             ->when($status === 'inactive', fn($q) => $q->where('active', false))
             ->orderBy('id')
@@ -278,7 +300,7 @@ class EmployeeWebController extends Controller
                     $emp->user->email ?? '',
                     $emp->cpf,
                     $emp->cargo,
-                    $emp->department ?? '',
+                    $emp->dept?->name ?? $emp->department ?? '',
                     $emp->company->name ?? '',
                     $emp->contract_type,
                     $emp->weekly_hours,
@@ -379,6 +401,12 @@ class EmployeeWebController extends Controller
 
             try {
                 DB::transaction(function () use ($line, $companyId) {
+                    $deptName = $line['departamento'] ?? null;
+                    $deptId   = null;
+                    if ($deptName) {
+                        $deptId = Department::where('company_id', $companyId)->where('name', $deptName)->value('id');
+                    }
+
                     $user = User::create([
                         'name'     => $line['nome'],
                         'email'    => $line['email'],
@@ -389,9 +417,10 @@ class EmployeeWebController extends Controller
                     Employee::create([
                         'user_id'             => $user->id,
                         'company_id'          => $companyId,
+                        'department_id'       => $deptId,
                         'cpf'                 => $line['cpf'],
                         'cargo'               => $line['cargo'] ?? 'A definir',
-                        'department'          => $line['departamento'] ?? null,
+                        'department'          => $deptName,
                         'registration_number' => $line['matricula'] ?? null,
                         'admission_date'      => $line['data_admissao'] ?? now()->toDateString(),
                         'contract_type'       => in_array($line['contrato'] ?? '', ['clt','pj','estagio','temporario'])
@@ -570,5 +599,20 @@ class EmployeeWebController extends Controller
         }
 
         return redirect()->route('painel.employees.index')->with('success', $msg);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Department>
+     */
+    private function departmentsForForm()
+    {
+        return Department::query()
+            ->with('company')
+            ->where('active', true)
+            ->when(auth()->user()->isGestor() && auth()->user()->company_id, function ($q) {
+                $q->where('company_id', auth()->user()->company_id);
+            })
+            ->orderBy('name')
+            ->get();
     }
 }

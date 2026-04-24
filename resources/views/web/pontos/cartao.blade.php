@@ -106,6 +106,41 @@
         .info-item { font-size: 8px; }
         .info-item strong { display: block; font-size: 7px; color: #6b7280; text-transform: uppercase; }
 
+        .info-top {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            align-items: start;
+            margin-bottom: 6px;
+        }
+        @media (max-width: 700px) {
+            .info-top { grid-template-columns: 1fr; }
+        }
+        .box-left, .box-right {
+            border: 1px solid #9ca3af;
+            padding: 5px 7px;
+            background: #f8fafc;
+        }
+        .box-left h3, .box-right h3 {
+            font-size: 8px;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 800;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 2px;
+        }
+        .company-block .emp-line { font-size: 8px; margin: 1px 0; }
+        .gabarito-title { font-size: 8px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+        .gabarito-sub { font-size: 7px; color: #64748b; margin-bottom: 3px; }
+        .gabarito-table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
+        .gabarito-table th, .gabarito-table td {
+            border: 1px solid #d1d5db;
+            padding: 2px 3px;
+            text-align: center;
+        }
+        .gabarito-table th { background: #1e293b; color: #fff; }
+
         /* Linha de horário de trabalho */
         .horario-box {
             border: 1px solid #9ca3af;
@@ -264,6 +299,7 @@ if (!function_exists('ponto_cartao_fmt_min')) {
 @php
     $emp      = $card['employee'];
     $ws       = $emp->workSchedule;
+    $deptModel = $emp->dept;
     $company  = $emp->company;
     $dateFrom = $card['date_from'];
     $dateTo   = $card['date_to'];
@@ -271,6 +307,24 @@ if (!function_exists('ponto_cartao_fmt_min')) {
     $dtCarbon = \Carbon\Carbon::parse($dateTo);
 
     $diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    $diasGabarito = [1 => 'Seg', 2 => 'Ter', 3 => 'Qua', 4 => 'Qui', 5 => 'Sex', 6 => 'Sáb', 0 => 'Dom'];
+
+    if ($deptModel && $deptModel->entry_time && $deptModel->exit_time) {
+        $gabaritoLabel = 'Departamento: '.$deptModel->name;
+        $gabaritoRef = $deptModel;
+        $gWorkDays = $deptModel->workDaysList();
+        $gTimes = $deptModel->getGabaritoTimes();
+    } elseif ($ws && $ws->entry_time && $ws->exit_time) {
+        $gabaritoLabel = 'Escala individual (colaborador)';
+        $gabaritoRef = $ws;
+        $gWorkDays = $ws->workDaysList();
+        $gTimes = $ws->getGabaritoTimes();
+    } else {
+        $gabaritoLabel = null;
+        $gabaritoRef = null;
+        $gWorkDays = [];
+        $gTimes = null;
+    }
 @endphp
 
 <div class="page">
@@ -290,61 +344,69 @@ if (!function_exists('ponto_cartao_fmt_min')) {
         </div>
     </div>
 
-    {{-- Dados do colaborador --}}
-    <div class="employee-info">
-        <div class="info-item" style="grid-column: span 2;">
-            <strong>Nome</strong>
-            {{ $emp->user?->name ?? '—' }}
+    {{-- Empresa (esq.) + Gabarito / escala (dir.) --}}
+    <div class="info-top">
+        <div class="box-left">
+            <h3>Empresa e colaborador</h3>
+            <div class="company-block" style="margin-bottom:5px;padding-bottom:4px;border-bottom:1px dashed #cbd5e1;">
+                <p class="emp-line"><strong style="color:#334155">Razão social:</strong> {{ $company?->name ?? '—' }}</p>
+                @if($company?->cnpj)
+                <p class="emp-line"><strong style="color:#334155">CNPJ:</strong> {{ $company->cnpj }}</p>
+                @endif
+                @if($company?->address)
+                <p class="emp-line"><strong style="color:#334155">End.:</strong> {{ $company->address }}{{ $company->city ? ', '.$company->city.'/'.$company->state : '' }}</p>
+                @endif
+                @if($company?->phone)
+                <p class="emp-line"><strong style="color:#334155">Tel.:</strong> {{ $company->phone }}</p>
+                @endif
+            </div>
+            <div class="emp-block">
+                <p class="emp-line"><strong style="color:#334155">Colaborador:</strong> {{ $emp->user?->name ?? '—' }}</p>
+                <p class="emp-line"><strong style="color:#334155">Matrícula:</strong> {{ $emp->registration_number ?? '—' }} &nbsp;|&nbsp; <strong>PIS:</strong> {{ $emp->pis ?? '—' }}</p>
+                <p class="emp-line"><strong style="color:#334155">CPF:</strong> {{ $emp->cpf ?? '—' }} &nbsp;|&nbsp; <strong>Cargo:</strong> {{ $emp->cargo ?? '—' }}</p>
+                <p class="emp-line"><strong style="color:#334155">Departamento:</strong> {{ $deptModel?->name ?? $emp->department ?? '—' }}</p>
+                <p class="emp-line"><strong style="color:#334155">Admissão:</strong> {{ $emp->admission_date?->format('d/m/Y') ?? '—' }} &nbsp;|&nbsp; <strong>Horas/sem.:</strong> {{ $emp->weekly_hours }}h</p>
+            </div>
         </div>
-        <div class="info-item">
-            <strong>Matrícula</strong>
-            {{ $emp->registration_number ?? '—' }}
-        </div>
-        <div class="info-item">
-            <strong>PIS / NIT</strong>
-            {{ $emp->pis ?? '—' }}
-        </div>
-        <div class="info-item">
-            <strong>CPF</strong>
-            {{ $emp->cpf ?? '—' }}
-        </div>
-        <div class="info-item">
-            <strong>Cargo / Função</strong>
-            {{ $emp->cargo ?? '—' }}
-        </div>
-        <div class="info-item">
-            <strong>Departamento</strong>
-            {{ $emp->department ?? '—' }}
-        </div>
-        <div class="info-item">
-            <strong>Admissão</strong>
-            {{ $emp->admission_date?->format('d/m/Y') ?? '—' }}
+        <div class="box-right">
+            <h3>Gabarito &mdash; escala de referência</h3>
+            @if($gabaritoRef && $gTimes)
+                <p class="gabarito-title">{{ $gabaritoLabel }}</p>
+                <p class="gabarito-sub">
+                    Tolerância: ±{{ $gabaritoRef->tolerance_minutes ?? 10 }} min
+                    &middot; Intervalo: {{ (int)($gabaritoRef->lunch_minutes ?? 0) }} min
+                </p>
+                <table class="gabarito-table">
+                    <thead>
+                        <tr>
+                            <th>Dia</th>
+                            <th>ENT 1</th>
+                            <th>SAI 1</th>
+                            <th>ENT 2</th>
+                            <th>SAI 2</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach([1,2,3,4,5,6,0] as $dow)
+                        <tr>
+                            <td><strong>{{ $diasGabarito[$dow] }}</strong></td>
+                            @if(in_array($dow, array_map('intval', (array) $gWorkDays), true))
+                                <td>{{ $gTimes['e1'] }}</td>
+                                <td>{{ $gTimes['s1'] }}</td>
+                                <td>{{ $gTimes['e2'] }}</td>
+                                <td>{{ $gTimes['s2'] }}</td>
+                            @else
+                                <td colspan="4" style="font-style:italic;color:#64748b;">Folga</td>
+                            @endif
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @else
+                <p style="font-size:8px;color:#94a3b8;">Defina o departamento do colaborador (menu Departamentos) ou a escala individual na ficha do colaborador para exibir o gabarito.</p>
+            @endif
         </div>
     </div>
-
-    {{-- Horário de trabalho --}}
-    @if($ws && $ws->entry_time && $ws->exit_time)
-    <div class="horario-box">
-        <table>
-            <tr>
-                <th>Horário de Trabalho</th>
-                <th>Entrada</th>
-                <th>Saída</th>
-                <th>Intervalo</th>
-                <th>Horas/Semana</th>
-                <th>Tolerância</th>
-            </tr>
-            <tr>
-                <td>Escala Padrão</td>
-                <td>{{ $ws->entry_time }}</td>
-                <td>{{ $ws->exit_time }}</td>
-                <td>{{ $ws->lunch_minutes ? $ws->lunch_minutes . ' min' : 'Flexível' }}</td>
-                <td>{{ $emp->weekly_hours }}h</td>
-                <td>± {{ $ws->tolerance_minutes ?? 5 }} min</td>
-            </tr>
-        </table>
-    </div>
-    @endif
 
     {{-- Tabela de batidas --}}
     <table class="ponto-table">

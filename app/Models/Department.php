@@ -3,16 +3,14 @@
 namespace App\Models;
 
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class WorkSchedule extends Model
+class Department extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
-        'employee_id',
+        'company_id',
         'name',
         'entry_time',
         'exit_time',
@@ -20,9 +18,6 @@ class WorkSchedule extends Model
         'tolerance_minutes',
         'work_days',
         'active',
-        'notify_late',
-        'notify_absence',
-        'notify_overtime',
     ];
 
     protected function casts(): array
@@ -30,17 +25,19 @@ class WorkSchedule extends Model
         return [
             'work_days'         => 'array',
             'active'            => 'boolean',
-            'tolerance_minutes' => 'integer',
             'lunch_minutes'     => 'integer',
-            'notify_late'       => 'boolean',
-            'notify_absence'    => 'boolean',
-            'notify_overtime'   => 'boolean',
+            'tolerance_minutes' => 'integer',
         ];
     }
 
-    public function employee(): BelongsTo
+    public function company(): BelongsTo
     {
-        return $this->belongsTo(Employee::class);
+        return $this->belongsTo(Company::class);
+    }
+
+    public function employees(): HasMany
+    {
+        return $this->hasMany(Employee::class, 'department_id');
     }
 
     public function getExpectedMinutes(): int
@@ -54,25 +51,14 @@ class WorkSchedule extends Model
             return 0;
         }
         $total = (int) (($exit - $entry) / 60);
-
-        // Deduz apenas o intervalo mínimo configurado (opcional)
         $lunch = $this->lunch_minutes ?? 0;
 
         return max(0, $total - $lunch);
     }
 
-    public function isWorkDay(int $dayOfWeek): bool
-    {
-        return in_array($dayOfWeek, $this->work_days ?? [1, 2, 3, 4, 5]);
-    }
-
-    public function workDaysList(): array
-    {
-        $d = $this->work_days;
-
-        return is_array($d) && $d !== [] ? array_map('intval', $d) : [1, 2, 3, 4, 5];
-    }
-
+    /**
+     * Parte a jornada em manhã / intervalo / tarde para o gabarito do cartão ponto.
+     */
     public function getGabaritoTimes(): ?array
     {
         if (empty($this->entry_time) || empty($this->exit_time)) {
@@ -98,5 +84,12 @@ class WorkSchedule extends Model
             'e2' => $e2->format('H:i'),
             's2' => $x->format('H:i'),
         ];
+    }
+
+    public function workDaysList(): array
+    {
+        $d = $this->work_days;
+
+        return is_array($d) && $d !== [] ? array_map('intval', $d) : [1, 2, 3, 4, 5];
     }
 }

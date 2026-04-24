@@ -130,7 +130,7 @@ class TimeRecordWebController extends Controller
         $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
         $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
 
-        $employeesQuery = Employee::with(['user', 'company', 'workSchedule'])
+        $employeesQuery = Employee::with(['user', 'company', 'workSchedule', 'dept'])
             ->where('active', true)
             ->when($employeeId, fn($q) => $q->where('id', $employeeId))
             ->orderBy('id');
@@ -153,9 +153,12 @@ class TimeRecordWebController extends Controller
                 $byDay[$day][] = $rec;
             }
 
-            $ws = $emp->workSchedule;
-            // Dias de trabalho configurados (0=Dom..6=Sab), default seg-sex
-            $workDays = $ws?->work_days ?? [1,2,3,4,5];
+            $ws   = $emp->workSchedule;
+            $dept = $emp->dept;
+            $deptRef = $dept && $dept->entry_time && $dept->exit_time ? $dept : null;
+            $workDays = $deptRef
+                ? $deptRef->workDaysList()
+                : ($ws?->work_days ?? [1, 2, 3, 4, 5]);
 
             $days   = [];
             $totalWorkedMin  = 0;
@@ -191,9 +194,11 @@ class TimeRecordWebController extends Controller
                     }
                 }
 
-                $expectedMin = ($ws && $ws->entry_time && $ws->exit_time)
-                    ? $ws->getExpectedMinutes()
-                    : $emp->dailyExpectedMinutes();
+                $expectedMin = $deptRef
+                    ? $deptRef->getExpectedMinutes()
+                    : (($ws && $ws->entry_time && $ws->exit_time)
+                        ? $ws->getExpectedMinutes()
+                        : $emp->dailyExpectedMinutes());
                 $extraMin    = 0;
                 $faltaMin    = 0;
 

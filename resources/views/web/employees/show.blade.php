@@ -32,7 +32,7 @@
                     </span>
                 @endif
             </div>
-            <p class="text-sm text-slate-500">{{ $employee->cargo }}{{ $employee->department ? ' · ' . $employee->department : '' }}</p>
+            <p class="text-sm text-slate-500">{{ $employee->cargo }}{{ ($employee->dept?->name ?? $employee->department) ? ' · ' . ($employee->dept?->name ?? $employee->department) : '' }}</p>
             <p class="text-sm text-slate-400 mt-0.5">{{ $employee->user->email ?? '' }}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">

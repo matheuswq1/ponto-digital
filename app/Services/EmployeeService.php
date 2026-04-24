@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Company;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -20,12 +21,17 @@ class EmployeeService
                 'role' => 'funcionario',
             ]);
 
+            $dept = ! empty($data['department_id'])
+                ? Department::where('id', (int) $data['department_id'])->where('company_id', $company->id)->first()
+                : null;
+
             $employee = Employee::create([
                 'user_id' => $user->id,
                 'company_id' => $company->id,
+                'department_id' => $dept?->id,
                 'cpf' => $data['cpf'],
                 'cargo' => $data['cargo'],
-                'department' => $data['department'] ?? null,
+                'department' => $dept?->name ?? ($data['department'] ?? null),
                 'registration_number' => $data['registration_number'] ?? null,
                 'admission_date' => $data['admission_date'],
                 'contract_type' => $data['contract_type'] ?? 'clt',
@@ -40,7 +46,7 @@ class EmployeeService
                 ]));
             }
 
-            return $employee->load('user', 'company', 'workSchedule');
+            return $employee->load('user', 'company', 'workSchedule', 'dept');
         });
     }
 
@@ -54,14 +60,24 @@ class EmployeeService
                 ]));
             }
 
-            $employee->update(array_filter([
+            $deptPayload = [];
+            if (array_key_exists('department_id', $data)) {
+                $dept = ! empty($data['department_id'])
+                    ? Department::where('id', (int) $data['department_id'])->where('company_id', $employee->company_id)->first()
+                    : null;
+                $deptPayload['department_id'] = $dept?->id;
+                $deptPayload['department']     = $dept?->name;
+            } elseif (array_key_exists('department', $data)) {
+                $deptPayload['department'] = $data['department'];
+            }
+
+            $employee->update(array_filter(array_merge($deptPayload, [
                 'cargo' => $data['cargo'] ?? null,
-                'department' => $data['department'] ?? null,
                 'weekly_hours' => $data['weekly_hours'] ?? null,
                 'active' => $data['active'] ?? null,
-            ], fn($v) => $v !== null));
+            ]), fn($v) => $v !== null));
 
-            return $employee->fresh('user', 'company', 'workSchedule');
+            return $employee->fresh('user', 'company', 'workSchedule', 'dept');
         });
     }
 
