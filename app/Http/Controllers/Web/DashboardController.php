@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\Employee;
+use App\Models\HourBankRequest;
 use App\Models\TimeRecord;
 use App\Models\TimeRecordEdit;
 use Carbon\Carbon;
@@ -54,6 +56,45 @@ class DashboardController extends Controller
 
         $chartMax = collect($weekChart)->max('count') ?: 1;
 
+        // Métricas por departamento (apenas para admin/gestor)
+        $deptStats = collect();
+        $pendingHourBank = 0;
+        $absentsToday = 0;
+
+        if ($user->isAdmin() || $user->isGestor()) {
+            $companyId = $user->isGestor() ? $user->company_id : null;
+
+            $deptQuery = Department::withCount(['employees' => fn($q) => $q->where('active', true)])
+                ->with('company')
+                ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                ->orderBy('name');
+
+            $deptStats = $deptQuery->get()->map(function ($dept) {
+                $empIds = $dept->employees()->where('active', true)->pluck('id');
+                $pontoHoje = TimeRecord::whereIn('employee_id', $empIds)
+                    ->whereDate('datetime', today())
+                    ->distinct('employee_id')
+                    ->count('employee_id');
+
+                return [
+                    'name'         => $dept->name,
+                    'company'      => $dept->company?->name,
+                    'total'        => $dept->employees_count,
+                    'ponto_hoje'   => $pontoHoje,
+                    'ausentes'     => max(0, $dept->employees_count - $pontoHoje),
+                ];
+            });
+
+            $pendingHourBank = HourBankRequest::where('status', 'pendente')
+                ->when($companyId, fn($q) => $q->whereHas('employee', fn($e) => $e->where('company_id', $companyId)))
+                ->count();
+
+            $absentsToday = Employee::where('active', true)
+                ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                ->whereDoesntHave('timeRecords', fn($q) => $q->whereDate('datetime', today()))
+                ->count();
+        }
+
         return view('web.dashboard', compact(
             'pendingEdits',
             'todayCount',
@@ -62,6 +103,9 @@ class DashboardController extends Controller
             'weekChart',
             'chartMax',
             'recentRecords',
+            'deptStats',
+            'pendingHourBank',
+            'absentsToday',
         ));
     }
 }

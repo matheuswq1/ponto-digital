@@ -80,7 +80,23 @@
 </div>
 
 @if(auth()->user()->isAdmin() || auth()->user()->isGestor())
-<div class="grid gap-6 lg:grid-cols-5">
+
+{{-- Cards extras: ausentes + banco de horas pendentes --}}
+<div class="grid gap-4 sm:grid-cols-2 mb-6">
+    <div class="bg-white rounded-xl border {{ $absentsToday > 0 ? 'border-rose-200' : 'border-slate-200' }} p-5 shadow-sm">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ausentes hoje</p>
+        <p class="mt-2 text-4xl font-bold {{ $absentsToday > 0 ? 'text-rose-600' : 'text-slate-800' }}">{{ $absentsToday }}</p>
+        <p class="mt-1 text-xs text-slate-400">Colaboradores sem registo até agora</p>
+    </div>
+    <a href="{{ route('painel.hour-bank.index') }}"
+       class="group bg-white rounded-xl border {{ $pendingHourBank > 0 ? 'border-amber-200' : 'border-slate-200' }} p-5 shadow-sm hover:shadow-md transition">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Banco de horas pendentes</p>
+        <p class="mt-2 text-4xl font-bold {{ $pendingHourBank > 0 ? 'text-amber-600' : 'text-slate-800' }}">{{ $pendingHourBank }}</p>
+        <p class="mt-3 text-xs text-indigo-500 group-hover:underline">Ver solicitações →</p>
+    </a>
+</div>
+
+<div class="grid gap-6 lg:grid-cols-5 mb-6">
 
     {{-- ===== GRÁFICO DE BARRAS (7 dias) ===== --}}
     <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
@@ -130,6 +146,51 @@
         @endif
     </div>
 </div>
+
+{{-- ===== TABELA POR DEPARTAMENTO ===== --}}
+@if($deptStats->isNotEmpty())
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-700">Presença por departamento — hoje</h2>
+        <span class="text-xs text-slate-400">{{ now()->format('d/m/Y') }}</span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
+                <tr>
+                    @if(auth()->user()->isAdmin())<th class="px-4 py-2 text-left">Empresa</th>@endif
+                    <th class="px-4 py-2 text-left">Departamento</th>
+                    <th class="px-4 py-2 text-center">Total</th>
+                    <th class="px-4 py-2 text-center">Com ponto</th>
+                    <th class="px-4 py-2 text-center">Ausentes</th>
+                    <th class="px-4 py-2 text-center">Presença</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                @foreach($deptStats as $ds)
+                @php $pct = $ds['total'] > 0 ? round($ds['ponto_hoje'] / $ds['total'] * 100) : 0; @endphp
+                <tr class="hover:bg-slate-50">
+                    @if(auth()->user()->isAdmin())<td class="px-4 py-2 text-slate-500 text-xs">{{ $ds['company'] }}</td>@endif
+                    <td class="px-4 py-2 font-medium text-slate-800">{{ $ds['name'] }}</td>
+                    <td class="px-4 py-2 text-center text-slate-600">{{ $ds['total'] }}</td>
+                    <td class="px-4 py-2 text-center text-emerald-600 font-semibold">{{ $ds['ponto_hoje'] }}</td>
+                    <td class="px-4 py-2 text-center {{ $ds['ausentes'] > 0 ? 'text-rose-600 font-semibold' : 'text-slate-400' }}">{{ $ds['ausentes'] }}</td>
+                    <td class="px-4 py-2 text-center">
+                        <div class="flex items-center gap-2 justify-center">
+                            <div class="w-20 bg-slate-100 rounded-full h-1.5">
+                                <div class="h-1.5 rounded-full {{ $pct >= 80 ? 'bg-emerald-500' : ($pct >= 50 ? 'bg-amber-400' : 'bg-rose-400') }}"
+                                     style="width:{{ $pct }}%"></div>
+                            </div>
+                            <span class="text-xs text-slate-600">{{ $pct }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
 
 @else
 {{-- Funcionário: mensagem simples --}}

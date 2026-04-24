@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\Holiday;
 use App\Models\TimeRecord;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -107,7 +108,57 @@ class TimeRecordWebController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function cartaoPonto(Request $request): View
+    private function exportCartaoCSV(array $cards, string $dateFrom, string $dateTo)
+    {
+        $tz       = config('app.timezone', 'America/Sao_Paulo');
+        $diasSem  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+        $filename = "cartao_ponto_{$dateFrom}_a_{$dateTo}.csv";
+
+        $headers = [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $fmtMin = fn(int $m): string => $m === 0 ? '' : sprintf('%02d:%02d', intdiv($m,60), $m%60);
+
+        $callback = function () use ($cards, $diasSem, $fmtMin) {
+            $h = fopen('php://output', 'w');
+            fputs($h, "\xEF\xBB\xBF");
+            fputcsv($h, ['Colaborador','Departamento','Empresa','Data','Dia','ENT1','SAI1','ENT2','SAI2','ENT3','SAI3','Trabalhado','Faltas','EX50%','EX100%','EXF01','Extras','Feriado','Banco OK'], ';');
+            foreach ($cards as $card) {
+                $emp  = $card['employee'];
+                $nome = $emp->user?->name ?? '—';
+                $dept = $emp->dept?->name ?? '—';
+                $emp_company = $emp->company?->name ?? '—';
+                foreach ($card['days'] as $day) {
+                    if ($day['folga'] && $day['worked_min'] === 0) continue;
+                    $dw  = (int) $day['date']->format('w');
+                    $bat = $day['batidas'];
+                    fputcsv($h, [
+                        $nome, $dept, $emp_company,
+                        $day['date']->format('d/m/Y'),
+                        $diasSem[$dw],
+                        $bat[0]['ent'], $bat[0]['sai'],
+                        $bat[1]['ent'], $bat[1]['sai'],
+                        $bat[2]['ent'], $bat[2]['sai'],
+                        $fmtMin($day['worked_min']),
+                        $fmtMin($day['falta_min']),
+                        $fmtMin($day['extra_50_min']),
+                        $fmtMin($day['extra_100_min']),
+                        $fmtMin($day['extra_noc_min']),
+                        $fmtMin($day['extra_min']),
+                        $day['is_holiday'] ? 'Sim' : '',
+                        $day['banco_ok'] ? 'Sim' : 'Não',
+                    ], ';');
+                }
+            }
+            fclose($h);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function cartaoPonto(Request $request): View|\Symfony\Component\HttpFoundation\StreamedResponse
     {
         $this->authorize('manage-employees');
 
@@ -146,6 +197,14 @@ class TimeRecordWebController extends Controller
                 ->orderBy('datetime')
                 ->get();
 
+            // WorkDays processados (banco de horas) — índice por data
+            $workDaysProcessed = $emp->workDays()
+                ->whereBetween('date', [$dateFrom, $dateTo])
+                ->where('is_closed', true)
+                ->pluck('extra_minutes', 'date')
+                ->mapKeys(fn($v, $k) => \Carbon\Carbon::parse($k)->toDateString())
+                ->toArray();
+
             // Agrupar batidas por dia (horário local)
             $byDay = [];
             foreach ($records as $rec) {
@@ -161,11 +220,16 @@ class TimeRecordWebController extends Controller
                 : ($ws?->work_days ?? [1, 2, 3, 4, 5]);
 
             $days   = [];
-            $totalWorkedMin  = 0;
-            $totalExtraMin   = 0;  // extras em dias úteis (seg–sex não feriado)
-            $totalExtra50Min = 0;  // extras em sábado
-            $totalExtra100Min= 0;  // extras em domingo ou feriado
-            $totalFaltaMin   = 0;
+            $totalWorkedMin   = 0;
+            $totalExtraMin    = 0;
+            $totalExtra50Min  = 0;
+            $totalExtra100Min = 0;
+            $totalExtraNocMin = 0;
+            $totalFaltaMin    = 0;
+
+            // Pré-calcular feriados do período para evitar N queries
+            $companyId  = $emp->company_id;
+            $holidaySet = array_flip(Holiday::datesInPeriod($dateFrom, $dateTo, $companyId));
 
             $period = CarbonPeriod::create($dateFrom, $dateTo);
             foreach ($period as $date) {
@@ -175,6 +239,7 @@ class TimeRecordWebController extends Controller
                 $recs      = $byDay[$dateStr] ?? [];
                 $isSunday  = ($dayOfWeek === 0);
                 $isSaturday= ($dayOfWeek === 6);
+                $isHoliday = isset($holidaySet[$dateStr]);
 
                 // Separar entradas e saídas em ordem
                 $entries = array_values(array_filter($recs, fn($r) => $r->type === 'entrada'));
@@ -208,46 +273,71 @@ class TimeRecordWebController extends Controller
                 $tolerance = (int) ($deptRef?->tolerance_minutes ?? $ws?->tolerance_minutes ?? 5);
 
                 $extraMin     = 0;
-                $extra50Min   = 0;  // sábado
-                $extra100Min  = 0;  // domingo / feriado
+                $extra50Min   = 0;  // sábado não-feriado
+                $extra100Min  = 0;  // domingo ou feriado
+                $extraNocMin  = 0;  // adicional noturno (EXF01) 22h–05h
                 $faltaMin     = 0;
 
                 if (count($recs) > 0) {
-                    if ($isWorkDay) {
-                        // Dia de trabalho: só conta extra/falta se ultrapassar tolerância
+                    if ($isWorkDay && !$isHoliday) {
+                        // Dia de trabalho normal: só conta extra/falta se ultrapassar tolerância
                         $diff = $workedMin - $expectedMin;
                         if ($diff > $tolerance) {
                             $extraMin = $diff;
                             if ($isSunday)       $extra100Min = $diff;
                             elseif ($isSaturday) $extra50Min  = $diff;
+                            // seg-sex útil: vai só em extraMin
                         }
                         if ($diff < -$tolerance) $faltaMin = abs($diff);
                     } else {
-                        // Folga com batidas (trabalhou num dia de descanso → tudo é extra)
-                        if ($isSunday)       { $extra100Min = $workedMin; $extraMin = $workedMin; }
-                        elseif ($isSaturday) { $extra50Min  = $workedMin; $extraMin = $workedMin; }
-                        else                 { $extraMin    = $workedMin; }
+                        // Folga, domingo, feriado ou sábado de folga trabalhado → tudo extra
+                        if ($isSunday || $isHoliday) {
+                            $extra100Min = $workedMin; $extraMin = $workedMin;
+                        } elseif ($isSaturday) {
+                            $extra50Min  = $workedMin; $extraMin = $workedMin;
+                        } else {
+                            $extraMin = $workedMin;
+                        }
                     }
 
-                    $totalWorkedMin  += $workedMin;
-                    $totalExtraMin   += $extraMin;
-                    $totalExtra50Min += $extra50Min;
-                    $totalExtra100Min+= $extra100Min;
-                    $totalFaltaMin   += $faltaMin;
+                    // Adicional noturno (EXF01): minutos entre 22:00–05:00
+                    foreach ($entries as $idx => $ent) {
+                        $sai = $exits[$idx] ?? null;
+                        if (! $sai) continue;
+                        $start = $ent->datetime->setTimezone($tz);
+                        $end   = $sai->datetime->setTimezone($tz);
+                        $cur   = $start->copy();
+                        while ($cur->lt($end)) {
+                            $h = (int) $cur->format('H');
+                            if ($h >= 22 || $h < 5) $extraNocMin++;
+                            $cur->addMinute();
+                        }
+                    }
+
+                    $totalWorkedMin   += $workedMin;
+                    $totalExtraMin    += $extraMin;
+                    $totalExtra50Min  += $extra50Min;
+                    $totalExtra100Min += $extra100Min;
+                    $totalExtraNocMin += $extraNocMin;
+                    $totalFaltaMin    += $faltaMin;
                 }
 
                 $days[] = [
-                    'date'        => $date->copy(),
-                    'date_str'    => $dateStr,
-                    'is_work_day' => $isWorkDay,
-                    'batidas'     => $batidas,
-                    'worked_min'  => $workedMin,
-                    'extra_min'   => $extraMin,
-                    'extra_50_min'=> $extra50Min,
-                    'extra_100_min'=> $extra100Min,
-                    'falta_min'   => $faltaMin,
-                    'folga'       => !$isWorkDay && count($recs) === 0,
-                    'sem_ponto'   => $isWorkDay && count($recs) === 0,
+                    'date'          => $date->copy(),
+                    'date_str'      => $dateStr,
+                    'is_work_day'   => $isWorkDay,
+                    'is_holiday'    => $isHoliday,
+                    'batidas'       => $batidas,
+                    'worked_min'    => $workedMin,
+                    'extra_min'     => $extraMin,
+                    'extra_50_min'  => $extra50Min,
+                    'extra_100_min' => $extra100Min,
+                    'falta_min'     => $faltaMin,
+                    'folga'         => !$isWorkDay && !$isHoliday && count($recs) === 0,
+                    'sem_ponto'     => ($isWorkDay && !$isHoliday) && count($recs) === 0,
+                    'extra_noc_min' => $extraNocMin,
+                    'banco_ok'      => array_key_exists($dateStr, $workDaysProcessed),
+                    'banco_min'     => $workDaysProcessed[$dateStr] ?? null,
                 ];
             }
 
@@ -258,10 +348,16 @@ class TimeRecordWebController extends Controller
                 'total_extra'       => $totalExtraMin,
                 'total_extra_50'    => $totalExtra50Min,
                 'total_extra_100'   => $totalExtra100Min,
+                'total_extra_noc'   => $totalExtraNocMin,
                 'total_falta'       => $totalFaltaMin,
                 'date_from'         => $dateFrom,
                 'date_to'           => $dateTo,
             ];
+        }
+
+        // Exportação CSV do cartão
+        if ($request->get('export') === 'csv') {
+            return $this->exportCartaoCSV($cards, $dateFrom, $dateTo);
         }
 
         return view('web.pontos.cartao', compact(

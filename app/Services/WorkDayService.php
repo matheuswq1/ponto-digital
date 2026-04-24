@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Models\Holiday;
 use App\Models\HourBankTransaction;
 use App\Models\TimeRecord;
 use App\Models\WorkDay;
@@ -112,18 +113,26 @@ class WorkDayService
         // Tolerância — prioriza departamento, depois escala, depois 5 min padrão
         $tolerance = (int) ($deptRef?->tolerance_minutes ?? $schedule?->tolerance_minutes ?? 5);
 
+        // Verificar se é feriado (feriados = tudo trabalhado é extra)
+        $isHoliday  = Holiday::isHoliday($date, $employee->company_id);
+        $isSunday   = ($dayOfWeek === 0);
+        $isSaturday = ($dayOfWeek === 6);
+
         // Diferença bruta entre trabalhado e esperado
         $diff = $totalMinutes - $expectedMinutes;
 
         // Só conta como extra/falta se ultrapassar a tolerância
         $extraMinutes = 0;
         if ($lastExit !== null) {
-            if ($diff > $tolerance) {
+            if ($isHoliday || $isSunday) {
+                // Feriado / domingo: todo o tempo trabalhado é extra 100%
+                $extraMinutes = $totalMinutes;
+            } elseif ($diff > $tolerance) {
                 $extraMinutes = $diff; // extra → banco de horas (crédito)
             } elseif ($diff < -$tolerance) {
                 $extraMinutes = $diff; // falta → banco de horas (débito)
             }
-            // Dentro da tolerância: extraMinutes = 0 (sem movimentação no banco)
+            // Dentro da tolerância em dia útil: extraMinutes = 0
         }
 
         return [

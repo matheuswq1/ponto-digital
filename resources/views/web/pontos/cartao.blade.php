@@ -187,6 +187,10 @@
         }
         .ponto-table tbody tr.sem-ponto td { background: #fff7ed; }
         .ponto-table tbody tr.sem-ponto td.falta-col { color: #dc2626; font-weight: 700; }
+        .ponto-table tbody tr.feriado td { background: #faf5ff; color: #6b21a8; }
+        .ponto-table tbody tr.feriado td.folga-label { font-style: italic; }
+        .banco-ok { color: #16a34a; font-weight: 700; font-size: 7px; }
+        .banco-pending { color: #d97706; font-size: 7px; }
         .ponto-table .td-date { font-weight: 600; text-align: left; padding-left: 4px; min-width: 18mm; }
         .ponto-table .td-dia  { font-size: 7px; color: #6b7280; }
         .ponto-table .td-horas { font-weight: 600; }
@@ -270,7 +274,7 @@ if (!function_exists('ponto_cartao_fmt_min')) {
 <div class="controls">
     <a href="{{ route('painel.pontos.index') }}" class="btn-back" style="padding:7px 14px;border-radius:6px;color:#fff;text-decoration:none;font-size:12px;background:#475569;">← Voltar</a>
 
-    <form method="get" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <form method="get" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;" id="cartao-form">
         @if(request()->filled('q'))
             <input type="hidden" name="q" value="{{ request('q') }}">
         @endif
@@ -292,7 +296,17 @@ if (!function_exists('ponto_cartao_fmt_min')) {
         <button type="submit" class="btn-print">Gerar</button>
     </form>
 
+    <button onclick="exportarCSV()" class="btn-print" style="background:#0369a1;">⬇ Exportar CSV</button>
     <button onclick="window.print()" class="btn-print" style="background:#16a34a;">🖨️ Imprimir</button>
+
+<script>
+function exportarCSV() {
+    var form = document.getElementById('cartao-form');
+    var params = new URLSearchParams(new FormData(form));
+    params.set('export', 'csv');
+    window.location = '{{ route("painel.pontos.cartao") }}?' + params.toString();
+}
+</script>
 </div>
 
 @forelse($cards as $card)
@@ -440,7 +454,7 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                 <th rowspan="2" style="width:9mm;">Faltas</th>
                 <th rowspan="2" style="width:9mm;">EX 50%</th>
                 <th rowspan="2" style="width:9mm;">EX 100%</th>
-                <th rowspan="2" style="width:9mm; color:#94a3b8;">EXF01</th>
+                <th rowspan="2" style="width:9mm;" title="Adicional noturno (22h–05h)">EXF01</th>
                 <th rowspan="2" style="width:9mm;">Extras</th>
             </tr>
             <tr class="sub-header">
@@ -457,15 +471,27 @@ if (!function_exists('ponto_cartao_fmt_min')) {
             @php
                 $dw        = (int) $day['date']->format('w');
                 $isWeekend = in_array($dw, [0,6]);
-                $rowClass  = $day['folga'] ? 'folga' : ($day['sem_ponto'] ? 'sem-ponto' : '');
+                $rowClass  = $day['is_holiday'] ? 'feriado'
+                           : ($day['folga'] ? 'folga'
+                           : ($day['sem_ponto'] ? 'sem-ponto' : ''));
             @endphp
             <tr class="{{ $rowClass }}">
-                <td class="td-date">{{ $day['date']->format('d/m/Y') }}</td>
+                <td class="td-date">
+                    {{ $day['date']->format('d/m/Y') }}
+                    @if($day['banco_ok'])
+                        <span class="banco-ok" title="Banco de horas processado">✓</span>
+                    @elseif(!$day['folga'] && $day['worked_min'] > 0)
+                        <span class="banco-pending" title="Aguardando processamento">○</span>
+                    @endif
+                </td>
                 <td class="td-dia">{{ $diasSemana[$dw] }}</td>
                 @if($day['folga'])
                     <td colspan="6" class="folga-label">
-                        {{ $isWeekend ? 'Folga' : 'Folga / Feriado' }}
+                        {{ $isWeekend ? 'Folga' : 'Folga' }}
                     </td>
+                    <td colspan="6"></td>
+                @elseif($day['is_holiday'] && $day['worked_min'] === 0)
+                    <td colspan="6" class="folga-label">Feriado</td>
                     <td colspan="6"></td>
                 @else
                     @foreach($day['batidas'] as $bat)
@@ -475,8 +501,8 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                     <td class="td-horas">{{ ponto_cartao_fmt_min($day['worked_min']) }}</td>
                     <td class="td-falta {{ $day['sem_ponto'] ? 'falta-col' : '' }}">{{ ponto_cartao_fmt_min($day['falta_min']) }}</td>
                     <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_50_min']) }}</td>
-                    <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_100_min']) }}</td>
-                    <td style="color:#cbd5e1;">—</td>
+                    <td class="td-extra" style="{{ $day['is_holiday'] ? 'color:#7c3aed;font-weight:700;' : '' }}">{{ ponto_cartao_fmt_min($day['extra_100_min']) }}</td>
+                    <td class="td-extra" style="{{ $day['extra_noc_min'] > 0 ? 'color:#0369a1;font-weight:700;' : 'color:#94a3b8;' }}">{{ $day['extra_noc_min'] > 0 ? ponto_cartao_fmt_min($day['extra_noc_min']) : '—' }}</td>
                     <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_min']) }}</td>
                 @endif
             </tr>
@@ -489,7 +515,7 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                 <td style="color:#fca5a5;">{{ ponto_cartao_fmt_min($card['total_falta']) }}</td>
                 <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra_50']) }}</td>
                 <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra_100']) }}</td>
-                <td style="color:#64748b;">—</td>
+                <td style="color:#0369a1;">{{ ponto_cartao_fmt_min($card['total_extra_noc']) }}</td>
                 <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra']) }}</td>
             </tr>
         </tfoot>
