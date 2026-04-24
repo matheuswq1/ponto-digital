@@ -356,9 +356,6 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                 @if($company?->address)
                 <p class="emp-line"><strong style="color:#334155">End.:</strong> {{ $company->address }}{{ $company->city ? ', '.$company->city.'/'.$company->state : '' }}</p>
                 @endif
-                @if($company?->phone)
-                <p class="emp-line"><strong style="color:#334155">Tel.:</strong> {{ $company->phone }}</p>
-                @endif
             </div>
             <div class="emp-block">
                 <p class="emp-line"><strong style="color:#334155">Colaborador:</strong> {{ $emp->user?->name ?? '—' }}</p>
