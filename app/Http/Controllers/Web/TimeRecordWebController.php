@@ -8,6 +8,7 @@ use App\Models\TimeRecord;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class TimeRecordWebController extends Controller
@@ -49,6 +50,7 @@ class TimeRecordWebController extends Controller
         $dateFrom   = $request->get('date_from', today()->startOfMonth()->toDateString());
         $dateTo     = $request->get('date_to', today()->toDateString());
         $employeeId = $request->get('employee_id');
+        $search     = $request->get('q');
 
         $tz   = config('app.timezone', 'America/Sao_Paulo');
         $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
@@ -56,11 +58,22 @@ class TimeRecordWebController extends Controller
 
         $records = TimeRecord::with('employee.user')
             ->whereBetween('datetime', [$from, $to])
+            ->when($search, fn($q) => $q->whereHas('employee.user', fn($u) =>
+                $u->where('name', 'like', "%{$search}%")
+            ))
             ->when($employeeId, fn($q) => $q->where('employee_id', $employeeId))
             ->orderBy('datetime')
             ->get();
 
-        $filename = 'pontos_' . $dateFrom . '_a_' . $dateTo . '.csv';
+        $filename = 'pontos_' . $dateFrom . '_a_' . $dateTo;
+        if ($employeeId) {
+            $emp = Employee::with('user')->find($employeeId);
+            if ($emp) {
+                $slug   = Str::slug($emp->user?->name ?? 'colaborador-' . $emp->id, '_');
+                $filename = 'pontos_' . $slug . '_' . $dateFrom . '_a_' . $dateTo;
+            }
+        }
+        $filename .= '.csv';
 
         $headers = [
             'Content-Type'        => 'text/csv; charset=UTF-8',
@@ -102,6 +115,17 @@ class TimeRecordWebController extends Controller
         $dateFrom   = $request->get('date_from', today()->startOfMonth()->toDateString());
         $dateTo     = $request->get('date_to',   today()->endOfMonth()->toDateString());
         $employeeId = $request->get('employee_id');
+        $searchQ    = $request->get('q');
+
+        if (! $employeeId && $searchQ) {
+            $matchIds = Employee::query()
+                ->where('active', true)
+                ->whereHas('user', fn($u) => $u->where('name', 'like', "%{$searchQ}%"))
+                ->pluck('id');
+            if ($matchIds->count() === 1) {
+                $employeeId = (string) $matchIds->first();
+            }
+        }
 
         $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
         $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();

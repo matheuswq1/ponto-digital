@@ -236,6 +236,9 @@ if (!function_exists('ponto_cartao_fmt_min')) {
     <a href="{{ route('painel.pontos.index') }}" class="btn-back" style="padding:7px 14px;border-radius:6px;color:#fff;text-decoration:none;font-size:12px;background:#475569;">← Voltar</a>
 
     <form method="get" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        @if(request()->filled('q'))
+            <input type="hidden" name="q" value="{{ request('q') }}">
+        @endif
         <label>
             Colaborador:
             <select name="employee_id">
