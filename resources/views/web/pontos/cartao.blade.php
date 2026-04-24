@@ -217,6 +217,20 @@
 </head>
 <body>
 
+@php
+if (!function_exists('ponto_cartao_fmt_min')) {
+    function ponto_cartao_fmt_min(int $min): string {
+        if ($min === 0) {
+            return '';
+        }
+        $h = intdiv($min, 60);
+        $m = $min % 60;
+
+        return sprintf('%02d:%02d', $h, $m);
+    }
+}
+@endphp
+
 {{-- ── Barra de controles ── --}}
 <div class="controls">
     <a href="{{ route('painel.pontos.index') }}" class="btn-back" style="padding:7px 14px;border-radius:6px;color:#fff;text-decoration:none;font-size:12px;background:#475569;">← Voltar</a>
@@ -254,14 +268,6 @@
     $dtCarbon = \Carbon\Carbon::parse($dateTo);
 
     $diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-    $meses      = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-
-    function fmtMin(int $min): string {
-        if ($min === 0) return '';
-        $h = intdiv($min, 60);
-        $m = $min % 60;
-        return sprintf('%02d:%02d', $h, $m);
-    }
 @endphp
 
 <div class="page">
@@ -381,9 +387,9 @@
                         <td>{{ $bat['ent'] }}</td>
                         <td>{{ $bat['sai'] }}</td>
                     @endforeach
-                    <td class="td-horas">{{ fmtMin($day['worked_min']) }}</td>
-                    <td class="td-extra">{{ fmtMin($day['extra_min']) }}</td>
-                    <td class="td-falta {{ $day['sem_ponto'] ? 'falta-col' : '' }}">{{ fmtMin($day['falta_min']) }}</td>
+                    <td class="td-horas">{{ ponto_cartao_fmt_min($day['worked_min']) }}</td>
+                    <td class="td-extra">{{ ponto_cartao_fmt_min($day['extra_min']) }}</td>
+                    <td class="td-falta {{ $day['sem_ponto'] ? 'falta-col' : '' }}">{{ ponto_cartao_fmt_min($day['falta_min']) }}</td>
                     <td></td>
                 @endif
             </tr>
@@ -392,9 +398,9 @@
         <tfoot>
             <tr>
                 <td colspan="8" style="text-align:right;padding-right:6px;">TOTAIS</td>
-                <td>{{ fmtMin($card['total_worked']) }}</td>
-                <td style="color:#86efac;">{{ fmtMin($card['total_extra']) }}</td>
-                <td style="color:#fca5a5;">{{ fmtMin($card['total_falta']) }}</td>
+                <td>{{ ponto_cartao_fmt_min($card['total_worked']) }}</td>
+                <td style="color:#86efac;">{{ ponto_cartao_fmt_min($card['total_extra']) }}</td>
+                <td style="color:#fca5a5;">{{ ponto_cartao_fmt_min($card['total_falta']) }}</td>
                 <td></td>
             </tr>
         </tfoot>
