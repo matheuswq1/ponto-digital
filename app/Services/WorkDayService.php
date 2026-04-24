@@ -75,14 +75,26 @@ class WorkDayService
         $exitTime  = $lastExit?->datetime?->format('H:i:s');
 
         // Calcula tempo trabalhado somando pares entrada→saída consecutivos
-        $totalMinutes = 0;
-        $openEntryAt  = null;
+        // O intervalo de almoço é naturalmente deduzido: quando o colaborador bate
+        // "saída" para almoço e "entrada" ao retornar, esse tempo não entra no total.
+        $totalMinutes    = 0;
+        $totalIntervals  = 0; // minutos fora do trabalho (almoço, pausas)
+        $openEntryAt     = null;
+        $firstExit       = null;
+        $lastEntryAfterExit = null;
 
         foreach ($records as $record) {
             if ($record->type === 'entrada') {
+                if ($firstExit !== null) {
+                    // Retorno de intervalo: acumula o tempo de pausa
+                    $totalIntervals += $record->datetime->diffInMinutes($firstExit);
+                    $firstExit = null;
+                }
                 $openEntryAt = $record->datetime;
+                $lastEntryAfterExit = $record->datetime;
             } elseif ($record->type === 'saida' && $openEntryAt !== null) {
                 $totalMinutes += $record->datetime->diffInMinutes($openEntryAt);
+                $firstExit   = $record->datetime;
                 $openEntryAt = null;
             }
         }
@@ -92,13 +104,13 @@ class WorkDayService
 
         return [
             'entry_time'       => $entryTime,
-            'lunch_start'      => null, // campo mantido por compatibilidade
+            'lunch_start'      => null,
             'lunch_end'        => null,
             'exit_time'        => $exitTime,
             'total_minutes'    => max(0, $totalMinutes),
             'expected_minutes' => $expectedMinutes,
             'extra_minutes'    => $lastExit ? $extraMinutes : 0,
-            'lunch_minutes'    => 0,
+            'lunch_minutes'    => $totalIntervals, // total de minutos de pausa registrados
             'is_closed'        => $lastExit !== null,
         ];
     }

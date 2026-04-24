@@ -237,8 +237,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Linha de progresso: pares dinâmicos entrada/saída
-          _buildPairsRow(state.data),
+          _buildRecordsTimeline(state.data),
+        ],
+      ),
+    );
+  }
+
+  /// Timeline horizontal mostrando cada ponto batido com horário visível.
+  Widget _buildRecordsTimeline(TodayStatusModel? data) {
+    final records = data?.records ?? [];
+
+    if (records.isEmpty) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _TimelineDot(
+            label: 'Entrada',
+            time: null,
+            color: AppColors.entrada,
+            isNext: true,
+          ),
+        ],
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (int i = 0; i < records.length; i++) ...[
+            if (i > 0)
+              Container(
+                width: 24,
+                height: 2,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+            _TimelineDot(
+              label: records[i].type == 'entrada' ? 'Entrada' : 'Saída',
+              time: records[i].datetimeLocal.split(' ').last.substring(0, 5),
+              color: records[i].type == 'entrada' ? AppColors.entrada : AppColors.saida,
+              isNext: false,
+            ),
+          ],
+          // Próximo ponto esperado
+          if (data != null && !data.isComplete) ...[
+            Container(
+              width: 24,
+              height: 2,
+              color: Colors.white.withValues(alpha: 0.2),
+            ),
+            _TimelineDot(
+              label: data.nextType == 'entrada' ? 'Entrada' : 'Saída',
+              time: null,
+              color: data.nextType == 'entrada' ? AppColors.entrada : AppColors.saida,
+              isNext: true,
+            ),
+          ],
         ],
       ),
     );
@@ -387,136 +442,90 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     };
   }
 
-  /// Exibe os pares entrada/saída como indicadores circulares dinâmicos.
-  Widget _buildPairsRow(TodayStatusModel? data) {
-    if (data == null || data.records.isEmpty) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _PairDot(index: 0, entrada: null, saida: null, isNext: true),
-        ],
-      );
-    }
-
-    final pairs = data.pairs;
-    final showEmpty = !data.isComplete;
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (int i = 0; i < pairs.length; i++) ...[
-            if (i > 0) _StepConnector(active: true),
-            _PairDot(
-              index: i,
-              entrada: pairs[i].entrada,
-              saida: pairs[i].saida,
-              isNext: false,
-            ),
-          ],
-          if (showEmpty && pairs.isNotEmpty) ...[
-            _StepConnector(active: false),
-            _PairDot(
-              index: pairs.length,
-              entrada: null,
-              saida: null,
-              isNext: true,
-            ),
-          ],
-          if (pairs.isEmpty && showEmpty)
-            _PairDot(index: 0, entrada: null, saida: null, isNext: true),
-        ],
-      ),
-    );
-  }
 }
 
-/// Um par entrada/saída representado por dois pontos sobrepostos em coluna.
-class _PairDot extends StatelessWidget {
-  final int index;
-  final TimeRecordModel? entrada;
-  final TimeRecordModel? saida;
+/// Ponto individual na timeline horizontal de pontos do dia.
+class _TimelineDot extends StatelessWidget {
+  final String label;
+  final String? time; // null = ainda não batido
+  final Color color;
   final bool isNext;
 
-  const _PairDot({
-    required this.index,
-    required this.entrada,
-    required this.saida,
+  const _TimelineDot({
+    required this.label,
+    required this.time,
+    required this.color,
     required this.isNext,
   });
 
-  String _fmt(TimeRecordModel r) =>
-      r.datetimeLocal.split(' ').last.substring(0, 5);
-
   @override
   Widget build(BuildContext context) {
+    final done = time != null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Entrada
-        _dot(
-          done: entrada != null,
-          isNext: isNext && entrada == null,
-          label: entrada != null ? _fmt(entrada!) : 'E${index + 1}',
+        // Horário (ocupa espaço fixo para alinhar os círculos)
+        SizedBox(
+          height: 20,
+          child: done
+              ? Text(
+                  time!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                )
+              : Text(
+                  '--:--',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.35),
+                    fontSize: 13,
+                  ),
+                ),
         ),
-        const SizedBox(height: 2),
-        // Saída
-        _dot(
-          done: saida != null,
-          isNext: entrada != null && saida == null,
-          label: saida != null ? _fmt(saida!) : 'S${index + 1}',
-        ),
-      ],
-    );
-  }
-
-  Widget _dot({required bool done, required bool isNext, required String label}) {
-    return Column(
-      children: [
+        const SizedBox(height: 6),
+        // Círculo
         Container(
-          width: 26,
-          height: 26,
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: done
-                ? Colors.white
+                ? color
                 : isNext
-                    ? Colors.white.withValues(alpha: 0.55)
-                    : Colors.white.withValues(alpha: 0.2),
+                    ? color.withValues(alpha: 0.25)
+                    : Colors.white.withValues(alpha: 0.15),
+            border: Border.all(
+              color: done ? color : (isNext ? color : Colors.white24),
+              width: isNext ? 2 : 0,
+            ),
           ),
           child: Icon(
-            done ? Icons.check : (isNext ? Icons.radio_button_unchecked : Icons.circle_outlined),
-            size: 14,
-            color: done ? AppColors.primary : (isNext ? Colors.white : Colors.white38),
+            done
+                ? Icons.check
+                : isNext
+                    ? Icons.access_time
+                    : Icons.circle_outlined,
+            size: 16,
+            color: done
+                ? Colors.white
+                : isNext
+                    ? color
+                    : Colors.white30,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 6),
+        // Label
         Text(
           label,
           style: TextStyle(
             color: done ? Colors.white : (isNext ? Colors.white70 : Colors.white38),
-            fontSize: 8,
-            fontWeight: done ? FontWeight.bold : FontWeight.normal,
+            fontSize: 10,
+            fontWeight: done ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
       ],
-    );
-  }
-}
-
-class _StepConnector extends StatelessWidget {
-  final bool active;
-  const _StepConnector({required this.active});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        height: 2,
-        color: active ? Colors.white : Colors.white.withValues(alpha: 0.25),
-        margin: const EdgeInsets.only(bottom: 20),
-      ),
     );
   }
 }

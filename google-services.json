@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "811180236411",
+    "project_id": "projeto-ponto-web",
+    "storage_bucket": "projeto-ponto-web.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811180236411:android:29755e1cbb0f7eb6b0ccde",
+        "android_client_info": {
+          "package_name": "com.pontodigital.ponto_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBb0PZYTnPqZ0I4bmsrk2g1M-aH4PFkn_A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

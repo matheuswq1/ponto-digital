@@ -32,7 +32,6 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   @override
   void initState() {
     super.initState();
-    // reset() precisa ser chamado após o build para não modificar provider durante o build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(registerPointProvider.notifier).reset();
     });
@@ -78,24 +77,18 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     try {
       final xFile = await _cameraController!.takePicture();
       setState(() => _capturedPhoto = File(xFile.path));
-    } catch (e) {
-      // Continua sem foto se houver erro
-    }
+    } catch (_) {}
   }
 
   Future<void> _confirmRegister() async {
-    // Verifica se o utilizador já tem rosto cadastrado
     final authState = ref.read(authProvider);
     final faceEnrolled = authState.user?.employee?.faceEnrolled ?? false;
 
     if (!faceEnrolled) {
-      // Sem cadastro facial → leva para enroll antes de bater ponto
       _showEnrollRequiredDialog();
       return;
     }
 
-    // Etapa de verificação facial (sheet modal)
-    // Retorno: true = ok, false = falha, null = sem cadastro (ir para enroll)
     final faceResult = await showDialog<bool?>(
       context: context,
       barrierDismissible: false,
@@ -109,13 +102,11 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     if (!mounted) return;
 
     if (faceResult == null) {
-      // Rosto não cadastrado detectado na verificação → enroll
       _showEnrollRequiredDialog();
       return;
     }
 
     if (faceResult == false) {
-      // Falha confirmada → alerta e retorna sem registrar
       _showFaceFailDialog();
       return;
     }
@@ -126,7 +117,6 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     if (!mounted) return;
 
     final state = ref.read(registerPointProvider);
-
     if (success) {
       _showSuccessDialog(state.status == RegisterPointStatus.offline);
     }
@@ -142,16 +132,12 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
             Icon(Icons.face_retouching_off, color: AppColors.warning),
             SizedBox(width: 10),
             Expanded(
-              child: Text(
-                'Cadastro facial necessário',
-                style: TextStyle(fontSize: 16),
-              ),
+              child: Text('Cadastro facial necessário', style: TextStyle(fontSize: 16)),
             ),
           ],
         ),
         content: const Text(
-          'Para bater o ponto é obrigatório ter o rosto cadastrado.\n\n'
-          'Deseja cadastrar agora?',
+          'Para bater o ponto é obrigatório ter o rosto cadastrado.\n\nDeseja cadastrar agora?',
         ),
         actions: [
           TextButton(
@@ -161,8 +147,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
-              context.push('/face-enroll',
-                  extra: {'returnPointType': widget.pointType});
+              context.push('/face-enroll', extra: {'returnPointType': widget.pointType});
             },
             icon: const Icon(Icons.face, size: 18),
             label: const Text('Cadastrar rosto'),
@@ -179,7 +164,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
         title: const Text('Verificação facial falhou'),
         content: const Text(
           'O rosto detectado não corresponde ao colaborador cadastrado. '
-          'O ponto não foi registrado. Entre em contato com o RH se for necessário.',
+          'O ponto não foi registrado.',
         ),
         actions: [
           TextButton(
@@ -240,7 +225,6 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  // Atualiza o status do dia antes de voltar para o home
                   ref.read(todayProvider.notifier).refresh();
                   context.go('/home');
                 },
@@ -260,217 +244,276 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     final typeColor = _typeColor(widget.pointType);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF0A0F1E),
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF0A0F1E),
         foregroundColor: Colors.white,
-        title: Text(
-          'Registrar — $label',
-          style: const TextStyle(fontSize: 16),
-        ),
+        title: Text('Registrar — $label', style: const TextStyle(fontSize: 16)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios),
           onPressed: state.isLoading ? null : () => context.pop(),
         ),
       ),
-      body: Column(
-        children: [
-          // Preview da câmera
-          Expanded(
-            child: Stack(
-              children: [
-                // Câmera ou foto capturada
-                if (_capturedPhoto != null)
-                  SizedBox.expand(
-                    child: Image.file(_capturedPhoto!, fit: BoxFit.cover),
-                  )
-                else if (_cameraReady && _cameraController != null)
-                  SizedBox.expand(
-                    child: CameraPreview(_cameraController!),
-                  )
-                else
-                  const Center(
-                    child: Column(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Área da câmera com círculo central ──────────────────────────
+            Expanded(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(color: const Color(0xFF0A0F1E)),
+
+                  // Câmera ou foto
+                  if (_capturedPhoto != null)
+                    SizedBox.expand(
+                      child: Image.file(_capturedPhoto!, fit: BoxFit.cover),
+                    )
+                  else if (_cameraReady && _cameraController != null)
+                    _buildCameraWithCircle()
+                  else
+                    Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.camera_alt, color: Colors.white54, size: 64),
-                        SizedBox(height: 12),
-                        Text(
+                        Icon(Icons.camera_alt,
+                            color: Colors.white.withValues(alpha: 0.3), size: 64),
+                        const SizedBox(height: 12),
+                        const Text(
                           'Câmera não disponível\nO ponto será registrado sem foto.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white54),
+                          style: TextStyle(color: Colors.white54, fontSize: 14),
+                        ),
+                      ],
+                    ),
+
+                  // Loading
+                  if (state.isLoading)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const CircularProgressIndicator(color: Colors.white),
+                            const SizedBox(height: 16),
+                            Text(
+                              _loadingMessage(state.status),
+                              style: const TextStyle(color: Colors.white, fontSize: 15),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Erro
+                  if (state.status == RegisterPointStatus.error)
+                    Positioned(
+                      bottom: 20,
+                      left: 20,
+                      right: 20,
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          state.errorMessage ?? 'Erro ao registrar ponto.',
+                          style: const TextStyle(color: Colors.white),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+
+                  // Flip câmera
+                  if (_capturedPhoto == null && _cameraReady)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: IconButton(
+                        icon: const Icon(Icons.flip_camera_android, color: Colors.white70),
+                        onPressed: _flipCamera,
+                      ),
+                    ),
+
+                  // GPS falso
+                  if (state.isMock)
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.warning_amber, color: Colors.white, size: 14),
+                            SizedBox(width: 4),
+                            Text('GPS Falso',
+                                style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Instrução
+                  if (!state.isLoading && _capturedPhoto == null)
+                    Positioned(
+                      bottom: 20,
+                      left: 0,
+                      right: 0,
+                      child: Text(
+                        'Posicione seu rosto no círculo',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // ── Área inferior ────────────────────────────────────────────────
+            Container(
+              color: const Color(0xFF0A0F1E),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              child: Column(
+                children: [
+                  // Badge tipo de ponto
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: typeColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: typeColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.access_time, color: typeColor, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: typeColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
 
-                // Overlay de carregamento
-                if (state.isLoading)
-                  Container(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const CircularProgressIndicator(color: Colors.white),
-                          const SizedBox(height: 16),
-                          Text(
-                            _loadingMessage(state.status),
-                            style: const TextStyle(color: Colors.white, fontSize: 15),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                // Erro
-                if (state.status == RegisterPointStatus.error)
-                  Positioned(
-                    bottom: 20,
-                    left: 20,
-                    right: 20,
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        state.errorMessage ?? 'Erro ao registrar ponto.',
-                        style: const TextStyle(color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-
-                // Botão de inverter câmera
-                if (_capturedPhoto == null && _cameraReady)
-                  Positioned(
-                    top: 16,
-                    right: 16,
-                    child: IconButton(
-                      icon: const Icon(Icons.flip_camera_android, color: Colors.white),
-                      onPressed: () => _flipCamera(),
-                    ),
-                  ),
-
-                // Indicador de mock location
-                if (state.isMock)
-                  Positioned(
-                    top: 16,
-                    left: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.warning_amber, color: Colors.white, size: 14),
-                          SizedBox(width: 4),
-                          Text('GPS Falso', style: TextStyle(color: Colors.white, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Área inferior com botões
-          Container(
-            color: Colors.black,
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-            child: Column(
-              children: [
-                // Info do tipo
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: typeColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: typeColor.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Row(
                     children: [
-                      Icon(Icons.access_time, color: typeColor, size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: typeColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      if (_capturedPhoto == null)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: state.isLoading || !_cameraReady
+                                ? null
+                                : _takePicture,
+                            icon: const Icon(Icons.camera_alt, color: Colors.white70),
+                            label: const Text('Tirar Selfie',
+                                style: TextStyle(color: Colors.white70)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.white24),
+                              minimumSize: const Size.fromHeight(50),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: state.isLoading
+                                ? null
+                                : () => setState(() => _capturedPhoto = null),
+                            icon: const Icon(Icons.refresh, color: Colors.white70),
+                            label: const Text('Refazer',
+                                style: TextStyle(color: Colors.white70)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.white24),
+                              minimumSize: const Size.fromHeight(50),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(width: 12),
+
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: state.isLoading ? null : _confirmRegister,
+                          icon: const Icon(Icons.check, color: Colors.white),
+                          label: const Text('Confirmar'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: typeColor,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                Row(
-                  children: [
-                    // Botão tirar/retirar foto
-                    if (_capturedPhoto == null)
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: state.isLoading || !_cameraReady ? null : _takePicture,
-                          icon: const Icon(Icons.camera_alt, color: Colors.white),
-                          label: const Text('Tirar Selfie',
-                              style: TextStyle(color: Colors.white)),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white54),
-                            minimumSize: const Size.fromHeight(50),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      )
-                    else
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: state.isLoading
-                              ? null
-                              : () => setState(() => _capturedPhoto = null),
-                          icon: const Icon(Icons.refresh, color: Colors.white70),
-                          label: const Text('Refazer',
-                              style: TextStyle(color: Colors.white70)),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white30),
-                            minimumSize: const Size.fromHeight(50),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
+  /// Câmera com círculo guia central, igual ao Totem.
+  Widget _buildCameraWithCircle() {
+    final cam = _cameraController!;
+    final size = MediaQuery.of(context).size;
+    final circleDiameter = size.width * 0.72;
+    final aspect = 1.0 / cam.value.aspectRatio;
 
-                    const SizedBox(width: 12),
-
-                    // Botão confirmar
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: state.isLoading ? null : _confirmRegister,
-                        icon: const Icon(Icons.check, color: Colors.white),
-                        label: const Text('Confirmar'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: typeColor,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Preview em full screen com crop
+        SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: cam.value.previewSize?.height ?? 480,
+              height: cam.value.previewSize?.width ?? 640,
+              child: AspectRatio(
+                aspectRatio: aspect,
+                child: CameraPreview(cam),
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+        // Escurecimento fora do círculo
+        SizedBox.expand(
+          child: CustomPaint(
+            painter: _CircleOverlayPainter(diameter: circleDiameter),
+          ),
+        ),
+        // Borda do círculo
+        Container(
+          width: circleDiameter,
+          height: circleDiameter,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white54, width: 2),
+          ),
+        ),
+      ],
     );
   }
 
@@ -486,7 +529,8 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     final old = _cameraController;
     _cameraController = null;
     await safeDisposeCamera(old);
-    _cameraController = CameraController(camera, ResolutionPreset.medium, enableAudio: false);
+    _cameraController =
+        CameraController(camera, ResolutionPreset.medium, enableAudio: false);
     await _cameraController!.initialize();
     if (mounted) setState(() {});
   }
@@ -508,3 +552,25 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   }
 }
 
+/// Pinta um overlay escuro em torno do círculo central.
+class _CircleOverlayPainter extends CustomPainter {
+  final double diameter;
+  const _CircleOverlayPainter({required this.diameter});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0x99000000);
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = diameter / 2;
+
+    final path = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..addOval(Rect.fromCircle(center: center, radius: radius))
+      ..fillType = PathFillType.evenOdd;
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CircleOverlayPainter old) => old.diameter != diameter;
+}

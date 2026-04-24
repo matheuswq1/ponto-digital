@@ -9,13 +9,16 @@ import '../../core/utils/safe_camera_dispose.dart';
 import '../../presentation/auth/auth_provider.dart';
 import '../../services/totem_service.dart';
 
+// ─── Tempo de inatividade antes de bloquear (minutos) ────────────────────────
+const _kInactivityMinutes = 3;
+
 enum _TotemStep {
-  idle,       // câmera ativa, aguardando rosto
-  scanning,   // capturando e enviando para IA
-  identified, // rosto reconhecido — mostra opções de ponto
-  registering,// registrando o ponto
-  success,    // ponto registrado — feedback positivo
-  failed,     // rosto não reconhecido
+  idle,
+  scanning,
+  identified,
+  registering,
+  success,
+  failed,
 }
 
 class TotemScreen extends ConsumerStatefulWidget {
@@ -34,25 +37,33 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
   String? _errorMsg;
   Timer? _resetTimer;
   Timer? _clockTimer;
+  Timer? _inactivityTimer;
   String _clock = '';
+
+  // ── Bloqueio ────────────────────────────────────────────────────────────────
+  bool _locked = false;
+  bool _showLogoutAfterUnlock = false;
 
   @override
   void initState() {
     super.initState();
     _startClock();
     _initCamera();
+    _resetInactivity();
   }
 
   @override
   void dispose() {
     _resetTimer?.cancel();
     _clockTimer?.cancel();
+    _inactivityTimer?.cancel();
     final c = _cam;
     _cam = null;
     scheduleDisposeCamera(c);
     super.dispose();
   }
 
+  // ── Relógio ─────────────────────────────────────────────────────────────────
   void _startClock() {
     _updateClock();
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) => _updateClock());
@@ -63,6 +74,7 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
     setState(() => _clock = DateFormat('HH:mm:ss').format(DateTime.now()));
   }
 
+  // ── Câmera ──────────────────────────────────────────────────────────────────
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
@@ -81,16 +93,54 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
     setState(() => _camReady = true);
   }
 
+  // ── Inatividade ──────────────────────────────────────────────────────────────
+  void _resetInactivity() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer(
+      const Duration(minutes: _kInactivityMinutes),
+      _lock,
+    );
+  }
+
+  void _onUserInteraction() {
+    if (_locked) return;
+    _resetInactivity();
+  }
+
+  void _lock() {
+    if (!mounted) return;
+    _resetTimer?.cancel();
+    setState(() {
+      _locked = true;
+      _showLogoutAfterUnlock = false;
+      _step = _TotemStep.idle;
+    });
+  }
+
+  // ── Desbloqueio via swipe ─────────────────────────────────────────────────────
+  void _unlock({bool showLogout = false}) {
+    setState(() {
+      _locked = false;
+      _showLogoutAfterUnlock = showLogout;
+    });
+    _resetInactivity();
+    if (showLogout) {
+      Future.delayed(const Duration(seconds: 10), () {
+        if (mounted) setState(() => _showLogoutAfterUnlock = false);
+      });
+    }
+  }
+
+  // ── Scan ─────────────────────────────────────────────────────────────────────
   Future<void> _scan() async {
+    _onUserInteraction();
     if (_step != _TotemStep.idle || _cam == null || !_cam!.value.isInitialized) return;
 
     setState(() => _step = _TotemStep.scanning);
 
     try {
       final xf = await _cam!.takePicture();
-      final result = await ref
-          .read(totemServiceProvider)
-          .identify(File(xf.path));
+      final result = await ref.read(totemServiceProvider).identify(File(xf.path));
 
       if (!mounted) return;
 
@@ -99,7 +149,6 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
           _identified = result;
           _step = _TotemStep.identified;
         });
-        // Auto-registro se só existe um tipo disponível (ex: após saída almoço → volta almoço)
         if (result.nextTypes.length == 1) {
           await _registerPoint(result.nextTypes.first);
         }
@@ -122,6 +171,7 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
   }
 
   Future<void> _registerPoint(String type) async {
+    _onUserInteraction();
     if (_identified == null) return;
     setState(() => _step = _TotemStep.registering);
 
@@ -175,131 +225,195 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
     final size = MediaQuery.of(context).size;
     final circleDiameter = size.width * 0.72;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
-      body: SafeArea(
-        child: Column(
+    return GestureDetector(
+      onTap: _onUserInteraction,
+      onPanDown: (_) => _onUserInteraction(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0A0F1E),
+        body: Stack(
           children: [
-            // ── Header ────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // ── Conteúdo principal ──────────────────────────────────────────
+            SafeArea(
+              child: Column(
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.monitor, color: Colors.white54, size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        ref.watch(authProvider).user?.name ?? 'Totem',
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                  // ── Header ─────────────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.monitor, color: Colors.white54, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              ref.watch(authProvider).user?.name ?? 'Totem',
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    _clock,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      fontFeatures: [FontFeature.tabularFigures()],
+                        Text(
+                          _clock,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        // Cadeado — toque longo desbloqueia e mostra logout
+                        GestureDetector(
+                          onLongPress: () => _unlock(showLogout: true),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: Icon(
+                              _locked ? Icons.lock : Icons.lock_open_outlined,
+                              key: ValueKey(_locked),
+                              color: _locked ? AppColors.error : Colors.white24,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  GestureDetector(
-                    onLongPress: _logout,
-                    child: const Icon(Icons.power_settings_new,
-                        color: Colors.white24, size: 20),
+
+                  const Spacer(),
+
+                  // ── Círculo da câmera ────────────────────────────────────────
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 400),
+                    width: circleDiameter,
+                    height: circleDiameter,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _locked
+                            ? Colors.white12
+                            : _step == _TotemStep.scanning
+                                ? AppColors.primary
+                                : _step == _TotemStep.failed
+                                    ? AppColors.error
+                                    : Colors.white24,
+                        width: _step == _TotemStep.scanning ? 4 : 2,
+                      ),
+                      boxShadow: _step == _TotemStep.scanning && !_locked
+                          ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4)]
+                          : [],
+                    ),
+                    child: ClipOval(
+                      child: _camReady && _cam != null
+                          ? _buildCameraPreview()
+                          : Container(color: const Color(0xFF1A2035)),
+                    ),
                   ),
+
+                  const SizedBox(height: 24),
+
+                  // ── Instrução / feedback ────────────────────────────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _locked
+                        ? const _StatusText(
+                            key: ValueKey('locked'),
+                            icon: Icons.lock,
+                            iconColor: Colors.white38,
+                            text: 'Totem bloqueado',
+                            subtext: 'Pressione o cadeado para desbloquear',
+                          )
+                        : _buildCenterContent(),
+                  ),
+
+                  const Spacer(),
+
+                  // ── Botão de scan (só no idle e desbloqueado) ──────────────
+                  if (!_locked && _step == _TotemStep.idle) ...[
+                    GestureDetector(
+                      onTap: _scan,
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.45),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.face, color: Colors.white, size: 36),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Toque para identificar',
+                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                    ),
+                  ],
+
+                  // ── Botão de logout (só após desbloqueio com showLogout) ────
+                  if (_showLogoutAfterUnlock && !_locked) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _logout,
+                      icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
+                      label: const Text(
+                        'Sair do Totem',
+                        style: TextStyle(color: AppColors.error, fontSize: 13),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
 
-            const Spacer(),
-
-            // ── Círculo da câmera ─────────────────────────────────────────
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 400),
-              width: circleDiameter,
-              height: circleDiameter,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: _step == _TotemStep.scanning
-                      ? AppColors.primary
-                      : _step == _TotemStep.failed
-                          ? AppColors.error
-                          : Colors.white24,
-                  width: _step == _TotemStep.scanning ? 4 : 2,
-                ),
-                boxShadow: _step == _TotemStep.scanning
-                    ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4)]
-                    : [],
-              ),
-              child: ClipOval(
-                child: _camReady && _cam != null
-                    ? _buildCameraPreview()
-                    : Container(color: const Color(0xFF1A2035)),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── Instrução / feedback ───────────────────────────────────────
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: _buildCenterContent(),
-            ),
-
-            const Spacer(),
-
-            // ── Botão de scan (só no idle) ─────────────────────────────────
-            if (_step == _TotemStep.idle) ...[
+            // ── Overlay de bloqueio — swipe para cima desbloqueia ────────────
+            if (_locked)
               GestureDetector(
-                onTap: _scan,
+                onVerticalDragEnd: (details) {
+                  // Swipe para cima (velocidade negativa no eixo Y)
+                  if (details.primaryVelocity != null && details.primaryVelocity! < -200) {
+                    _unlock();
+                  }
+                },
                 child: Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.45),
-                        blurRadius: 20,
-                        spreadRadius: 2,
+                  color: Colors.black54,
+                  alignment: Alignment.bottomCenter,
+                  padding: const EdgeInsets.only(bottom: 48),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.keyboard_arrow_up, color: Colors.white54, size: 32),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Deslize para cima para desbloquear',
+                        style: TextStyle(color: Colors.white54, fontSize: 13),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.face, color: Colors.white, size: 36),
                 ),
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'Toque para identificar',
-                style: TextStyle(color: Colors.white38, fontSize: 13),
-              ),
-            ],
-
-            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
 
-  /// Exibe a câmera dentro do círculo sem distorção.
-  /// O CameraPreview já aplica o AspectRatio do sensor internamente.
-  /// Usamos um SizedBox.expand + FittedBox para fazer cover (crop) sem esticar.
   Widget _buildCameraPreview() {
     final cam = _cam!;
-    // aspect ratio do sensor em portrait
     final aspect = 1.0 / cam.value.aspectRatio;
     return AspectRatio(
-      aspectRatio: 1, // força o container a ser quadrado (igual ao círculo)
+      aspectRatio: 1,
       child: FittedBox(
         fit: BoxFit.cover,
         clipBehavior: Clip.hardEdge,
@@ -325,7 +439,6 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
           text: 'Posicione seu rosto no círculo',
           subtext: '',
         );
-
       case _TotemStep.scanning:
         return const _StatusText(
           key: ValueKey('scanning'),
@@ -335,7 +448,6 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
           subtext: 'Aguarde',
           showSpinner: true,
         );
-
       case _TotemStep.identified:
         final r = _identified!;
         if (r.nextTypes.isEmpty || r.isComplete) {
@@ -355,7 +467,6 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
           typeLabel: _typeLabel,
           typeColor: _typeColor,
         );
-
       case _TotemStep.registering:
         return const _StatusText(
           key: ValueKey('registering'),
@@ -365,15 +476,12 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
           subtext: '',
           showSpinner: true,
         );
-
       case _TotemStep.success:
-        final p = _lastPoint!;
         return _SuccessPanel(
           key: const ValueKey('success'),
-          point: p,
+          point: _lastPoint!,
           typeColor: _typeColor,
         );
-
       case _TotemStep.failed:
         return _StatusText(
           key: const ValueKey('failed'),
@@ -386,7 +494,7 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
   }
 }
 
-// ─── Widgets auxiliares ────────────────────────────────────────────────────
+// ─── Widgets auxiliares ───────────────────────────────────────────────────────
 
 class _StatusText extends StatelessWidget {
   final IconData icon;
@@ -523,4 +631,3 @@ class _SuccessPanel extends StatelessWidget {
     );
   }
 }
-

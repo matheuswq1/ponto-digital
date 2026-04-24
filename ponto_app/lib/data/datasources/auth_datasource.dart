@@ -63,6 +63,33 @@ class AuthDatasource {
     return prefs.getString(AppConstants.tokenKey) != null;
   }
 
+  /// Salva as credenciais localmente para o "Lembrar de mim".
+  Future<void> saveCredentials(String email, String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(AppConstants.rememberMeKey, true);
+    await prefs.setString(AppConstants.savedEmailKey, email);
+    await prefs.setString(AppConstants.savedPasswordKey, password);
+  }
+
+  /// Remove as credenciais salvas.
+  Future<void> clearCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(AppConstants.rememberMeKey);
+    await prefs.remove(AppConstants.savedEmailKey);
+    await prefs.remove(AppConstants.savedPasswordKey);
+  }
+
+  /// Retorna as credenciais salvas ou null se não houver.
+  Future<Map<String, String>?> getSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remember = prefs.getBool(AppConstants.rememberMeKey) ?? false;
+    if (!remember) return null;
+    final email = prefs.getString(AppConstants.savedEmailKey);
+    final password = prefs.getString(AppConstants.savedPasswordKey);
+    if (email == null || password == null) return null;
+    return {'email': email, 'password': password};
+  }
+
   /// Regista token FCM no Laravel (chame após [firebase_messaging] obter o token).
   Future<void> registerDeviceToken(String token, {String platform = 'android'}) async {
     await _api.post('/device-tokens', data: {

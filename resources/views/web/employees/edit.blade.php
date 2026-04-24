@@ -115,26 +115,26 @@
 
         @php $ws = $employee->workSchedule; @endphp
 
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Entrada</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Horário de entrada</label>
                 <input type="time" name="ws_entry_time" value="{{ old('ws_entry_time', $ws?->entry_time ?? '08:00') }}"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Saída</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Horário de saída</label>
                 <input type="time" name="ws_exit_time" value="{{ old('ws_exit_time', $ws?->exit_time ?? '17:00') }}"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Início almoço</label>
-                <input type="time" name="ws_lunch_start" value="{{ old('ws_lunch_start', $ws?->lunch_start ?? '12:00') }}"
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                    Intervalo de almoço (min)
+                    <span class="text-slate-400 font-normal ml-1">— opcional</span>
+                </label>
+                <input type="number" name="ws_lunch_minutes" min="0" max="480" placeholder="Ex: 60"
+                       value="{{ old('ws_lunch_minutes', $ws?->lunch_minutes) }}"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Fim almoço</label>
-                <input type="time" name="ws_lunch_end" value="{{ old('ws_lunch_end', $ws?->lunch_end ?? '13:00') }}"
-                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+                <p class="text-[11px] text-slate-400 mt-1">Deixe em branco se o almoço não tem duração mínima fixa. O sistema calcula pelo registro de ponto.</p>
             </div>
         </div>
 

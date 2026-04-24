@@ -14,9 +14,8 @@ class WorkSchedule extends Model
         'employee_id',
         'name',
         'entry_time',
-        'lunch_start',
-        'lunch_end',
         'exit_time',
+        'lunch_minutes',
         'tolerance_minutes',
         'work_days',
         'active',
@@ -28,12 +27,13 @@ class WorkSchedule extends Model
     protected function casts(): array
     {
         return [
-            'work_days'       => 'array',
-            'active'          => 'boolean',
+            'work_days'         => 'array',
+            'active'            => 'boolean',
             'tolerance_minutes' => 'integer',
-            'notify_late'     => 'boolean',
-            'notify_absence'  => 'boolean',
-            'notify_overtime' => 'boolean',
+            'lunch_minutes'     => 'integer',
+            'notify_late'       => 'boolean',
+            'notify_absence'    => 'boolean',
+            'notify_overtime'   => 'boolean',
         ];
     }
 
@@ -45,10 +45,13 @@ class WorkSchedule extends Model
     public function getExpectedMinutes(): int
     {
         $entry = strtotime($this->entry_time);
-        $exit = strtotime($this->exit_time);
-        $lunch = (strtotime($this->lunch_end) - strtotime($this->lunch_start)) / 60;
+        $exit  = strtotime($this->exit_time);
+        $total = (int) (($exit - $entry) / 60);
 
-        return (int) (($exit - $entry) / 60 - $lunch);
+        // Deduz apenas o intervalo mínimo configurado (opcional)
+        $lunch = $this->lunch_minutes ?? 0;
+
+        return max(0, $total - $lunch);
     }
 
     public function isWorkDay(int $dayOfWeek): bool

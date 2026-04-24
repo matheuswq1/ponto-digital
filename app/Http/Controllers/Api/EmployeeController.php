@@ -87,10 +87,9 @@ class EmployeeController extends Controller
             'company_id' => 'required|exists:companies,id',
             'password' => 'nullable|string|min:8',
             'schedule' => 'nullable|array',
-            'schedule.entry_time' => 'nullable|date_format:H:i',
-            'schedule.lunch_start' => 'nullable|date_format:H:i',
-            'schedule.lunch_end' => 'nullable|date_format:H:i',
-            'schedule.exit_time' => 'nullable|date_format:H:i',
+            'schedule.entry_time'    => 'nullable|date_format:H:i',
+            'schedule.exit_time'     => 'nullable|date_format:H:i',
+            'schedule.lunch_minutes' => 'nullable|integer|min:0|max:480',
             'schedule.tolerance_minutes' => 'nullable|integer|min:0|max:60',
         ]);
 

@@ -29,7 +29,8 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
   @override
   void initState() {
     super.initState();
-    _newDateTime = widget.record.datetime;
+    // Usa o datetime já convertido para local (evita exibir UTC)
+    _newDateTime = widget.record.datetime.toLocal();
     _newType = widget.record.type;
   }
 
@@ -44,7 +45,7 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
       context: context,
       initialDate: _newDateTime,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now(),
       locale: const Locale('pt', 'BR'),
     );
     if (d == null || !mounted) return;
@@ -85,7 +86,10 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
       ref.invalidate(editRequestsProvider);
       context.pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Solicitação enviada. Aguarde a aprovação do gestor.')),
+        const SnackBar(
+          content: Text('Solicitação enviada. Aguarde a aprovação do gestor.'),
+          backgroundColor: AppColors.success,
+        ),
       );
     } on AppException catch (e) {
       setState(() {
@@ -100,91 +104,349 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     }
   }
 
+  Color _typeColor(String type) => switch (type) {
+        'entrada' => AppColors.entrada,
+        'saida' => AppColors.saida,
+        _ => AppColors.primary,
+      };
+
   @override
   Widget build(BuildContext context) {
+    final origTime = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR')
+        .format(widget.record.datetime.toLocal());
+    final newTime =
+        DateFormat('dd/MM/yyyy HH:mm', 'pt_BR').format(_newDateTime);
+    final changed = _newDateTime != widget.record.datetime.toLocal() ||
+        _newType != widget.record.type;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Solicitar correção')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Solicitar correção'),
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Ponto: ${widget.record.typeLabel} · ${widget.record.datetimeLocal}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+            // ── Card do ponto original ──────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ponto original',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textHint,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _typeColor(widget.record.type)
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          widget.record.typeLabel,
+                          style: TextStyle(
+                            color: _typeColor(widget.record.type),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        origTime,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
+
+            const SizedBox(height: 16),
+
+            // ── Seção: nova data/hora ───────────────────────────────────
+            _SectionLabel(label: 'Novo horário'),
             const SizedBox(height: 8),
-            const Text(
-              'Informe o horário correto e uma justificativa (mín. 20 caracteres).',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Novo data e horário'),
-              subtitle: Text(
-                DateFormat("dd/MM/yyyy HH:mm", 'pt_BR').format(_newDateTime),
-              ),
-              trailing: const Icon(Icons.edit_calendar, color: AppColors.primary),
+            InkWell(
               onTap: _pickDateTime,
-            ),
-            const SizedBox(height: 8),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Tipo do ponto (se alterou)',
-                style: TextStyle(fontSize: 12, color: AppColors.textHint),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _newDateTime != widget.record.datetime.toLocal()
+                        ? AppColors.primary
+                        : AppColors.divider,
+                    width: _newDateTime != widget.record.datetime.toLocal() ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.edit_calendar,
+                      color: _newDateTime != widget.record.datetime.toLocal()
+                          ? AppColors.primary
+                          : AppColors.textHint,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        newTime,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: _newDateTime != widget.record.datetime.toLocal()
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        color: AppColors.textHint, size: 20),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            DropdownButton<String>(
-              isExpanded: true,
-              value: _newType,
-              items: AppConstants.pointTypeLabels.entries
-                  .map(
-                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _newType = v),
+
+            const SizedBox(height: 16),
+
+            // ── Seção: tipo do ponto ────────────────────────────────────
+            _SectionLabel(label: 'Tipo do ponto'),
+            const SizedBox(height: 8),
+            Row(
+              children: AppConstants.pointTypeLabels.entries.map((e) {
+                final selected = _newType == e.key;
+                final color = _typeColor(e.key);
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                        right: e.key != AppConstants.pointTypeLabels.keys.last
+                            ? 10
+                            : 0),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _newType = e.key),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color:
+                              selected ? color.withValues(alpha: 0.12) : AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selected ? color : AppColors.divider,
+                            width: selected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              e.key == 'entrada' ? Icons.login : Icons.logout,
+                              color: selected ? color : AppColors.textHint,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              e.value,
+                              style: TextStyle(
+                                color: selected ? color : AppColors.textSecondary,
+                                fontWeight: selected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 16),
+
+            // ── Preview da alteração ────────────────────────────────────
+            if (changed) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.swap_horiz,
+                        color: AppColors.primary, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${widget.record.typeLabel} $origTime  →  ${AppConstants.pointTypeLabels[_newType] ?? _newType} $newTime',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Justificativa ───────────────────────────────────────────
+            _SectionLabel(label: 'Justificativa'),
+            const SizedBox(height: 8),
             TextFormField(
               controller: _justification,
               minLines: 4,
               maxLines: 8,
+              maxLength: 500,
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
-                labelText: 'Justificativa *',
                 hintText: 'Descreva o motivo da correção com detalhes...',
-                border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
             ),
+            // Contador e requisito mínimo
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                _justification.text.length < 20
+                    ? 'Mínimo 20 caracteres (${_justification.text.length}/20)'
+                    : '${_justification.text.length} caracteres',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: _justification.text.length < 20
+                      ? AppColors.textHint
+                      : AppColors.success,
+                ),
+              ),
+            ),
+
+            // ── Erro ────────────────────────────────────────────────────
             if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 13),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(10),
+                  border:
+                      Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline,
+                        color: AppColors.error, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_error!,
+                          style: const TextStyle(
+                              color: AppColors.error, fontSize: 13)),
+                    ),
+                  ],
+                ),
               ),
             ],
+
             const SizedBox(height: 24),
-            FilledButton(
+
+            // ── Botão enviar ────────────────────────────────────────────
+            ElevatedButton(
               onPressed: _sending ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
               child: _sending
                   ? const SizedBox(
                       height: 22,
                       width: 22,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
+                          strokeWidth: 2.5, color: Colors.white),
                     )
-                  : const Text('Enviar solicitação'),
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.send, size: 18, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text('Enviar solicitação',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
             ),
+
+            const SizedBox(height: 12),
+
+            // ── Aviso ────────────────────────────────────────────────────
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.info_outline, size: 13, color: AppColors.textHint),
+                SizedBox(width: 4),
+                Text(
+                  'A correção será analisada pelo gestor.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textHint,
+        letterSpacing: 0.8,
       ),
     );
   }
