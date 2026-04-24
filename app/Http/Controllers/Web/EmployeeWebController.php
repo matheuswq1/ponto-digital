@@ -499,6 +499,19 @@ class EmployeeWebController extends Controller
                 continue;
             }
 
+            // Ignorar registros de teste: nome muito curto (1-2 caracteres)
+            if (mb_strlen($nome) <= 2) {
+                $skipped++;
+                continue;
+            }
+
+            // Ignorar PIS inválido: PIS brasileiro tem exatamente 11 dígitos
+            $pisDigitos = preg_replace('/\D/', '', $pis);
+            if (strlen($pisDigitos) !== 11) {
+                $skipped++;
+                continue;
+            }
+
             // Ignorar administradores (campo administrador = 1)
             if (($line['administrador'] ?? '0') === '1') {
                 $skipped++;
