@@ -110,22 +110,23 @@ class CompanyWebController extends Controller
         return $redirect;
     }
 
-    public function show(Company $company): View
+    public function show(Company $company, Request $request): View
     {
         $this->authorize('manage-companies');
 
         $company->loadCount('activeEmployees');
         $gestores = $company->users()->where('role', 'gestor')->orderBy('name')->get();
         $totems   = $company->users()->where('role', 'totem')->orderBy('name')->get();
+        // tab activa vinda do redirect (ex: após guardar dados redireciona para ?tab=dados)
+        $activeTab = $request->get('tab', 'dados');
 
-        return view('web.companies.show', compact('company', 'gestores', 'totems'));
+        return view('web.companies.show', compact('company', 'gestores', 'totems', 'activeTab'));
     }
 
-    public function edit(Company $company): View
+    public function edit(Company $company): \Illuminate\Http\RedirectResponse
     {
-        $this->authorize('manage-companies');
-
-        return view('web.companies.edit', compact('company'));
+        // Redireciona para show (página unificada)
+        return redirect()->route('painel.companies.show', $company);
     }
 
     public function update(Request $request, Company $company): RedirectResponse
@@ -177,7 +178,7 @@ class CompanyWebController extends Controller
         ]);
 
         return redirect()
-            ->route('painel.companies.show', $company)
+            ->route('painel.companies.show', array_merge(['company' => $company->id], ['tab' => 'dados']))
             ->with('success', 'Empresa atualizada.');
     }
 
@@ -200,7 +201,7 @@ class CompanyWebController extends Controller
         ]);
 
         return redirect()
-            ->route('painel.companies.show', $company)
+            ->route('painel.companies.show', ['company' => $company->id, 'tab' => 'gestores'])
             ->with('success', 'Dados do gestor actualizados.');
     }
 
@@ -220,7 +221,7 @@ class CompanyWebController extends Controller
         $gestor->update(['password' => Hash::make($plain)]);
 
         $redirect = redirect()
-            ->route('painel.companies.show', $company)
+            ->route('painel.companies.show', ['company' => $company->id, 'tab' => 'gestores'])
             ->with('success', 'Palavra-passe do gestor redefinida.');
 
         if ($autoPassword) {
@@ -255,7 +256,7 @@ class CompanyWebController extends Controller
         ]);
 
         $redirect = redirect()
-            ->route('painel.companies.show', $company)
+            ->route('painel.companies.show', ['company' => $company->id, 'tab' => 'gestores'])
             ->with('success', 'Novo gestor adicionado.');
 
         if ($autoPassword) {
@@ -292,7 +293,7 @@ class CompanyWebController extends Controller
         ]);
 
         $redirect = redirect()
-            ->route('painel.companies.show', $company)
+            ->route('painel.companies.show', ['company' => $company->id, 'tab' => 'totems'])
             ->with('success', 'Dispositivo totem criado.');
 
         if ($autoPassword) {
@@ -310,7 +311,7 @@ class CompanyWebController extends Controller
         $totem->update(['active' => ! $totem->active]);
 
         return redirect()
-            ->route('painel.companies.show', $company)
+            ->route('painel.companies.show', ['company' => $company->id, 'tab' => 'totems'])
             ->with('success', $totem->active ? 'Totem reativado.' : 'Totem desativado.');
     }
 
@@ -325,7 +326,7 @@ class CompanyWebController extends Controller
         $totem->update(['password' => Hash::make($plain)]);
 
         $redirect = redirect()
-            ->route('painel.companies.show', $company)
+            ->route('painel.companies.show', ['company' => $company->id, 'tab' => 'totems'])
             ->with('success', 'Senha do totem redefinida.');
 
         if ($autoPassword) {
