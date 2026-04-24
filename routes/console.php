@@ -1,5 +1,8 @@
 <?php
 
+use App\Jobs\CheckDailyAbsences;
+use App\Jobs\CheckLateArrivals;
+use App\Jobs\CheckOvertimeAlert;
 use App\Jobs\SyncPendingTimeRecords;
 use App\Models\Company;
 use App\Services\WorkDayService;
@@ -41,3 +44,24 @@ Artisan::command('ponto:sync-offline', function () {
 
 // Agendamentos
 Schedule::job(new SyncPendingTimeRecords())->hourly()->name('sync-offline-records');
+
+// Alerta de atraso — roda a cada 15 min entre 06:00 e 11:00
+// O job filtra apenas quem passou do horário+tolerância sem bater entrada
+Schedule::job(new CheckLateArrivals())
+    ->everyFifteenMinutes()
+    ->between('06:00', '11:00')
+    ->name('check-late-arrivals')
+    ->withoutOverlapping();
+
+// Alerta de ausência total — roda às 20:00 (fim do expediente)
+Schedule::job(new CheckDailyAbsences())
+    ->dailyAt('20:00')
+    ->name('check-daily-absences')
+    ->withoutOverlapping();
+
+// Alerta de hora extra — roda a cada 30 min entre 17:00 e 22:00
+Schedule::job(new CheckOvertimeAlert())
+    ->everyThirtyMinutes()
+    ->between('17:00', '22:00')
+    ->name('check-overtime-alert')
+    ->withoutOverlapping();

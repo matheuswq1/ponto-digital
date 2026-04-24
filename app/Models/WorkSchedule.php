@@ -20,14 +20,20 @@ class WorkSchedule extends Model
         'tolerance_minutes',
         'work_days',
         'active',
+        'notify_late',
+        'notify_absence',
+        'notify_overtime',
     ];
 
     protected function casts(): array
     {
         return [
-            'work_days' => 'array',
-            'active' => 'boolean',
+            'work_days'       => 'array',
+            'active'          => 'boolean',
             'tolerance_minutes' => 'integer',
+            'notify_late'     => 'boolean',
+            'notify_absence'  => 'boolean',
+            'notify_overtime' => 'boolean',
         ];
     }
 

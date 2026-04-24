@@ -105,6 +105,88 @@
         </div>
     </div>
 
+    {{-- Escala de trabalho --}}
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div class="flex items-center gap-2 mb-4">
+            <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            <h2 class="text-sm font-semibold text-slate-700">Escala de trabalho</h2>
+        </div>
+        <p class="text-xs text-slate-400 mb-4">Defina o horário esperado para gerar alertas de atraso, ausência e hora extra. Tolerância padrão: 5 min.</p>
+
+        @php $ws = $employee->workSchedule; @endphp
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Entrada</label>
+                <input type="time" name="ws_entry_time" value="{{ old('ws_entry_time', $ws?->entry_time ?? '08:00') }}"
+                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Saída</label>
+                <input type="time" name="ws_exit_time" value="{{ old('ws_exit_time', $ws?->exit_time ?? '17:00') }}"
+                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Início almoço</label>
+                <input type="time" name="ws_lunch_start" value="{{ old('ws_lunch_start', $ws?->lunch_start ?? '12:00') }}"
+                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Fim almoço</label>
+                <input type="time" name="ws_lunch_end" value="{{ old('ws_lunch_end', $ws?->lunch_end ?? '13:00') }}"
+                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Tolerância (minutos)</label>
+                <input type="number" name="ws_tolerance" min="0" max="60"
+                       value="{{ old('ws_tolerance', $ws?->tolerance_minutes ?? 5) }}"
+                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-2">Dias de trabalho</label>
+                <div class="flex flex-wrap gap-2">
+                    @foreach(['1'=>'Seg','2'=>'Ter','3'=>'Qua','4'=>'Qui','5'=>'Sex','6'=>'Sáb','0'=>'Dom'] as $val => $lbl)
+                        @php $checked = in_array((int)$val, $ws?->work_days ?? [1,2,3,4,5]); @endphp
+                        <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input type="checkbox" name="ws_work_days[]" value="{{ $val }}"
+                                   {{ $checked ? 'checked' : '' }}
+                                   class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-200">
+                            {{ $lbl }}
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        {{-- Notificações --}}
+        <div class="mt-4 pt-4 border-t border-slate-100">
+            <p class="text-xs font-medium text-slate-600 mb-3">Alertas por push notification</p>
+            <div class="flex flex-wrap gap-4">
+                <label class="flex items-center gap-2 text-xs cursor-pointer">
+                    <input type="checkbox" name="ws_notify_late" value="1"
+                           {{ old('ws_notify_late', $ws?->notify_late ?? true) ? 'checked' : '' }}
+                           class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-200">
+                    Atraso na entrada
+                </label>
+                <label class="flex items-center gap-2 text-xs cursor-pointer">
+                    <input type="checkbox" name="ws_notify_absence" value="1"
+                           {{ old('ws_notify_absence', $ws?->notify_absence ?? true) ? 'checked' : '' }}
+                           class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-200">
+                    Ausência no dia
+                </label>
+                <label class="flex items-center gap-2 text-xs cursor-pointer">
+                    <input type="checkbox" name="ws_notify_overtime" value="1"
+                           {{ old('ws_notify_overtime', $ws?->notify_overtime ?? true) ? 'checked' : '' }}
+                           class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-200">
+                    Hora extra (>30 min)
+                </label>
+            </div>
+        </div>
+    </div>
+
     {{-- Ações --}}
     <div class="flex flex-wrap items-center gap-3">
         <button type="submit" class="bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition">

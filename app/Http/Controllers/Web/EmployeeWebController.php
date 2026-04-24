@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\TimeRecord;
 use App\Models\User;
+use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -120,7 +121,7 @@ class EmployeeWebController extends Controller
     public function edit(Employee $employee): View
     {
         $this->authorize('manage-employees');
-        $employee->load('user', 'company');
+        $employee->load('user', 'company', 'workSchedule');
         $companies = Company::where('active', true)->orderBy('name')->get();
         return view('web.employees.edit', compact('employee', 'companies'));
     }
@@ -141,6 +142,13 @@ class EmployeeWebController extends Controller
             'weekly_hours'    => 'required|integer|min:1|max:60',
             'registration_number' => 'nullable|string|max:50',
             'pis'             => 'nullable|string|max:20',
+            'ws_entry_time'   => 'nullable|date_format:H:i',
+            'ws_exit_time'    => 'nullable|date_format:H:i',
+            'ws_lunch_start'  => 'nullable|date_format:H:i',
+            'ws_lunch_end'    => 'nullable|date_format:H:i',
+            'ws_tolerance'    => 'nullable|integer|min:0|max:60',
+            'ws_work_days'    => 'nullable|array',
+            'ws_work_days.*'  => 'integer|min:0|max:6',
         ]);
 
         DB::transaction(function () use ($request, $employee) {
@@ -160,6 +168,27 @@ class EmployeeWebController extends Controller
                 'weekly_hours'        => $request->weekly_hours,
                 'pis'                 => $request->pis,
             ]);
+
+            if ($request->filled('ws_entry_time')) {
+                $scheduleData = [
+                    'name'              => 'Escala padrão',
+                    'entry_time'        => $request->ws_entry_time,
+                    'exit_time'         => $request->ws_exit_time,
+                    'lunch_start'       => $request->ws_lunch_start ?? '12:00',
+                    'lunch_end'         => $request->ws_lunch_end ?? '13:00',
+                    'tolerance_minutes' => $request->ws_tolerance ?? 5,
+                    'work_days'         => array_map('intval', $request->ws_work_days ?? [1,2,3,4,5]),
+                    'active'            => true,
+                    'notify_late'       => $request->boolean('ws_notify_late'),
+                    'notify_absence'    => $request->boolean('ws_notify_absence'),
+                    'notify_overtime'   => $request->boolean('ws_notify_overtime'),
+                ];
+
+                WorkSchedule::updateOrCreate(
+                    ['employee_id' => $employee->id],
+                    $scheduleData
+                );
+            }
         });
 
         return redirect()->route('painel.employees.show', $employee)

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/services/fcm_token_sync.dart';
 import '../../data/datasources/auth_datasource.dart';
 import '../../data/models/user_model.dart';
 import '../../core/constants/app_constants.dart';
@@ -47,8 +48,9 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthDatasource _datasource;
+  final Ref _ref;
 
-  AuthNotifier(this._datasource) : super(const AuthState()) {
+  AuthNotifier(this._datasource, this._ref) : super(const AuthState()) {
     _checkStoredAuth();
   }
 
@@ -81,14 +83,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.authenticated, user: state.user);
   }
 
-  Future<Map<String, dynamic>> loginFull(String email, String password) async {
+  Future<Map<String, dynamic>> loginFull(
+    String email,
+    String password, {
+    bool rememberMe = false,
+  }) async {
     state = state.copyWith(status: AuthStatus.loading, errorMessage: null);
     try {
       final result = await _datasource.login(email, password);
+      if (rememberMe) {
+        await _datasource.saveCredentials(email, password);
+      } else {
+        await _datasource.clearCredentials();
+      }
       state = state.copyWith(
         status: AuthStatus.authenticated,
         user: result['user'] as UserModel,
       );
+      syncFcmToken(_ref);
       return result;
     } on AppException catch (e) {
       state = state.copyWith(
@@ -98,6 +110,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return {};
     }
   }
+
+  Future<Map<String, String>?> getSavedCredentials() =>
+      _datasource.getSavedCredentials();
 
   Future<bool> login(String email, String password) async {
     final result = await loginFull(email, password);
@@ -119,6 +134,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(ref.read(authDatasourceProvider)),
+  (ref) => AuthNotifier(ref.read(authDatasourceProvider), ref),
 );
 
