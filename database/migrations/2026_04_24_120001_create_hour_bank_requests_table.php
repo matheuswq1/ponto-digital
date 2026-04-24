@@ -23,10 +23,21 @@ return new class extends Migration
             $table->index(['employee_id', 'status']);
             $table->index('requested_date');
         });
+
+        // Adiciona FK da tabela transactions → requests (criada antes desta)
+        Schema::table('hour_bank_transactions', function (Blueprint $table) {
+            $table->foreign('hour_bank_request_id')
+                ->references('id')
+                ->on('hour_bank_requests')
+                ->onDelete('set null');
+        });
     }
 
     public function down(): void
     {
+        Schema::table('hour_bank_transactions', function (Blueprint $table) {
+            $table->dropForeign(['hour_bank_request_id']);
+        });
         Schema::dropIfExists('hour_bank_requests');
     }
 };

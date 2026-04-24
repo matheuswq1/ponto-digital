@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('employee_id')->constrained()->onDelete('cascade');
             $table->foreignId('work_day_id')->nullable()->constrained()->onDelete('set null');
-            $table->foreignId('hour_bank_request_id')->nullable()->constrained()->onDelete('set null');
+            $table->unsignedBigInteger('hour_bank_request_id')->nullable();
             $table->enum('type', ['extra', 'deficit', 'folga_aprovada', 'ajuste_manual']);
             $table->integer('minutes')->comment('Positivo = crédito, negativo = débito');
             $table->string('description')->nullable();
