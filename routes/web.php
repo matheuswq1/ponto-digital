@@ -71,5 +71,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/utilizadores/{user}/editar', [UserWebController::class, 'edit'])->name('users.edit');
         Route::match(['PUT', 'POST'], '/utilizadores/{user}/atualizar', [UserWebController::class, 'update'])->name('users.update');
         Route::post('/utilizadores/{user}/senha', [UserWebController::class, 'resetPassword'])->name('users.reset-password');
+        Route::delete('/utilizadores/{user}', [UserWebController::class, 'destroy'])->name('users.destroy');
     });
 });

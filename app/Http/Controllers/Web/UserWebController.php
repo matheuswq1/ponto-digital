@@ -106,4 +106,24 @@ class UserWebController extends Controller
 
         return back()->with('success', 'Senha redefinida com sucesso.');
     }
+
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        $this->authorize('manage-employees');
+
+        // Não pode excluir a própria conta
+        if ($user->id === $request->user()->id) {
+            return back()->with('error', 'Não é possível excluir a própria conta.');
+        }
+
+        // Não pode excluir utilizador vinculado a um colaborador ativo
+        if ($user->employee()->exists()) {
+            return back()->with('error', 'Este utilizador está vinculado a um colaborador e não pode ser excluído. Desative o colaborador primeiro.');
+        }
+
+        $user->delete();
+
+        return redirect()->route('painel.users.index')
+            ->with('success', 'Utilizador excluído com sucesso.');
+    }
 }

@@ -11,6 +11,13 @@
 </div>
 @endif
 
+@if(session('error'))
+<div class="mb-4 flex items-center gap-3 rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/></svg>
+    {{ session('error') }}
+</div>
+@endif
+
 {{-- Barra de ações --}}
 <div class="flex flex-wrap items-center gap-3 mb-5">
     <form method="get" class="flex items-center gap-2 flex-1 min-w-0">
@@ -90,11 +97,21 @@
                     </td>
                     <td class="px-5 py-3 hidden lg:table-cell text-slate-500 text-xs">{{ $user->created_at?->format('d/m/Y') ?? '—' }}</td>
                     <td class="px-5 py-3 text-right">
-                        <a href="{{ route('painel.users.edit', $user) }}"
-                           class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-200 rounded-lg px-2.5 py-1.5 hover:bg-indigo-50 transition">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
-                            Editar
-                        </a>
+                        <div class="inline-flex items-center gap-2">
+                            <a href="{{ route('painel.users.edit', $user) }}"
+                               class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-200 rounded-lg px-2.5 py-1.5 hover:bg-indigo-50 transition">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+                                Editar
+                            </a>
+                            @if($user->id !== auth()->id())
+                            <button type="button"
+                                    onclick="confirmDelete({{ $user->id }}, '{{ addslashes($user->name) }}')"
+                                    class="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-50 transition">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+                                Excluir
+                            </button>
+                            @endif
+                        </div>
                     </td>
                 </tr>
                 @endforeach
@@ -128,5 +145,55 @@
     </div>
     @endif
 </div>
+
+{{-- Modal de confirmação de exclusão --}}
+<div id="modal-delete" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100">
+                <svg class="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-slate-800">Excluir utilizador</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Esta ação não pode ser desfeita.</p>
+            </div>
+        </div>
+        <p class="text-sm text-slate-600 mb-5">
+            Tem certeza que deseja excluir o utilizador <strong id="modal-user-name" class="text-slate-800"></strong>?
+        </p>
+        <div class="flex gap-3">
+            <button type="button" onclick="closeDeleteModal()"
+                    class="flex-1 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-4 py-2.5 transition">
+                Cancelar
+            </button>
+            <form id="form-delete" method="POST" class="flex-1">
+                @csrf
+                @method('DELETE')
+                <button type="submit"
+                        class="w-full text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg px-4 py-2.5 transition">
+                    Sim, excluir
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDelete(userId, userName) {
+    document.getElementById('modal-user-name').textContent = userName;
+    document.getElementById('form-delete').action = '/painel/utilizadores/' + userId;
+    document.getElementById('modal-delete').classList.remove('hidden');
+    document.getElementById('modal-delete').classList.add('flex');
+}
+function closeDeleteModal() {
+    document.getElementById('modal-delete').classList.add('hidden');
+    document.getElementById('modal-delete').classList.remove('flex');
+}
+document.getElementById('modal-delete').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+</script>
 
 @endsection
