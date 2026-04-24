@@ -49,7 +49,8 @@ class TimeRecordService
 
             // Recalcula o dia de trabalho a cada saída
             if ($data['type'] === 'saida') {
-                ProcessWorkDay::dispatch($employee, $record->datetime->toDateString());
+                $tz = config('app.timezone', 'America/Sao_Paulo');
+                ProcessWorkDay::dispatch($employee, $record->datetime->copy()->setTimezone($tz)->toDateString());
             }
 
             return $record;
@@ -99,8 +100,12 @@ class TimeRecordService
         $employee->loadMissing('company');
         $maxRecords = $employee->company?->max_daily_records ?? 10;
 
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        $startOfDay = Carbon::now($tz)->startOfDay()->utc();
+        $endOfDay   = Carbon::now($tz)->endOfDay()->utc();
+
         $todayRecords = $employee->timeRecords()
-            ->whereDate('datetime', today())
+            ->whereBetween('datetime', [$startOfDay, $endOfDay])
             ->orderBy('datetime')
             ->get();
 

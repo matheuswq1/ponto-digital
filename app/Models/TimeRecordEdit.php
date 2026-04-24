@@ -34,14 +34,23 @@ class TimeRecordEdit extends Model
         ];
     }
 
+    /**
+     * Interpreta campos datetime do banco como UTC antes de qualquer conversão.
+     */
+    protected function asDateTime($value): Carbon
+    {
+        $carbon = parent::asDateTime($value);
+        return $carbon->setTimezone('UTC');
+    }
+
     public function getOriginalDatetimeLocalAttribute(): ?Carbon
     {
-        return $this->original_datetime?->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+        return $this->original_datetime?->copy()->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
     }
 
     public function getNewDatetimeLocalAttribute(): ?Carbon
     {
-        return $this->new_datetime?->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+        return $this->new_datetime?->copy()->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
     }
 
     public function timeRecord(): BelongsTo

@@ -50,12 +50,23 @@ class TimeRecord extends Model
     }
 
     /**
-     * Retorna o datetime sempre convertido para o timezone da aplicação.
-     * Substitui o acesso direto a $this->datetime em toda a aplicação.
+     * Lê o campo datetime do banco (armazenado em UTC) e interpreta
+     * como UTC antes de qualquer conversão de timezone.
+     */
+    protected function asDateTime($value): Carbon
+    {
+        $carbon = parent::asDateTime($value);
+        // O banco guarda em UTC; forçamos o timezone a UTC para que
+        // conversões posteriores (ex: setTimezone) funcionem corretamente.
+        return $carbon->setTimezone('UTC');
+    }
+
+    /**
+     * Retorna o datetime convertido para o timezone da aplicação (BRT).
      */
     public function getDatetimeLocalAttribute(): ?Carbon
     {
-        return $this->datetime?->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+        return $this->datetime?->copy()->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
     }
 
     public function employee(): BelongsTo
