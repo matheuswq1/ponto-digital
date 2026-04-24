@@ -44,8 +44,14 @@ class WorkSchedule extends Model
 
     public function getExpectedMinutes(): int
     {
+        if (empty($this->entry_time) || empty($this->exit_time)) {
+            return 0;
+        }
         $entry = strtotime($this->entry_time);
         $exit  = strtotime($this->exit_time);
+        if ($entry === false || $exit === false) {
+            return 0;
+        }
         $total = (int) (($exit - $entry) / 60);
 
         // Deduz apenas o intervalo mínimo configurado (opcional)

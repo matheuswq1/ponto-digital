@@ -227,7 +227,7 @@
             <select name="employee_id">
                 <option value="">Todos os colaboradores</option>
                 @foreach($allEmployees as $emp)
-                    <option value="{{ $emp->id }}" @selected($employeeId == $emp->id)>{{ $emp->user->name }}</option>
+                    <option value="{{ $emp->id }}" @selected($employeeId == $emp->id)>{{ $emp->user?->name ?? '—' }}</option>
                 @endforeach
             </select>
         </label>
@@ -273,7 +273,7 @@
         </div>
         <div class="header-title">
             <h1>Cartão Ponto</h1>
-            <h2>{{ $company->name ?? 'Empresa' }}</h2>
+            <h2>{{ $company?->name ?? 'Empresa' }}</h2>
         </div>
         <div class="header-period">
             <strong>Período:</strong><br>
@@ -285,7 +285,7 @@
     <div class="employee-info">
         <div class="info-item" style="grid-column: span 2;">
             <strong>Nome</strong>
-            {{ $emp->user->name ?? '—' }}
+            {{ $emp->user?->name ?? '—' }}
         </div>
         <div class="info-item">
             <strong>Matrícula</strong>
@@ -314,7 +314,7 @@
     </div>
 
     {{-- Horário de trabalho --}}
-    @if($ws)
+    @if($ws && $ws->entry_time && $ws->exit_time)
     <div class="horario-box">
         <table>
             <tr>
@@ -408,7 +408,7 @@
         </div>
         <div class="assinaturas">
             <div class="assinatura">
-                {{ $emp->user->name ?? '' }}<br>Colaborador
+                {{ $emp->user?->name ?? '' }}<br>Colaborador
             </div>
             <div class="assinatura">
                 Responsável / Diretor

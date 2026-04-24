@@ -167,7 +167,9 @@ class TimeRecordWebController extends Controller
                     }
                 }
 
-                $expectedMin = $ws ? $ws->getExpectedMinutes() : $emp->dailyExpectedMinutes();
+                $expectedMin = ($ws && $ws->entry_time && $ws->exit_time)
+                    ? $ws->getExpectedMinutes()
+                    : $emp->dailyExpectedMinutes();
                 $extraMin    = 0;
                 $faltaMin    = 0;
 
