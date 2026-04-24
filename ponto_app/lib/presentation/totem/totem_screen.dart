@@ -70,7 +70,12 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
       (c) => c.lensDirection == CameraLensDirection.front,
       orElse: () => cameras.first,
     );
-    _cam = CameraController(front, ResolutionPreset.low, enableAudio: false);
+    _cam = CameraController(
+      front,
+      ResolutionPreset.low,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
     await _cam!.initialize();
     if (!mounted) return;
     setState(() => _camReady = true);
@@ -167,122 +172,145 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final circleDiameter = size.width * 0.72;
+
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ── Câmera de fundo ──────────────────────────────────────────────
-          if (_camReady && _cam != null)
-            Opacity(
-              opacity: _step == _TotemStep.idle ? 1.0 : 0.3,
-              child: CameraPreview(_cam!),
-            )
-          else
-            Container(color: const Color(0xFF0F172A)),
-
-          // ── Overlay escuro quando não está idle ──────────────────────────
-          if (_step != _TotemStep.idle)
-            Container(color: Colors.black.withValues(alpha: 0.65)),
-
-          // ── Header: relógio + nome da empresa ────────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.monitor, color: Colors.white70, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          ref.watch(authProvider).user?.name ?? 'Totem',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      _clock,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    GestureDetector(
-                      onLongPress: _logout,
-                      child: const Icon(Icons.power_settings_new,
-                          color: Colors.white30, size: 22),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ── Conteúdo central ─────────────────────────────────────────────
-          Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: _buildCenterContent(),
-            ),
-          ),
-
-          // ── Footer: instrução ou botão de scan ───────────────────────────
-          if (_step == _TotemStep.idle)
-            Positioned(
-              bottom: 40,
-              left: 0,
-              right: 0,
-              child: Column(
+      backgroundColor: const Color(0xFF0A0F1E),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Header ────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Oval guia facial
-                  Container(
-                    width: 180,
-                    height: 230,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.white60, width: 2),
-                      borderRadius: BorderRadius.circular(110),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Posicione seu rosto na câmera',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: _scan,
-                    child: Container(
-                      width: 70,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.primary,
-                        border: Border.all(color: Colors.white30, width: 3),
+                  Row(
+                    children: [
+                      const Icon(Icons.monitor, color: Colors.white54, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        ref.watch(authProvider).user?.name ?? 'Totem',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                      child: const Icon(Icons.face, color: Colors.white, size: 36),
+                    ],
+                  ),
+                  Text(
+                    _clock,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      fontFeatures: [FontFeature.tabularFigures()],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Toque para identificar',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                  GestureDetector(
+                    onLongPress: _logout,
+                    child: const Icon(Icons.power_settings_new,
+                        color: Colors.white24, size: 20),
                   ),
                 ],
               ),
             ),
-        ],
+
+            const Spacer(),
+
+            // ── Círculo da câmera ─────────────────────────────────────────
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              width: circleDiameter,
+              height: circleDiameter,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _step == _TotemStep.scanning
+                      ? AppColors.primary
+                      : _step == _TotemStep.failed
+                          ? AppColors.error
+                          : Colors.white24,
+                  width: _step == _TotemStep.scanning ? 4 : 2,
+                ),
+                boxShadow: _step == _TotemStep.scanning
+                    ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4)]
+                    : [],
+              ),
+              child: ClipOval(
+                child: _camReady && _cam != null
+                    ? _buildCameraPreview()
+                    : Container(color: const Color(0xFF1A2035)),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // ── Instrução / feedback ───────────────────────────────────────
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _buildCenterContent(),
+            ),
+
+            const Spacer(),
+
+            // ── Botão de scan (só no idle) ─────────────────────────────────
+            if (_step == _TotemStep.idle) ...[
+              GestureDetector(
+                onTap: _scan,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.45),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.face, color: Colors.white, size: 36),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Toque para identificar',
+                style: TextStyle(color: Colors.white38, fontSize: 13),
+              ),
+            ],
+
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Exibe a câmera dentro do círculo sem distorção.
+  /// O CameraPreview já aplica o AspectRatio do sensor internamente.
+  /// Usamos um SizedBox.expand + FittedBox para fazer cover (crop) sem esticar.
+  Widget _buildCameraPreview() {
+    final cam = _cam!;
+    // aspect ratio do sensor em portrait
+    final aspect = 1.0 / cam.value.aspectRatio;
+    return AspectRatio(
+      aspectRatio: 1, // força o container a ser quadrado (igual ao círculo)
+      child: FittedBox(
+        fit: BoxFit.cover,
+        clipBehavior: Clip.hardEdge,
+        child: SizedBox(
+          width: cam.value.previewSize?.height ?? 480,
+          height: cam.value.previewSize?.width ?? 640,
+          child: AspectRatio(
+            aspectRatio: aspect,
+            child: CameraPreview(cam),
+          ),
+        ),
       ),
     );
   }
@@ -290,223 +318,209 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
   Widget _buildCenterContent() {
     switch (_step) {
       case _TotemStep.idle:
-        return const SizedBox.shrink();
+        return const _StatusText(
+          key: ValueKey('idle'),
+          icon: Icons.face_outlined,
+          iconColor: Colors.white38,
+          text: 'Posicione seu rosto no círculo',
+          subtext: '',
+        );
 
       case _TotemStep.scanning:
-        return const _TotemCard(
+        return const _StatusText(
           key: ValueKey('scanning'),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppColors.primary, strokeWidth: 3),
-              SizedBox(height: 16),
-              Text(
-                'Identificando...',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
+          icon: Icons.radar,
+          iconColor: AppColors.primary,
+          text: 'Identificando...',
+          subtext: 'Aguarde',
+          showSpinner: true,
         );
 
       case _TotemStep.identified:
         final r = _identified!;
         if (r.nextTypes.isEmpty || r.isComplete) {
-          return _TotemCard(
+          return _StatusText(
             key: const ValueKey('complete'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, color: AppColors.success, size: 56),
-                const SizedBox(height: 12),
-                Text(
-                  'Olá, ${r.firstName}!',
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Sua jornada de hoje está completa.',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ],
-            ),
+            icon: Icons.check_circle,
+            iconColor: AppColors.success,
+            text: 'Olá, ${r.firstName}!',
+            subtext: 'Sua jornada de hoje está completa.',
           );
         }
-        return _TotemCard(
+        return _IdentifiedPanel(
           key: const ValueKey('identified'),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.person_outline, color: Colors.white70, size: 44),
-              const SizedBox(height: 10),
-              Text(
-                'Olá, ${r.firstName}!',
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                r.employeeCargo ?? '',
-                style: const TextStyle(color: Colors.white60, fontSize: 13),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Registrar ponto:',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 10),
-              ...r.nextTypes.map((type) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: SizedBox(
-                      width: 260,
-                      child: ElevatedButton(
-                        onPressed: () => _registerPoint(type),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _typeColor(type),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: Text(
-                          _typeLabel(type),
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  )),
-              const SizedBox(height: 4),
-              TextButton(
-                onPressed: () => setState(() => _step = _TotemStep.idle),
-                child: const Text('Cancelar',
-                    style: TextStyle(color: Colors.white38, fontSize: 13)),
-              ),
-            ],
-          ),
+          result: r,
+          onRegister: _registerPoint,
+          onCancel: () => setState(() => _step = _TotemStep.idle),
+          typeLabel: _typeLabel,
+          typeColor: _typeColor,
         );
 
       case _TotemStep.registering:
-        return const _TotemCard(
+        return const _StatusText(
           key: ValueKey('registering'),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppColors.success, strokeWidth: 3),
-              SizedBox(height: 16),
-              Text(
-                'Registrando ponto...',
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ],
-          ),
+          icon: Icons.fingerprint,
+          iconColor: AppColors.success,
+          text: 'Registrando ponto...',
+          subtext: '',
+          showSpinner: true,
         );
 
       case _TotemStep.success:
         final p = _lastPoint!;
-        return _TotemCard(
+        return _SuccessPanel(
           key: const ValueKey('success'),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _typeColor(p.type).withValues(alpha: 0.2),
-                ),
-                child: Icon(Icons.check_circle_outline,
-                    color: _typeColor(p.type), size: 44),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                p.employeeName,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                p.typeLabel,
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: _typeColor(p.type)),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                DateFormat('HH:mm').format(DateTime.parse(p.datetime)),
-                style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Ponto registrado com sucesso!',
-                style: TextStyle(color: Colors.white60, fontSize: 13),
-              ),
-            ],
-          ),
+          point: p,
+          typeColor: _typeColor,
         );
 
       case _TotemStep.failed:
-        return _TotemCard(
+        return _StatusText(
           key: const ValueKey('failed'),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.face_retouching_off,
-                  color: AppColors.error, size: 56),
-              const SizedBox(height: 14),
-              Text(
-                _errorMsg ?? 'Rosto não reconhecido.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Tente novamente.',
-                style: TextStyle(color: Colors.white54, fontSize: 13),
-              ),
-            ],
-          ),
+          icon: Icons.face_retouching_off,
+          iconColor: AppColors.error,
+          text: _errorMsg ?? 'Rosto não reconhecido.',
+          subtext: 'Tente novamente.',
         );
     }
   }
 }
 
-/// Card centralizado com fundo semi-transparente.
-class _TotemCard extends StatelessWidget {
-  final Widget child;
+// ─── Widgets auxiliares ────────────────────────────────────────────────────
 
-  const _TotemCard({super.key, required this.child});
+class _StatusText extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String text;
+  final String subtext;
+  final bool showSpinner;
+
+  const _StatusText({
+    super.key,
+    required this.icon,
+    required this.iconColor,
+    required this.text,
+    required this.subtext,
+    this.showSpinner = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 32),
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 24,
-            spreadRadius: 4,
-          ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showSpinner)
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(color: iconColor, strokeWidth: 2.5),
+          )
+        else
+          Icon(icon, color: iconColor, size: 32),
+        const SizedBox(height: 10),
+        Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        if (subtext.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(subtext, style: const TextStyle(color: Colors.white54, fontSize: 13)),
         ],
-      ),
-      child: child,
+      ],
     );
   }
 }
+
+class _IdentifiedPanel extends StatelessWidget {
+  final TotemIdentifyResult result;
+  final void Function(String) onRegister;
+  final VoidCallback onCancel;
+  final String Function(String) typeLabel;
+  final Color Function(String) typeColor;
+
+  const _IdentifiedPanel({
+    super.key,
+    required this.result,
+    required this.onRegister,
+    required this.onCancel,
+    required this.typeLabel,
+    required this.typeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.person_outline, color: Colors.white70, size: 28),
+        const SizedBox(height: 6),
+        Text(
+          'Olá, ${result.firstName}!',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        if ((result.employeeCargo ?? '').isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(result.employeeCargo!, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        ],
+        const SizedBox(height: 16),
+        ...result.nextTypes.map((type) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: SizedBox(
+                width: 240,
+                child: ElevatedButton(
+                  onPressed: () => onRegister(type),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: typeColor(type),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    typeLabel(type),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            )),
+        TextButton(
+          onPressed: onCancel,
+          child: const Text('Cancelar', style: TextStyle(color: Colors.white38, fontSize: 12)),
+        ),
+      ],
+    );
+  }
+}
+
+class _SuccessPanel extends StatelessWidget {
+  final TotemPointResult point;
+  final Color Function(String) typeColor;
+
+  const _SuccessPanel({super.key, required this.point, required this.typeColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = typeColor(point.type);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.check_circle, color: color, size: 40),
+        const SizedBox(height: 8),
+        Text(
+          point.employeeName,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        const SizedBox(height: 4),
+        Text(point.typeLabel, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color)),
+        const SizedBox(height: 2),
+        Text(
+          DateFormat('HH:mm').format(DateTime.parse(point.datetime).toLocal()),
+          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        const SizedBox(height: 4),
+        const Text('Ponto registrado!', style: TextStyle(color: Colors.white54, fontSize: 12)),
+      ],
+    );
+  }
+}
+

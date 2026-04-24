@@ -159,11 +159,13 @@ class TotemController extends Controller
 
         $record = $this->timeRecordService->register($employee, $data);
 
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+
         return response()->json([
-            'message'      => 'Ponto registrado com sucesso.',
-            'employee_name' => $employee->user?->name ?? 'Funcionário',
-            'type'         => $record->type,
-            'datetime'     => $record->datetime,
+            'message'        => 'Ponto registrado com sucesso.',
+            'employee_name'  => $employee->user?->name ?? 'Funcionário',
+            'type'           => $record->type,
+            'datetime'       => $record->datetime?->setTimezone($tz)->toISOString(),
         ], 201);
     }
 
