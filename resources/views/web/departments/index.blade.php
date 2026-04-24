@@ -64,7 +64,11 @@
                     <td class="px-4 py-3 text-slate-600 font-mono text-xs">
                         @if($d->entry_time && $d->exit_time)
                             {{ \Carbon\Carbon::parse($d->entry_time)->format('H:i') }} – {{ \Carbon\Carbon::parse($d->exit_time)->format('H:i') }}
-                            ({{ $d->lunch_minutes }} min int.)
+                            @if($d->hasVariableLunchByDay())
+                                <span class="text-indigo-600">· int. varia</span>
+                            @else
+                                ({{ $d->lunch_minutes }} min)
+                            @endif
                         @else
                             <span class="text-amber-600">Configurar horários</span>
                         @endif

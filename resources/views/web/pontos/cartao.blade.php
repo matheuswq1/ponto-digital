@@ -313,17 +313,17 @@ if (!function_exists('ponto_cartao_fmt_min')) {
         $gabaritoLabel = 'Departamento: '.$deptModel->name;
         $gabaritoRef = $deptModel;
         $gWorkDays = $deptModel->workDaysList();
-        $gTimes = $deptModel->getGabaritoTimes();
+        $gabaritoKind = 'dept';
     } elseif ($ws && $ws->entry_time && $ws->exit_time) {
         $gabaritoLabel = 'Escala individual (colaborador)';
         $gabaritoRef = $ws;
         $gWorkDays = $ws->workDaysList();
-        $gTimes = $ws->getGabaritoTimes();
+        $gabaritoKind = 'ws';
     } else {
         $gabaritoLabel = null;
         $gabaritoRef = null;
         $gWorkDays = [];
-        $gTimes = null;
+        $gabaritoKind = null;
     }
 @endphp
 
@@ -370,11 +370,16 @@ if (!function_exists('ponto_cartao_fmt_min')) {
         </div>
         <div class="box-right">
             <h3>Gabarito &mdash; escala de referência</h3>
-            @if($gabaritoRef && $gTimes)
+            @if($gabaritoKind)
                 <p class="gabarito-title">{{ $gabaritoLabel }}</p>
                 <p class="gabarito-sub">
                     Tolerância: ±{{ $gabaritoRef->tolerance_minutes ?? 10 }} min
-                    &middot; Intervalo: {{ (int)($gabaritoRef->lunch_minutes ?? 0) }} min
+                    &middot;
+                    @if($gabaritoKind === 'dept' && $deptModel->hasVariableLunchByDay())
+                        Intervalo: <strong>varia por dia</strong> (ver tabela abaixo)
+                    @else
+                        Intervalo: {{ (int)($gabaritoRef->lunch_minutes ?? 0) }} min
+                    @endif
                 </p>
                 <table class="gabarito-table">
                     <thead>
@@ -384,19 +389,36 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                             <th>SAI 1</th>
                             <th>ENT 2</th>
                             <th>SAI 2</th>
+                            @if($gabaritoKind === 'dept' && $deptModel->hasVariableLunchByDay())
+                                <th>Int.</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
                         @foreach([1,2,3,4,5,6,0] as $dow)
+                        @php
+                            if ($gabaritoKind === 'dept') {
+                                $rowTimes = $deptModel->getGabaritoTimesForDay($dow);
+                            } else {
+                                $rowTimes = $ws->getGabaritoTimes();
+                            }
+                        @endphp
                         <tr>
                             <td><strong>{{ $diasGabarito[$dow] }}</strong></td>
                             @if(in_array($dow, array_map('intval', (array) $gWorkDays), true))
-                                <td>{{ $gTimes['e1'] }}</td>
-                                <td>{{ $gTimes['s1'] }}</td>
-                                <td>{{ $gTimes['e2'] }}</td>
-                                <td>{{ $gTimes['s2'] }}</td>
+                                @if($rowTimes)
+                                    <td>{{ $rowTimes['e1'] }}</td>
+                                    <td>{{ $rowTimes['s1'] }}</td>
+                                    <td>{{ $rowTimes['e2'] }}</td>
+                                    <td>{{ $rowTimes['s2'] }}</td>
+                                    @if($gabaritoKind === 'dept' && $deptModel->hasVariableLunchByDay())
+                                        <td>{{ $deptModel->getLunchMinutesForDay($dow) }}′</td>
+                                    @endif
+                                @else
+                                    <td colspan="{{ ($gabaritoKind === 'dept' && $deptModel->hasVariableLunchByDay()) ? 5 : 4 }}" style="color:#94a3b8;">—</td>
+                                @endif
                             @else
-                                <td colspan="4" style="font-style:italic;color:#64748b;">Folga</td>
+                                <td colspan="{{ ($gabaritoKind === 'dept' && $deptModel->hasVariableLunchByDay()) ? 5 : 4 }}" style="font-style:italic;color:#64748b;">Folga</td>
                             @endif
                         </tr>
                         @endforeach

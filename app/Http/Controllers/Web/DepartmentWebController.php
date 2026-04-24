@@ -68,7 +68,9 @@ class DepartmentWebController extends Controller
             'name'               => 'required|string|max:120',
             'entry_time'         => 'nullable|date_format:H:i',
             'exit_time'          => 'nullable|date_format:H:i',
-            'lunch_minutes'      => 'nullable|integer|min:0|max:240',
+            'lunch_minutes'      => 'nullable|integer|min:0|max:300',
+            'lunch_by_day'       => 'nullable|array',
+            'lunch_by_day.*'     => 'nullable|integer|min:0|max:300',
             'tolerance_minutes'  => 'nullable|integer|min:0|max:120',
             'work_days'          => 'nullable|array',
             'work_days.*'        => 'integer|between:0,6',
@@ -91,15 +93,18 @@ class DepartmentWebController extends Controller
         $workDays = array_values(array_unique(array_map('intval', $workDays)));
         sort($workDays);
 
+        $lunchResolved = $this->resolveLunchFromRequest($request, (int) ($validated['lunch_minutes'] ?? 60));
+
         Department::create([
-            'company_id'        => $companyId,
-            'name'              => $validated['name'],
-            'entry_time'        => $validated['entry_time'] ?? null,
-            'exit_time'         => $validated['exit_time'] ?? null,
-            'lunch_minutes'     => $validated['lunch_minutes'] ?? 60,
-            'tolerance_minutes' => $validated['tolerance_minutes'] ?? 10,
-            'work_days'         => $workDays,
-            'active'            => $request->boolean('active', true),
+            'company_id'             => $companyId,
+            'name'                   => $validated['name'],
+            'entry_time'             => $validated['entry_time'] ?? null,
+            'exit_time'              => $validated['exit_time'] ?? null,
+            'lunch_minutes'          => $lunchResolved['lunch_minutes'],
+            'lunch_minutes_by_day'   => $lunchResolved['lunch_minutes_by_day'],
+            'tolerance_minutes'      => $validated['tolerance_minutes'] ?? 10,
+            'work_days'              => $workDays,
+            'active'                 => $request->boolean('active', true),
         ]);
 
         return redirect()->route('painel.departments.index')
@@ -127,7 +132,9 @@ class DepartmentWebController extends Controller
             'name'               => 'required|string|max:120',
             'entry_time'         => 'nullable|date_format:H:i',
             'exit_time'          => 'nullable|date_format:H:i',
-            'lunch_minutes'      => 'nullable|integer|min:0|max:240',
+            'lunch_minutes'      => 'nullable|integer|min:0|max:300',
+            'lunch_by_day'       => 'nullable|array',
+            'lunch_by_day.*'     => 'nullable|integer|min:0|max:300',
             'tolerance_minutes'  => 'nullable|integer|min:0|max:120',
             'work_days'          => 'nullable|array',
             'work_days.*'        => 'integer|between:0,6',
@@ -150,15 +157,18 @@ class DepartmentWebController extends Controller
         $workDays = array_values(array_unique(array_map('intval', $workDays)));
         sort($workDays);
 
+        $lunchResolved = $this->resolveLunchFromRequest($request, (int) ($validated['lunch_minutes'] ?? 60));
+
         $department->update([
-            'company_id'        => $companyId,
-            'name'              => $validated['name'],
-            'entry_time'        => $validated['entry_time'] ?? null,
-            'exit_time'         => $validated['exit_time'] ?? null,
-            'lunch_minutes'     => $validated['lunch_minutes'] ?? 60,
-            'tolerance_minutes' => $validated['tolerance_minutes'] ?? 10,
-            'work_days'         => $workDays,
-            'active'            => $request->boolean('active', true),
+            'company_id'             => $companyId,
+            'name'                   => $validated['name'],
+            'entry_time'             => $validated['entry_time'] ?? null,
+            'exit_time'              => $validated['exit_time'] ?? null,
+            'lunch_minutes'          => $lunchResolved['lunch_minutes'],
+            'lunch_minutes_by_day'   => $lunchResolved['lunch_minutes_by_day'],
+            'tolerance_minutes'      => $validated['tolerance_minutes'] ?? 10,
+            'work_days'              => $workDays,
+            'active'                 => $request->boolean('active', true),
         ]);
 
         return redirect()->route('painel.departments.index')
@@ -170,5 +180,41 @@ class DepartmentWebController extends Controller
         if (auth()->user()->isGestor() && (int) $department->company_id !== (int) auth()->user()->company_id) {
             abort(403);
         }
+    }
+
+    /**
+     * @return array{lunch_minutes: int, lunch_minutes_by_day: ?array<int, int>}
+     */
+    private function resolveLunchFromRequest(Request $request, int $defaultLunch): array
+    {
+        $defaultLunch = max(0, min(300, $defaultLunch));
+        $raw          = $request->input('lunch_by_day', []);
+        if (! is_array($raw) || $raw === []) {
+            return [
+                'lunch_minutes'        => $defaultLunch,
+                'lunch_minutes_by_day' => null,
+            ];
+        }
+        $vals = [];
+        foreach (range(0, 6) as $d) {
+            $v = $raw[$d] ?? $raw[(string) $d] ?? null;
+            if ($v === null || $v === '') {
+                $vals[$d] = $defaultLunch;
+            } else {
+                $vals[$d] = max(0, min(300, (int) $v));
+            }
+        }
+        $unique = array_unique(array_values($vals));
+        if (count($unique) === 1) {
+            return [
+                'lunch_minutes'        => (int) reset($unique),
+                'lunch_minutes_by_day' => null,
+            ];
+        }
+
+        return [
+            'lunch_minutes'        => $defaultLunch,
+            'lunch_minutes_by_day' => $vals,
+        ];
     }
 }

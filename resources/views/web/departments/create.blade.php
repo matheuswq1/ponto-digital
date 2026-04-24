@@ -43,8 +43,8 @@
         </div>
         <div class="grid sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Intervalo (minutos)</label>
-                <input type="number" name="lunch_minutes" value="{{ old('lunch_minutes', 60) }}" min="0" max="240"
+                <label class="block text-xs font-medium text-slate-600 mb-1">Intervalo padrão (minutos)</label>
+                <input type="number" name="lunch_minutes" value="{{ old('lunch_minutes', 60) }}" min="0" max="300"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2">
             </div>
             <div>
@@ -53,6 +53,9 @@
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2">
             </div>
         </div>
+
+        @include('web.departments._lunch_by_day', ['department' => null, 'defaultLunch' => old('lunch_minutes', 60)])
+
         <div>
             <p class="text-xs font-medium text-slate-600 mb-2">Dias de trabalho</p>
             <div class="flex flex-wrap gap-3 text-sm">

@@ -195,7 +195,7 @@ class TimeRecordWebController extends Controller
                 }
 
                 $expectedMin = $deptRef
-                    ? $deptRef->getExpectedMinutes()
+                    ? $deptRef->getExpectedMinutesForDay($dayOfWeek)
                     : (($ws && $ws->entry_time && $ws->exit_time)
                         ? $ws->getExpectedMinutes()
                         : $emp->dailyExpectedMinutes());
