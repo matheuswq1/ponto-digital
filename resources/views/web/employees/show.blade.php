@@ -163,4 +163,48 @@
     @endif
 </div>
 
+{{-- Banco de Horas --}}
+@php
+    $balanceMinutes   = $employee->hour_bank_balance_minutes;
+    $balanceFormatted = $employee->hour_bank_balance_formatted;
+    $recentTx         = $employee->hourBankTransactions()->orderByDesc('reference_date')->limit(5)->get();
+@endphp
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <h2 class="text-sm font-semibold text-slate-700">Banco de Horas</h2>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-2xl font-bold {{ $balanceMinutes >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ $balanceFormatted }}</span>
+            <a href="{{ route('painel.hour-bank.employee', $employee) }}"
+               class="text-xs text-indigo-600 hover:underline font-medium">Ver completo →</a>
+        </div>
+    </div>
+
+    @if($recentTx->isEmpty())
+    <div class="px-5 py-6 text-sm text-slate-400 text-center">Nenhuma movimentação registrada.</div>
+    @else
+    <div class="divide-y divide-slate-100">
+        @foreach($recentTx as $tx)
+        @php
+            $isCredit = $tx->minutes > 0;
+            $abs      = abs($tx->minutes);
+            $sign     = $isCredit ? '+' : '-';
+            $fmt      = sprintf('%s%02d:%02d', $sign, intdiv($abs,60), $abs%60);
+        @endphp
+        <div class="flex items-center gap-3 px-5 py-2.5">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs text-slate-600">{{ $tx->description ?? $tx->getTypeLabel() }}</p>
+                <p class="text-xs text-slate-400">{{ $tx->reference_date->format('d/m/Y') }}</p>
+            </div>
+            <p class="text-sm font-bold {{ $isCredit ? 'text-emerald-600' : 'text-rose-600' }}">{{ $fmt }}</p>
+        </div>
+        @endforeach
+    </div>
+    @endif
+</div>
+
 @endsection

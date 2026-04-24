@@ -71,6 +71,36 @@ class Employee extends Model
         return $this->hasMany(WorkSchedule::class);
     }
 
+    public function hourBankTransactions(): HasMany
+    {
+        return $this->hasMany(HourBankTransaction::class);
+    }
+
+    public function hourBankRequests(): HasMany
+    {
+        return $this->hasMany(HourBankRequest::class);
+    }
+
+    /**
+     * Saldo atual do banco de horas em minutos.
+     * Positivo = crédito, negativo = débito.
+     */
+    public function getHourBankBalanceMinutesAttribute(): int
+    {
+        return (int) $this->hourBankTransactions()->sum('minutes');
+    }
+
+    /**
+     * Saldo formatado como "HH:MM" com sinal (+/-).
+     */
+    public function getHourBankBalanceFormattedAttribute(): string
+    {
+        $minutes = $this->hour_bank_balance_minutes;
+        $sign    = $minutes >= 0 ? '+' : '-';
+        $abs     = abs($minutes);
+        return sprintf('%s%02d:%02d', $sign, intdiv($abs, 60), $abs % 60);
+    }
+
     public function getTodayRecordsAttribute()
     {
         return $this->timeRecords()

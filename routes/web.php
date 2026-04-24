@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
+use App\Http\Controllers\Web\HourBankWebController;
 use App\Http\Controllers\Web\LoginController;
 use App\Http\Controllers\Web\TimeRecordWebController;
 use App\Http\Controllers\Web\UserWebController;
@@ -41,6 +42,13 @@ Route::middleware('auth')->group(function () {
         // Pontos
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');
         Route::get('/pontos/exportar', [TimeRecordWebController::class, 'export'])->name('pontos.export');
+
+        // Banco de Horas
+        Route::get('/banco-horas', [HourBankWebController::class, 'index'])->name('hour-bank.index');
+        Route::post('/banco-horas/{hourBankRequest}/aprovar', [HourBankWebController::class, 'approve'])->name('hour-bank.approve');
+        Route::post('/banco-horas/{hourBankRequest}/rejeitar', [HourBankWebController::class, 'reject'])->name('hour-bank.reject');
+        Route::get('/banco-horas/colaborador/{employee}', [HourBankWebController::class, 'employeeBalance'])->name('hour-bank.employee');
+        Route::post('/banco-horas/colaborador/{employee}/ajuste', [HourBankWebController::class, 'manualAdjust'])->name('hour-bank.adjust');
 
         // Empresas (apenas admin)
         Route::get('/empresas', [CompanyWebController::class, 'index'])->name('companies.index');

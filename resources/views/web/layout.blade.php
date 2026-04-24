@@ -154,6 +154,21 @@
             <span>Colaboradores</span>
         </a>
 
+        @php $pendingHourBank = \App\Models\HourBankRequest::where('status','pendente')->count(); @endphp
+        <a href="{{ route('painel.hour-bank.index') }}"
+           class="nav-item {{ request()->routeIs('painel.hour-bank.*') ? 'active' : '' }}">
+            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <span class="flex-1">Banco de Horas</span>
+            @if($pendingHourBank > 0)
+                <span class="ml-auto inline-flex items-center justify-center h-[18px] min-w-[18px] rounded-full
+                             bg-amber-500 text-white text-[10px] font-bold px-1 shadow shadow-amber-900/40">
+                    {{ $pendingHourBank > 99 ? '99+' : $pendingHourBank }}
+                </span>
+            @endif
+        </a>
+
         <a href="{{ route('painel.pontos.index') }}"
            class="nav-item {{ request()->routeIs('painel.pontos.*') ? 'active' : '' }}">
             <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Models\HourBankTransaction;
 use App\Models\TimeRecord;
 use App\Models\WorkDay;
 use Carbon\Carbon;
@@ -18,9 +19,47 @@ class WorkDayService
 
         $data = $this->calculate($employee, $records, $date);
 
-        return WorkDay::updateOrCreate(
+        $workDay = WorkDay::updateOrCreate(
             ['employee_id' => $employee->id, 'date' => $date],
             $data
+        );
+
+        if ($workDay->is_closed) {
+            $this->syncHourBankTransaction($employee, $workDay);
+        }
+
+        return $workDay;
+    }
+
+    /**
+     * Cria ou atualiza a transação do banco de horas correspondente ao dia.
+     * Faltas (extra_minutes = 0, status = falta) não geram transação.
+     */
+    private function syncHourBankTransaction(Employee $employee, WorkDay $workDay): void
+    {
+        $extra = $workDay->extra_minutes;
+
+        // Dia sem desvio ou falta sem registro não movimenta o banco
+        if ($extra === 0) {
+            return;
+        }
+
+        $type = $extra > 0 ? 'extra' : 'deficit';
+        $description = $extra > 0
+            ? 'Hora extra em ' . $workDay->date->format('d/m/Y')
+            : 'Saída antecipada em ' . $workDay->date->format('d/m/Y');
+
+        HourBankTransaction::updateOrCreate(
+            [
+                'employee_id' => $employee->id,
+                'work_day_id' => $workDay->id,
+            ],
+            [
+                'type'           => $type,
+                'minutes'        => $extra,
+                'description'    => $description,
+                'reference_date' => $workDay->date,
+            ]
         );
     }
 

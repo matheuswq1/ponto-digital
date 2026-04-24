@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\FaceController;
+use App\Http\Controllers\Api\HourBankController;
 use App\Http\Controllers\Api\TimeRecordController;
 use App\Http\Controllers\Api\TimeRecordEditController;
 use App\Http\Controllers\Api\TotemController;
@@ -63,6 +64,14 @@ Route::prefix('v1')->group(function () {
             Route::post('/{edit}/reject', [TimeRecordEditController::class, 'reject'])
                 ->middleware('can:approve-edit-requests')
                 ->name('api.edit-requests.reject');
+        });
+
+        // Banco de horas — solicitações de folga
+        Route::prefix('hour-bank')->group(function () {
+            Route::get('/balance', [HourBankController::class, 'balance'])->name('api.hour-bank.balance');
+            Route::get('/transactions', [HourBankController::class, 'transactions'])->name('api.hour-bank.transactions');
+            Route::get('/requests', [HourBankController::class, 'requests'])->name('api.hour-bank.requests');
+            Route::post('/requests', [HourBankController::class, 'storeRequest'])->name('api.hour-bank.requests.store');
         });
 
         // Dias de trabalho / banco de horas
