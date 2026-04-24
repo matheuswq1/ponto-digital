@@ -165,7 +165,7 @@ class TotemController extends Controller
             'message'        => 'Ponto registrado com sucesso.',
             'employee_name'  => $employee->user?->name ?? 'Funcionário',
             'type'           => $record->type,
-            'datetime'       => $record->datetime?->setTimezone($tz)->toISOString(),
+            'datetime'       => $record->datetime?->setTimezone($tz)->format('Y-m-d\TH:i:s'),
         ], 201);
     }
 
