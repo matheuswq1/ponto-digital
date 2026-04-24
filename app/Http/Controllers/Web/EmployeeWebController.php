@@ -464,6 +464,7 @@ class EmployeeWebController extends Controller
         }
 
         $errors  = [];
+        $notices = [];
         $success = 0;
         $skipped = 0;
         $row     = 1;
@@ -506,7 +507,6 @@ class EmployeeWebController extends Controller
 
             // Verificar se PIS já existe
             if (Employee::where('pis', $pis)->exists()) {
-                $errors[] = "Linha {$row} ({$nome}): PIS '{$pis}' já cadastrado, ignorado.";
                 $skipped++;
                 continue;
             }
@@ -541,14 +541,14 @@ class EmployeeWebController extends Controller
                 });
                 $success++;
             } catch (\Throwable $e) {
-                $errors[] = "Linha {$row} ({$nome}): erro — {$e->getMessage()}";
+                $errors[] = "Linha {$row} ({$nome}): {$e->getMessage()}";
             }
         }
         fclose($handle);
 
         $msg = "Importação legada concluída: {$success} colaborador(es) criado(s)";
         if ($skipped > 0) {
-            $msg .= ", {$skipped} ignorado(s) (já existiam ou administradores)";
+            $msg .= ", {$skipped} já existiam e foram ignorados";
         }
         $msg .= '.';
 
