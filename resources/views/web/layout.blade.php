@@ -242,13 +242,14 @@
                 @csrf
                 <button type="submit"
                         title="Encerrar sessão"
-                        class="flex h-7 w-7 items-center justify-center rounded-lg
+                        class="flex items-center gap-1.5 rounded-lg px-2 py-1.5
                                text-brand-400 hover:text-rose-400 hover:bg-rose-400/10
-                               transition opacity-0 group-hover:opacity-100">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                               transition text-[11px] font-medium">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round"
                               d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/>
                     </svg>
+                    Sair
                 </button>
             </form>
         </div>
