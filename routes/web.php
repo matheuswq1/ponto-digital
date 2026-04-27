@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\AuditLogWebController;
 use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\TotemPinWebController;
 use App\Http\Controllers\Web\DepartmentWebController;
 use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
@@ -58,6 +59,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/pontos/cartao', [TimeRecordWebController::class, 'cartaoPonto'])->name('pontos.cartao');
 
         Route::get('/auditoria', [AuditLogWebController::class, 'index'])->name('audit.index');
+        Route::post('/totem-pins/gerar', [TotemPinWebController::class, 'generate'])->name('totem-pins.generate');
 
         // Relatórios
         Route::get('/relatorios/folha-pagamento', [ReportWebController::class, 'folhaPagamento'])->name('reports.folha-pagamento');

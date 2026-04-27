@@ -94,8 +94,10 @@ Route::prefix('v1')->group(function () {
 
         // Totem — dispositivo fixo de identificação facial
         Route::prefix('totem')->middleware('totem')->group(function () {
-            Route::post('/identify', [TotemController::class, 'identify'])->name('api.totem.identify');
-            Route::post('/register-point', [TotemController::class, 'registerPoint'])->name('api.totem.register-point');
+            Route::post('/identify',      [TotemController::class, 'identify'])->name('api.totem.identify');
+            Route::post('/register-point',[TotemController::class, 'registerPoint'])->name('api.totem.register-point');
+            Route::post('/validate-pin',  [TotemController::class, 'validatePin'])->name('api.totem.validate-pin');
+            Route::post('/enroll-face',   [TotemController::class, 'enrollFace'])->name('api.totem.enroll-face');
         });
 
         // Empresas (somente admin)

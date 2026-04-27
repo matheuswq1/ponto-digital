@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/safe_camera_dispose.dart';
 import '../../presentation/auth/auth_provider.dart';
 import '../../services/totem_service.dart';
+import 'pin_enroll_flow.dart';
 
 // ─── Tempo de inatividade antes de bloquear (minutos) ────────────────────────
 const _kInactivityMinutes = 3;
@@ -208,6 +209,16 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
     await ref.read(authProvider.notifier).logout();
   }
 
+  /// Abre o fluxo de enroll/atualização facial via PIN.
+  void _openPinEnroll() {
+    _onUserInteraction();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PinEnrollFlow(camera: _camReady ? _cam : null),
+    );
+  }
+
   String _typeLabel(String type) => switch (type) {
         'entrada' => 'Entrada',
         'saida' => 'Saída',
@@ -368,6 +379,20 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
                       label: const Text(
                         'Sair do Totem',
                         style: TextStyle(color: AppColors.error, fontSize: 13),
+                      ),
+                    ),
+                  ],
+
+                  // ── Botão de cadastro facial (visível no idle, desbloqueado) ─
+                  if (!_locked && _step == _TotemStep.idle) ...[
+                    const SizedBox(height: 4),
+                    TextButton.icon(
+                      onPressed: _openPinEnroll,
+                      icon: const Icon(Icons.face_retouching_natural,
+                          size: 15, color: Colors.white30),
+                      label: const Text(
+                        'Cadastrar / Atualizar rosto',
+                        style: TextStyle(color: Colors.white30, fontSize: 12),
                       ),
                     ),
                   ],

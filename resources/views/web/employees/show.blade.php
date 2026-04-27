@@ -211,4 +211,67 @@
     @endif
 </div>
 
+{{-- Cadastro Facial via PIN do Totem --}}
+<div class="bg-white rounded-xl border border-indigo-200 shadow-sm overflow-hidden mt-6">
+    <div class="px-5 py-4 border-b border-indigo-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+            </svg>
+            <h2 class="text-sm font-semibold text-slate-700">Cadastro Facial via Totem</h2>
+        </div>
+        <div class="flex items-center gap-2">
+            @if($employee->face_enrolled)
+                <span class="inline-flex items-center gap-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-full px-2.5 py-0.5">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                    Facial cadastrado
+                </span>
+            @else
+                <span class="inline-flex items-center text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2.5 py-0.5">Sem facial</span>
+            @endif
+        </div>
+    </div>
+
+    <div class="p-5">
+        {{-- Flash: PIN gerado --}}
+        @if(session('pin_gerado') && session('pin_employee_id') == $employee->id)
+        <div class="mb-5 rounded-xl border-2 border-indigo-400 bg-indigo-50 p-5">
+            <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100">
+                    <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-indigo-800 mb-1">PIN gerado para {{ session('pin_employee_name') }}</p>
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="text-4xl font-black tracking-[0.35em] text-indigo-700 font-mono">{{ session('pin_gerado') }}</span>
+                    </div>
+                    <p class="text-xs text-indigo-600">
+                        <svg class="inline w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                        Válido por <strong>15 minutos</strong> · Uso único · Informe ao colaborador para usar no Totem
+                    </p>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        <p class="text-sm text-slate-500 mb-4">
+            Gere um PIN de uso único para que o colaborador possa cadastrar ou actualizar o rosto directamente no totem, sem precisar de acesso ao painel.
+        </p>
+
+        <form method="post" action="{{ route('painel.totem-pins.generate') }}">
+            @csrf
+            <input type="hidden" name="employee_id" value="{{ $employee->id }}">
+            <button type="submit"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z"/>
+                </svg>
+                {{ $employee->face_enrolled ? 'Gerar PIN para atualizar facial' : 'Gerar PIN para cadastrar facial' }}
+            </button>
+        </form>
+    </div>
+</div>
+
 @endsection

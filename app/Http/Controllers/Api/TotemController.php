@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\FaceEnrollPin;
 use App\Services\FaceService;
 use App\Services\FirebaseStorageService;
 use App\Services\TimeRecordService;
@@ -165,6 +166,110 @@ class TotemController extends Controller
             'type'           => $record->type,
             'datetime'       => $record->datetime?->toISOString(), // UTC com Z — app converte para fuso local
         ], 201);
+    }
+
+    /**
+     * POST /api/v1/totem/validate-pin
+     *
+     * Valida um PIN de enroll facial e devolve os dados do colaborador.
+     * Não marca o PIN como usado (isso só acontece em enrollFace).
+     */
+    public function validatePin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'pin' => 'required|string|size:6',
+        ]);
+
+        $totemUser  = $request->user();
+        $companyId  = $totemUser->company_id;
+
+        $pin = FaceEnrollPin::with('employee.user')
+            ->where('pin', $request->pin)
+            ->where('company_id', $companyId)
+            ->where('used', false)
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (! $pin) {
+            return response()->json([
+                'valid'   => false,
+                'message' => 'PIN inválido, expirado ou já utilizado.',
+            ], 422);
+        }
+
+        $employee = $pin->employee;
+        $action   = $employee->face_enrolled ? 'update' : 'enroll';
+
+        return response()->json([
+            'valid'       => true,
+            'employee_id' => $employee->id,
+            'name'        => $employee->user?->name ?? 'Colaborador',
+            'cargo'       => $employee->cargo,
+            'action'      => $action, // "enroll" (novo) ou "update" (substituir)
+        ]);
+    }
+
+    /**
+     * POST /api/v1/totem/enroll-face
+     *
+     * Realiza o cadastro facial usando o PIN validado.
+     * Marca o PIN como usado após sucesso.
+     */
+    public function enrollFace(Request $request): JsonResponse
+    {
+        $request->validate([
+            'pin'   => 'required|string|size:6',
+            'photo' => 'required|image|max:8192',
+        ]);
+
+        $totemUser = $request->user();
+        $companyId = $totemUser->company_id;
+
+        $pin = FaceEnrollPin::with('employee.user')
+            ->where('pin', $request->pin)
+            ->where('company_id', $companyId)
+            ->where('used', false)
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (! $pin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PIN inválido, expirado ou já utilizado.',
+            ], 422);
+        }
+
+        $employee = $pin->employee;
+        $path     = $request->file('photo')->store('tmp/faces');
+        $fullPath = Storage::disk('local')->path($path);
+
+        try {
+            $this->faceService->enroll($employee->id, $fullPath);
+            $employee->update(['face_enrolled' => true]);
+            $pin->update(['used' => true]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Rosto cadastrado com sucesso!',
+                'name'    => $employee->user?->name ?? 'Colaborador',
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $this->friendlyFaceError($e->getMessage()),
+            ], 422);
+        } finally {
+            if (isset($fullPath) && file_exists($fullPath)) {
+                @unlink($fullPath);
+            }
+        }
+    }
+
+    private function friendlyFaceError(string $msg): string
+    {
+        if (str_contains($msg, 'Nenhum rosto'))     return 'Nenhum rosto detectado. Tente novamente com boa iluminação.';
+        if (str_contains($msg, 'Mais de um rosto')) return 'Mais de um rosto na foto. Certifique-se de estar sozinho.';
+        return 'Erro ao processar imagem. Tente novamente.';
     }
 
 }

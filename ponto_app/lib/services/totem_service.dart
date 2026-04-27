@@ -3,6 +3,40 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/network/api_client.dart';
 
+/// Resultado da validação de PIN de enroll facial.
+class TotemPinResult {
+  final bool valid;
+  final String? message;
+  final int? employeeId;
+  final String? name;
+  final String? cargo;
+  /// "enroll" = cadastro novo; "update" = substituir existente.
+  final String action;
+
+  const TotemPinResult({
+    required this.valid,
+    this.message,
+    this.employeeId,
+    this.name,
+    this.cargo,
+    this.action = 'enroll',
+  });
+
+  factory TotemPinResult.invalid([String? msg]) => TotemPinResult(
+        valid: false,
+        message: msg ?? 'PIN inválido, expirado ou já utilizado.',
+      );
+
+  factory TotemPinResult.fromJson(Map<String, dynamic> json) => TotemPinResult(
+        valid: json['valid'] as bool? ?? false,
+        message: json['message'] as String?,
+        employeeId: json['employee_id'] as int?,
+        name: json['name'] as String?,
+        cargo: json['cargo'] as String?,
+        action: json['action'] as String? ?? 'enroll',
+      );
+}
+
 /// Resultado da identificação facial no modo totem.
 class TotemIdentifyResult {
   final bool match;
@@ -108,6 +142,47 @@ class TotemService {
     } catch (_) {
       return TotemIdentifyResult.noMatch();
     }
+  }
+
+  /// Valida um PIN de enroll facial (não o consome — apenas verifica).
+  Future<TotemPinResult> validatePin(String pin) async {
+    try {
+      final response = await _api.post('/totem/validate-pin', data: {'pin': pin});
+      return TotemPinResult.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      final msg = _extractMessage(e);
+      return TotemPinResult.invalid(msg);
+    }
+  }
+
+  /// Realiza o enroll facial com PIN + foto.
+  /// Retorna mensagem de sucesso ou lança [Exception] com mensagem amigável.
+  Future<String> enrollFace(String pin, File photo) async {
+    final formData = FormData.fromMap({
+      'pin':   pin,
+      'photo': await MultipartFile.fromFile(photo.path, filename: 'face.jpg'),
+    });
+    final response = await _api.post('/totem/enroll-face', formData: formData);
+    final data = response.data as Map<String, dynamic>;
+    if (data['success'] == true) {
+      return data['message'] as String? ?? 'Rosto cadastrado com sucesso!';
+    }
+    throw Exception(data['message'] ?? 'Erro ao cadastrar rosto.');
+  }
+
+  String _extractMessage(dynamic e) {
+    try {
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map) {
+          final msg = data['message'];
+          if (msg is String) return msg;
+          final errors = data['errors'];
+          if (errors is Map) return errors.values.first?.first?.toString() ?? 'Erro.';
+        }
+      }
+    } catch (_) {}
+    return 'Erro ao contactar o servidor.';
   }
 
   /// Registra o ponto do funcionário identificado.
