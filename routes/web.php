@@ -57,6 +57,7 @@ Route::middleware('auth')->group(function () {
 
         // Relatórios
         Route::get('/relatorios/folha-pagamento', [ReportWebController::class, 'folhaPagamento'])->name('reports.folha-pagamento');
+        Route::get('/relatorios/presenca', [ReportWebController::class, 'presenca'])->name('reports.presenca');
 
         // Banco de Horas
         Route::get('/banco-horas', [HourBankWebController::class, 'index'])->name('hour-bank.index');

@@ -175,7 +175,137 @@ class ReportWebController extends Controller
     }
 
     // ────────────────────────────────────────────────────────────────────────────
-    // CSV consolidado
+    // Relatório de presença / ausência por período
+    // ────────────────────────────────────────────────────────────────────────────
+
+    public function presenca(Request $request): View|\Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->authorize('manage-employees');
+
+        $tz        = config('app.timezone', 'America/Sao_Paulo');
+        $dateFrom  = $request->get('date_from', today()->startOfMonth()->toDateString());
+        $dateTo    = $request->get('date_to',   today()->toDateString());
+        $companyId = $request->get('company_id');
+        $deptId    = $request->get('dept_id');
+
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+
+        $companies   = Company::orderBy('name')->get();
+        $departments = Department::orderBy('name')->get();
+
+        $employees = Employee::with(['user', 'company', 'workSchedule', 'dept'])
+            ->where('active', true)
+            ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+            ->when($deptId,    fn($q) => $q->where('department_id', $deptId))
+            ->orderBy('id')
+            ->get();
+
+        $period = CarbonPeriod::create($dateFrom, $dateTo);
+        $dates  = collect($period)->map(fn($d) => $d->toDateString())->values()->all();
+
+        // Para cada colaborador, marcar cada dia como: P (presente), F (falta), H (feriado), Fo (folga)
+        $rows = [];
+        foreach ($employees as $emp) {
+            $ws      = $emp->workSchedule;
+            $dept    = $emp->dept;
+            $deptRef = $dept && $dept->entry_time && $dept->exit_time ? $dept : null;
+            $workDaysList = $deptRef
+                ? $deptRef->workDaysList()
+                : ($ws?->work_days ?? [1, 2, 3, 4, 5]);
+
+            $holidaySet = array_flip(Holiday::datesInPeriod($dateFrom, $dateTo, $emp->company_id));
+
+            // Dias com batidas
+            $daysWithRecord = TimeRecord::where('employee_id', $emp->id)
+                ->whereBetween('datetime', [$from, $to])
+                ->selectRaw("DATE(CONVERT_TZ(datetime, '+00:00', '-03:00')) as d")
+                ->groupByRaw("DATE(CONVERT_TZ(datetime, '+00:00', '-03:00'))")
+                ->pluck('d')
+                ->flip()
+                ->all();
+
+            $dias    = [];
+            $totP    = 0; $totF = 0; $totH = 0; $totFo = 0;
+
+            foreach ($dates as $dateStr) {
+                $dayOfWeek = (int) Carbon::parse($dateStr)->format('w');
+                $isWorkDay = in_array($dayOfWeek, $workDaysList);
+                $isHoliday = isset($holidaySet[$dateStr]);
+                $hasRecord = isset($daysWithRecord[$dateStr]);
+
+                if ($isHoliday) {
+                    $status = 'H'; $totH++;
+                } elseif (!$isWorkDay) {
+                    $status = 'Fo'; $totFo++;
+                } elseif ($hasRecord) {
+                    $status = 'P'; $totP++;
+                } else {
+                    $status = 'F'; $totF++;
+                }
+                $dias[$dateStr] = $status;
+            }
+
+            $rows[] = [
+                'id'         => $emp->id,
+                'nome'       => $emp->user?->name ?? '—',
+                'empresa'    => $emp->company?->name ?? '—',
+                'depto'      => $dept?->name ?? $emp->department ?? '—',
+                'dias'       => $dias,
+                'total_p'    => $totP,
+                'total_f'    => $totF,
+                'total_h'    => $totH,
+                'total_fo'   => $totFo,
+            ];
+        }
+
+        if ($request->get('export') === 'csv') {
+            return $this->exportPresencaCSV($rows, $dates, $dateFrom, $dateTo);
+        }
+
+        return view('web.reports.presenca', compact(
+            'rows', 'dates', 'dateFrom', 'dateTo',
+            'companies', 'departments', 'companyId', 'deptId'
+        ));
+    }
+
+    private function exportPresencaCSV(array $rows, array $dates, string $dateFrom, string $dateTo)
+    {
+        $filename = "presenca_{$dateFrom}_a_{$dateTo}.csv";
+        $headers  = [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($rows, $dates) {
+            $h = fopen('php://output', 'w');
+            fputs($h, "\xEF\xBB\xBF");
+            $header = ['Colaborador', 'Empresa', 'Depto.'];
+            foreach ($dates as $d) {
+                $header[] = Carbon::parse($d)->format('d/m');
+            }
+            $header = array_merge($header, ['Presenças', 'Faltas', 'Feriados', 'Folgas']);
+            fputcsv($h, $header, ';');
+
+            foreach ($rows as $row) {
+                $line = [$row['nome'], $row['empresa'], $row['depto']];
+                foreach ($dates as $d) {
+                    $line[] = $row['dias'][$d] ?? '';
+                }
+                $line[] = $row['total_p'];
+                $line[] = $row['total_f'];
+                $line[] = $row['total_h'];
+                $line[] = $row['total_fo'];
+                fputcsv($h, $line, ';');
+            }
+            fclose($h);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // CSV consolidado da folha
     // ────────────────────────────────────────────────────────────────────────────
 
     private function exportFolhaCSV(array $rows, string $dateFrom, string $dateTo)
