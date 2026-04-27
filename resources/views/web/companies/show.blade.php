@@ -42,18 +42,27 @@
 <div x-data="{ tab: '{{ $activeTab }}' }">
 
     {{-- Nav de tabs --}}
-    <div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-6 max-w-md">
+    <div class="flex flex-wrap gap-1 bg-slate-100 rounded-xl p-1 mb-6 max-w-2xl">
         <button type="button" @click="tab='dados'"
                 :class="tab==='dados' ? 'bg-white shadow text-slate-800 font-semibold' : 'text-slate-500 hover:text-slate-700'"
-                class="flex-1 flex items-center justify-center gap-2 text-sm py-2 rounded-lg transition">
+                class="flex-1 flex items-center justify-center gap-2 text-sm py-2 rounded-lg transition min-w-[80px]">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z"/>
             </svg>
             Dados
         </button>
+        <button type="button" @click="tab='localizacoes'"
+                :class="tab==='localizacoes' ? 'bg-white shadow text-slate-800 font-semibold' : 'text-slate-500 hover:text-slate-700'"
+                class="flex-1 flex items-center justify-center gap-2 text-sm py-2 rounded-lg transition min-w-[100px]">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
+            </svg>
+            Localizações <span class="ml-1 text-xs bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5">{{ $locations->count() }}</span>
+        </button>
         <button type="button" @click="tab='gestores'"
                 :class="tab==='gestores' ? 'bg-white shadow text-slate-800 font-semibold' : 'text-slate-500 hover:text-slate-700'"
-                class="flex-1 flex items-center justify-center gap-2 text-sm py-2 rounded-lg transition">
+                class="flex-1 flex items-center justify-center gap-2 text-sm py-2 rounded-lg transition min-w-[80px]">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>
             </svg>
@@ -61,7 +70,7 @@
         </button>
         <button type="button" @click="tab='totems'"
                 :class="tab==='totems' ? 'bg-white shadow text-slate-800 font-semibold' : 'text-slate-500 hover:text-slate-700'"
-                class="flex-1 flex items-center justify-center gap-2 text-sm py-2 rounded-lg transition">
+                class="flex-1 flex items-center justify-center gap-2 text-sm py-2 rounded-lg transition min-w-[80px]">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0H3"/>
             </svg>
@@ -311,6 +320,195 @@
         </form>
     </div>
 
+    {{-- ══════════════════════════════ TAB LOCALIZAÇÕES ══════════════════════════ --}}
+    <div x-show="tab==='localizacoes'" x-cloak class="space-y-5 max-w-4xl">
+
+        @if(session('success') && session()->has('locations_tab'))
+        <div class="flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+            {{ session('success') }}
+        </div>
+        @endif
+        @if(session('error') && session()->has('locations_tab'))
+        <div class="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">{{ session('error') }}</div>
+        @endif
+
+        {{-- Mapa de visão geral --}}
+        @if($googleMapsKey && $locations->where('active', true)->count() > 0)
+        @php
+            $mapCenter = $locations->where('active', true)->first();
+        @endphp
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                <h2 class="text-sm font-semibold text-slate-700">Mapa das geocercas</h2>
+                <span class="ml-auto text-xs text-slate-400">{{ $locations->where('active', true)->count() }} localização(ões) ativa(s)</span>
+            </div>
+            <div id="locations-map" class="w-full" style="height: 320px;"></div>
+        </div>
+        @endif
+
+        {{-- Lista de localizações --}}
+        @forelse($locations as $loc)
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5" x-data="{ editing: false }">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <span class="text-sm font-semibold text-slate-800">{{ $loc->name }}</span>
+                        @if($loc->active)
+                            <span class="inline-flex text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5">Ativa</span>
+                        @else
+                            <span class="inline-flex text-xs font-medium bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">Inativa</span>
+                        @endif
+                    </div>
+                    @if($loc->address)
+                    <p class="text-xs text-slate-500 mb-1">{{ $loc->address }}</p>
+                    @endif
+                    <p class="text-xs text-slate-400 font-mono">
+                        {{ number_format($loc->latitude, 6) }}, {{ number_format($loc->longitude, 6) }}
+                        &nbsp;·&nbsp; raio: {{ $loc->radius_meters }}m
+                    </p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <a href="https://maps.google.com/?q={{ $loc->latitude }},{{ $loc->longitude }}"
+                       target="_blank" class="text-xs text-indigo-600 hover:underline">Ver no Maps</a>
+                    <button type="button" @click="editing=!editing"
+                            class="text-xs text-slate-600 border border-slate-300 bg-white px-2 py-1 rounded-lg hover:bg-slate-50">
+                        Editar
+                    </button>
+                    <form method="post" action="{{ route('painel.companies.locations.destroy', [$company, $loc]) }}"
+                          onsubmit="return confirm('Remover esta localização?')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="text-xs text-rose-600 border border-rose-200 bg-rose-50 px-2 py-1 rounded-lg hover:bg-rose-100">
+                            Remover
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {{-- Formulário de edição --}}
+            <div x-show="editing" x-cloak class="mt-4 border-t border-slate-100 pt-4">
+                <form method="post" action="{{ route('painel.companies.locations.update', [$company, $loc]) }}" class="space-y-3"
+                      x-data="locationForm('{{ $loc->address ?? '' }}', {{ $loc->latitude }}, {{ $loc->longitude }})"
+                      @submit.prevent="submitForm($el)">
+                    @csrf
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Nome <span class="text-rose-500">*</span></label>
+                            <input type="text" name="name" value="{{ $loc->name }}" required
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Raio (metros) <span class="text-rose-500">*</span></label>
+                            <input type="number" name="radius_meters" value="{{ $loc->radius_meters }}" min="50" max="50000" required
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Endereço (pesquise para geocodificar)</label>
+                            <div class="flex gap-2">
+                                <input type="text" name="address" x-model="address" placeholder="Rua, número, cidade..."
+                                       class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none">
+                                <button type="button" @click="geocode()"
+                                        class="text-sm font-medium text-white bg-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-700 whitespace-nowrap">
+                                    Buscar
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1" x-text="geoStatus"></p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Latitude</label>
+                            <input type="text" name="latitude" x-model="lat"
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Longitude</label>
+                            <input type="text" name="longitude" x-model="lng"
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none font-mono">
+                        </div>
+                        <div class="sm:col-span-2 flex items-center gap-2">
+                            <input type="hidden" name="active" value="0">
+                            <input type="checkbox" name="active" value="1" id="active_{{ $loc->id }}" class="rounded border-slate-300 text-emerald-500" @checked($loc->active)>
+                            <label for="active_{{ $loc->id }}" class="text-sm text-slate-700">Localização ativa</label>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="text-sm font-medium text-white bg-emerald-600 px-4 py-2 rounded-lg hover:bg-emerald-700">Guardar</button>
+                        <button type="button" @click="editing=false" class="text-sm text-slate-600 px-3 py-2 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        @empty
+        <div class="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center">
+            <svg class="mx-auto w-10 h-10 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+            <p class="text-sm text-slate-500">Nenhuma localização configurada.</p>
+            <p class="text-xs text-slate-400 mt-1">Adicione pelo menos uma localização para activar a geocerca.</p>
+        </div>
+        @endforelse
+
+        {{-- Adicionar nova localização --}}
+        <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-5" x-data="{ open: false }">
+            <button type="button" @click="open=!open"
+                    class="flex items-center gap-2 text-sm font-medium text-emerald-700 hover:text-emerald-900 w-full">
+                <svg class="w-4 h-4 transition-transform duration-200" :class="open ? 'rotate-45' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                </svg>
+                Adicionar nova localização
+            </button>
+            <div x-show="open" x-cloak class="mt-4"
+                 x-data="locationForm('', null, null)">
+                <form method="post" action="{{ route('painel.companies.locations.store', $company) }}"
+                      class="space-y-3" @submit.prevent="submitForm($el)">
+                    @csrf
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Nome <span class="text-rose-500">*</span></label>
+                            <input type="text" name="name" required placeholder="Ex.: Sede, Filial Norte"
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Raio (metros) <span class="text-rose-500">*</span></label>
+                            <input type="number" name="radius_meters" value="300" min="50" max="50000" required
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Endereço (pesquise para geocodificar automaticamente)</label>
+                            <div class="flex gap-2">
+                                <input type="text" name="address" x-model="address" placeholder="Rua, número, cidade, estado..."
+                                       class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white">
+                                <button type="button" @click="geocode()"
+                                        class="text-sm font-medium text-white bg-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-700 whitespace-nowrap">
+                                    Buscar
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1" x-text="geoStatus"></p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Latitude</label>
+                            <input type="text" name="latitude" x-model="lat" placeholder="Preenchido automaticamente"
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Longitude</label>
+                            <input type="text" name="longitude" x-model="lng" placeholder="Preenchido automaticamente"
+                                   class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white font-mono">
+                        </div>
+                    </div>
+                    <button type="submit" class="text-sm font-medium text-white bg-emerald-600 px-5 py-2.5 rounded-lg hover:bg-emerald-700 transition">
+                        Adicionar localização
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {{-- Nota sobre geocerca legada --}}
+        @if($company->hasLegacyGeofence() && $locations->count() > 0)
+        <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+            <strong>Nota:</strong> A empresa ainda tem coordenadas legadas (Latitude/Longitude na aba Dados). Com localizações configuradas aqui, o sistema usa apenas estas. Pode limpar os campos legados na aba Dados se não forem necessários.
+        </div>
+        @endif
+    </div>
+
     {{-- ══════════════════════════════ TAB GESTORES ══════════════════════════════ --}}
     <div x-show="tab==='gestores'" x-cloak class="max-w-2xl space-y-4">
 
@@ -517,4 +715,85 @@
 </div>
 
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+{{-- Google Maps + lógica de geocodificação --}}
+<script>
+// Alpine component para formulários de localização
+document.addEventListener('alpine:init', () => {
+  Alpine.data('locationForm', (initAddress, initLat, initLng) => ({
+    address: initAddress || '',
+    lat: initLat || '',
+    lng: initLng || '',
+    geoStatus: '',
+    async geocode() {
+      if (!this.address.trim()) { this.geoStatus = 'Preencha o endereço.'; return; }
+      this.geoStatus = 'A pesquisar…';
+      try {
+        const r = await fetch('{{ route('painel.companies.geocode', $company) }}?address=' + encodeURIComponent(this.address));
+        const d = await r.json();
+        if (d.error) { this.geoStatus = d.error; return; }
+        this.lat = d.lat;
+        this.lng = d.lng;
+        this.address = d.formatted_address;
+        this.geoStatus = '✓ Coordenadas encontradas: ' + d.lat + ', ' + d.lng;
+        initMap();
+      } catch (e) { this.geoStatus = 'Erro de comunicação.'; }
+    },
+    submitForm(form) {
+      form.submit();
+    }
+  }));
+});
+
+// Google Maps — exibe todas as locations com círculo de raio
+function initMap() {
+  const mapEl = document.getElementById('locations-map');
+  if (!mapEl || typeof google === 'undefined') return;
+
+  const locations = @json($locations->where('active', true)->values());
+  if (!locations.length) return;
+
+  const map = new google.maps.Map(mapEl, {
+    zoom: 14,
+    center: { lat: parseFloat(locations[0].latitude), lng: parseFloat(locations[0].longitude) },
+    mapTypeId: 'roadmap',
+    disableDefaultUI: false,
+  });
+
+  const bounds = new google.maps.LatLngBounds();
+
+  locations.forEach(loc => {
+    const center = { lat: parseFloat(loc.latitude), lng: parseFloat(loc.longitude) };
+
+    new google.maps.Marker({
+      position: center,
+      map,
+      title: loc.name,
+      label: { text: loc.name[0], color: '#fff' },
+    });
+
+    new google.maps.Circle({
+      map,
+      center,
+      radius: loc.radius_meters,
+      strokeColor: '#10b981',
+      strokeOpacity: 0.9,
+      strokeWeight: 2,
+      fillColor: '#10b981',
+      fillOpacity: 0.12,
+    });
+
+    bounds.extend(new google.maps.LatLng(center.lat, center.lng));
+  });
+
+  if (locations.length > 1) map.fitBounds(bounds);
+}
+</script>
+
+@if($googleMapsKey)
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&callback=initMap">
+</script>
+@endif
+
 @endsection

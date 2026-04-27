@@ -106,24 +106,41 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
       return PolicyCheckResult.mockBlocked;
     }
 
-    // 3. Geocerca
-    final geofence = company.geofence;
-    if (company.requireGeolocation &&
-        geofence != null &&
-        geofence.enabled &&
-        geofence.latitude != null &&
-        geofence.longitude != null) {
+    // 3. Geocerca — valida contra múltiplas localizações (nova) ou legada (única)
+    if (company.requireGeolocation && company.hasAnyGeofence) {
       final loc = location ?? await _locationService.getCurrentLocation();
       if (loc == null) return PolicyCheckResult.geofenceUnavailable;
 
-      final inside = _locationService.isWithinGeofence(
-        userLat: loc.latitude,
-        userLon: loc.longitude,
-        centerLat: geofence.latitude!,
-        centerLon: geofence.longitude!,
-        radiusMeters: geofence.radiusMeters.toDouble(),
-      );
-      if (!inside) return PolicyCheckResult.geofenceViolation;
+      final multiGeofences = company.geofences;
+      if (multiGeofences.isNotEmpty) {
+        // Passa se estiver dentro de QUALQUER geocerca activa
+        final insideAny = multiGeofences.any((g) =>
+          _locationService.isWithinGeofence(
+            userLat: loc.latitude,
+            userLon: loc.longitude,
+            centerLat: g.latitude,
+            centerLon: g.longitude,
+            radiusMeters: g.radiusMeters.toDouble(),
+          ),
+        );
+        if (!insideAny) return PolicyCheckResult.geofenceViolation;
+      } else {
+        // Fallback para geocerca legada (campo único)
+        final geofence = company.geofence;
+        if (geofence != null &&
+            geofence.enabled &&
+            geofence.latitude != null &&
+            geofence.longitude != null) {
+          final inside = _locationService.isWithinGeofence(
+            userLat: loc.latitude,
+            userLon: loc.longitude,
+            centerLat: geofence.latitude!,
+            centerLon: geofence.longitude!,
+            radiusMeters: geofence.radiusMeters.toDouble(),
+          );
+          if (!inside) return PolicyCheckResult.geofenceViolation;
+        }
+      }
     }
 
     // 4. Wi-Fi obrigatório

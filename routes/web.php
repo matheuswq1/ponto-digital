@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\AuditLogWebController;
+use App\Http\Controllers\Web\CompanyLocationsWebController;
 use App\Http\Controllers\Web\FraudAlertWebController;
 use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
@@ -90,6 +91,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/empresas/{company}', [CompanyWebController::class, 'show'])->name('companies.show');
         Route::get('/empresas/{company}/editar', [CompanyWebController::class, 'edit'])->name('companies.edit');
         Route::post('/empresas/{company}/atualizar', [CompanyWebController::class, 'update'])->name('companies.update');
+        // Localizações / geocercas
+        Route::post('/empresas/{company}/localizacoes', [CompanyLocationsWebController::class, 'store'])->name('companies.locations.store');
+        Route::post('/empresas/{company}/localizacoes/{location}/atualizar', [CompanyLocationsWebController::class, 'update'])->name('companies.locations.update');
+        Route::delete('/empresas/{company}/localizacoes/{location}', [CompanyLocationsWebController::class, 'destroy'])->name('companies.locations.destroy');
+        Route::get('/empresas/{company}/geocodificar', [CompanyLocationsWebController::class, 'geocode'])->name('companies.geocode');
         Route::post('/empresas/{company}/gestores', [CompanyWebController::class, 'addGestor'])->name('companies.gestores.add');
         Route::post('/empresas/{company}/gestores/{gestor}/atualizar', [CompanyWebController::class, 'updateGestor'])->name('companies.gestores.update');
         Route::post('/empresas/{company}/gestores/{gestor}/senha', [CompanyWebController::class, 'resetGestorPassword'])->name('companies.gestores.password');

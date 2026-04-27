@@ -7,30 +7,56 @@ use Illuminate\Validation\ValidationException;
 
 class GeolocationService
 {
+    /**
+     * Valida se as coordenadas fornecidas estão dentro de PELO MENOS UMA
+     * das geocercas activas da empresa.
+     * Se a empresa não tiver nenhuma geocerca configurada, a validação passa.
+     */
     public function validateGeofence(Company $company, float $lat, float $lng): void
     {
-        if (!$company->hasGeofence()) {
-            return;
-        }
+        $locations = $company->activeLocations()->get();
 
-        $distance = $this->calculateDistance(
-            $company->latitude,
-            $company->longitude,
-            $lat,
-            $lng
-        );
-
-        if ($distance > $company->geofence_radius) {
-            throw ValidationException::withMessages([
-                'location' => [
-                    sprintf(
+        // Retro-compatibilidade: se não houver locations novas, usar campos legado
+        if ($locations->isEmpty()) {
+            if (! $company->hasLegacyGeofence()) {
+                return;
+            }
+            $distance = $this->calculateDistance(
+                (float) $company->latitude,
+                (float) $company->longitude,
+                $lat,
+                $lng
+            );
+            if ($distance > $company->geofence_radius) {
+                throw ValidationException::withMessages([
+                    'location' => [sprintf(
                         'Você está fora da área permitida. Distância atual: %dm. Permitido: %dm.',
                         (int) $distance,
                         $company->geofence_radius
-                    )
-                ]
-            ]);
+                    )],
+                ]);
+            }
+            return;
         }
+
+        // Verificar se o utilizador está dentro de QUALQUER uma das locations
+        foreach ($locations as $location) {
+            $distance = $this->calculateDistance(
+                (float) $location->latitude,
+                (float) $location->longitude,
+                $lat,
+                $lng
+            );
+            if ($distance <= $location->radius_meters) {
+                return; // Dentro de pelo menos uma geocerca — OK
+            }
+        }
+
+        // Fora de todas as geocercas
+        $names = $locations->pluck('name')->implode(', ');
+        throw ValidationException::withMessages([
+            'location' => ["Você está fora de todas as áreas permitidas ({$names})."],
+        ]);
     }
 
     public function calculateDistance(
@@ -55,17 +81,33 @@ class GeolocationService
 
     public function isWithinGeofence(Company $company, float $lat, float $lng): bool
     {
-        if (!$company->hasGeofence()) {
-            return true;
+        $locations = $company->activeLocations()->get();
+
+        if ($locations->isEmpty()) {
+            if (! $company->hasLegacyGeofence()) {
+                return true;
+            }
+            $distance = $this->calculateDistance(
+                (float) $company->latitude,
+                (float) $company->longitude,
+                $lat,
+                $lng
+            );
+            return $distance <= $company->geofence_radius;
         }
 
-        $distance = $this->calculateDistance(
-            $company->latitude,
-            $company->longitude,
-            $lat,
-            $lng
-        );
+        foreach ($locations as $location) {
+            $distance = $this->calculateDistance(
+                (float) $location->latitude,
+                (float) $location->longitude,
+                $lat,
+                $lng
+            );
+            if ($distance <= $location->radius_meters) {
+                return true;
+            }
+        }
 
-        return $distance <= $company->geofence_radius;
+        return false;
     }
 }

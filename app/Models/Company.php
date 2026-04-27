@@ -85,8 +85,24 @@ class Company extends Model
         return $this->hasMany(FraudAttempt::class);
     }
 
-    public function hasGeofence(): bool
+    public function locations(): HasMany
+    {
+        return $this->hasMany(CompanyLocation::class);
+    }
+
+    public function activeLocations(): HasMany
+    {
+        return $this->hasMany(CompanyLocation::class)->where('active', true);
+    }
+
+    /** Verifica campos de geocerca legados (latitude/longitude directamente na empresa). */
+    public function hasLegacyGeofence(): bool
     {
         return $this->latitude !== null && $this->longitude !== null;
+    }
+
+    public function hasGeofence(): bool
+    {
+        return $this->activeLocations()->exists() || $this->hasLegacyGeofence();
     }
 }

@@ -122,6 +122,44 @@ class EmployeeModel {
       );
 }
 
+class CompanyLocationModel {
+  final int id;
+  final String name;
+  final String? address;
+  final double latitude;
+  final double longitude;
+  final int radiusMeters;
+  final bool active;
+
+  const CompanyLocationModel({
+    required this.id,
+    required this.name,
+    this.address,
+    required this.latitude,
+    required this.longitude,
+    this.radiusMeters = 300,
+    this.active = true,
+  });
+
+  factory CompanyLocationModel.fromJson(Map<String, dynamic> json) =>
+      CompanyLocationModel(
+        id: json['id'],
+        name: json['name'] ?? '',
+        address: json['address'],
+        latitude: _toDouble(json['latitude']) ?? 0,
+        longitude: _toDouble(json['longitude']) ?? 0,
+        radiusMeters: (json['radius_meters'] as num?)?.toInt() ?? 300,
+        active: json['active'] ?? true,
+      );
+
+  static double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v);
+    return null;
+  }
+}
+
 class CompanyModel {
   final int id;
   final String name;
@@ -130,6 +168,8 @@ class CompanyModel {
   final bool requireGeolocation;
   final int maxDailyRecords;
   final GeofenceModel? geofence;
+  // Múltiplas geocercas (novo sistema)
+  final List<CompanyLocationModel> geofences;
   // Anti-fraude
   final bool blockMockLocation;
   final bool requireWifi;
@@ -144,16 +184,31 @@ class CompanyModel {
     required this.requireGeolocation,
     this.maxDailyRecords = 10,
     this.geofence,
+    this.geofences = const [],
     this.blockMockLocation = false,
     this.requireWifi = false,
     this.allowedWifiSsids = const [],
     this.fraudAction = 'warn',
   });
 
+  /// True se existir pelo menos uma geocerca activa (nova ou legada).
+  bool get hasAnyGeofence =>
+      geofences.any((g) => g.active) ||
+      (geofence?.enabled == true &&
+          geofence?.latitude != null &&
+          geofence?.longitude != null);
+
   factory CompanyModel.fromJson(Map<String, dynamic> json) {
     final settings = json['settings'] as Map<String, dynamic>?;
     final geofenceData = json['geofence'] as Map<String, dynamic>?;
-    final rawSsids = json['allowed_wifi_ssids'];
+    final rawGeofences = json['geofences'];
+    final geofencesList = rawGeofences is List
+        ? rawGeofences
+            .map((e) => CompanyLocationModel.fromJson(e as Map<String, dynamic>))
+            .where((g) => g.active)
+            .toList()
+        : <CompanyLocationModel>[];
+    final rawSsids = settings?['allowed_wifi_ssids'];
     final ssids = rawSsids is List
         ? rawSsids.map((e) => e.toString()).toList()
         : <String>[];
@@ -165,10 +220,11 @@ class CompanyModel {
       requireGeolocation: settings?['require_geolocation'] ?? false,
       maxDailyRecords: (json['max_daily_records'] as num?)?.toInt() ?? 10,
       geofence: geofenceData != null ? GeofenceModel.fromJson(geofenceData) : null,
-      blockMockLocation: json['block_mock_location'] ?? false,
-      requireWifi: json['require_wifi'] ?? false,
+      geofences: geofencesList,
+      blockMockLocation: settings?['block_mock_location'] ?? false,
+      requireWifi: settings?['require_wifi'] ?? false,
       allowedWifiSsids: ssids,
-      fraudAction: json['fraud_action'] ?? 'warn',
+      fraudAction: settings?['fraud_action'] ?? 'warn',
     );
   }
 
@@ -182,6 +238,14 @@ class CompanyModel {
           'require_geolocation': requireGeolocation,
         },
         'geofence': geofence?.toJson(),
+        'geofences': geofences.map((g) => {
+          'id': g.id,
+          'name': g.name,
+          'latitude': g.latitude,
+          'longitude': g.longitude,
+          'radius_meters': g.radiusMeters,
+          'active': g.active,
+        }).toList(),
         'block_mock_location': blockMockLocation,
         'require_wifi': requireWifi,
         'allowed_wifi_ssids': allowedWifiSsids,

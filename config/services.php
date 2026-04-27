@@ -42,4 +42,8 @@ return [
         'connect_timeout' => (int) env('FACE_SERVICE_HTTP_CONNECT', 5),
     ],
 
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_KEY', ''),
+    ],
+
 ];

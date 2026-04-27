@@ -116,12 +116,15 @@ class CompanyWebController extends Controller
         $this->authorize('manage-companies');
 
         $company->loadCount('activeEmployees');
-        $gestores = $company->users()->where('role', 'gestor')->orderBy('name')->get();
-        $totems   = $company->users()->where('role', 'totem')->orderBy('name')->get();
-        // tab activa vinda do redirect (ex: após guardar dados redireciona para ?tab=dados)
+        $gestores  = $company->users()->where('role', 'gestor')->orderBy('name')->get();
+        $totems    = $company->users()->where('role', 'totem')->orderBy('name')->get();
+        $locations = $company->locations()->orderBy('id')->get();
         $activeTab = $request->get('tab', 'dados');
+        $googleMapsKey = config('services.google_maps.key', '');
 
-        return view('web.companies.show', compact('company', 'gestores', 'totems', 'activeTab'));
+        return view('web.companies.show', compact(
+            'company', 'gestores', 'totems', 'locations', 'activeTab', 'googleMapsKey'
+        ));
     }
 
     public function edit(Company $company): \Illuminate\Http\RedirectResponse
