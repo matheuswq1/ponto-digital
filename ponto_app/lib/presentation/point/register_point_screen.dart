@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'register_point_provider.dart' show registerPointProvider, RegisterPointStatus, PolicyCheckResult;
-import 'face_verify_step.dart';
 import '../home/today_provider.dart';
 import '../auth/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -27,6 +26,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   List<CameraDescription>? _cameras;
   bool _cameraReady = false;
   bool _useFrontCamera = true;
+  bool _verifyingFace = false; // true durante a chamada /face/verify
 
   @override
   void initState() {
@@ -73,7 +73,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
   /// Captura foto (se câmera disponível) e regista o ponto de uma só vez.
   Future<void> _captureAndRegister() async {
-    if (ref.read(registerPointProvider).isLoading) return;
+    if (ref.read(registerPointProvider).isLoading || _verifyingFace) return;
 
     File? photo;
     if (_cameraReady && _cameraController != null &&
@@ -147,24 +147,29 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
       return;
     }
 
-    final faceResult = await showDialog<bool?>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog.fullscreen(
-        child: FaceVerifyStep(
-          faceService: ref.read(faceServiceProvider),
-        ),
-      ),
-    );
+    // Se não há foto capturada, não é possível verificar o rosto
+    if (photo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('É necessário a câmera para verificar a identidade.'),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
+
+    // Verificar identidade com a foto já capturada — sem abrir nova câmera
+    setState(() => _verifyingFace = true);
+    final faceService = ref.read(faceServiceProvider);
+    final faceResult = await faceService.verify(photo);
+    if (mounted) setState(() => _verifyingFace = false);
 
     if (!mounted) return;
 
-    if (faceResult == null) {
+    if (!faceResult.faceEnrolled) {
       _showEnrollRequiredDialog();
       return;
     }
 
-    if (faceResult == false) {
+    if (!faceResult.match) {
       _showFaceFailDialog();
       return;
     }
@@ -450,19 +455,28 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                       ),
                     ),
 
-                  // Loading overlay
-                  if (state.isLoading)
+                  // Loading overlay — verificação facial OU envio do ponto
+                  if (_verifyingFace || state.isLoading)
                     Container(
-                      color: Colors.black.withValues(alpha: 0.65),
+                      color: const Color(0xFF0A0F1E),
                       child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const CircularProgressIndicator(color: Colors.white),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 20),
                             Text(
-                              _loadingMessage(state.status),
-                              style: const TextStyle(color: Colors.white, fontSize: 15),
+                              _verifyingFace
+                                  ? 'Verificando identidade...'
+                                  : _loadingMessage(state.status),
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _verifyingFace
+                                  ? 'Aguarde um momento'
+                                  : '',
+                              style: const TextStyle(color: Colors.white38, fontSize: 13),
                             ),
                           ],
                         ),
@@ -489,8 +503,8 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                       ),
                     ),
 
-                  // Flip câmera
-                  if (_cameraReady)
+                  // Flip câmera (oculto durante verificação/carregamento)
+                  if (_cameraReady && !_verifyingFace && !state.isLoading)
                     Positioned(
                       top: 12,
                       right: 12,
@@ -567,17 +581,17 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
                   // Botão circular
                   GestureDetector(
-                    onTap: state.isLoading ? null : _captureAndRegister,
+                    onTap: (state.isLoading || _verifyingFace) ? null : _captureAndRegister,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: state.isLoading
+                        color: (state.isLoading || _verifyingFace)
                             ? typeColor.withValues(alpha: 0.4)
                             : typeColor,
-                        boxShadow: state.isLoading
+                        boxShadow: (state.isLoading || _verifyingFace)
                             ? []
                             : [
                                 BoxShadow(
@@ -587,7 +601,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                                 ),
                               ],
                       ),
-                      child: state.isLoading
+                      child: (state.isLoading || _verifyingFace)
                           ? const Padding(
                               padding: EdgeInsets.all(22),
                               child: CircularProgressIndicator(
@@ -599,9 +613,11 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    state.isLoading
-                        ? _loadingMessage(state.status)
-                        : 'Toque para registrar',
+                    _verifyingFace
+                        ? 'Verificando identidade...'
+                        : state.isLoading
+                            ? _loadingMessage(state.status)
+                            : 'Toque para registrar',
                     style: const TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ],
