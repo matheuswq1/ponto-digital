@@ -51,12 +51,12 @@ sudo -u ponto php artisan route:cache
 sudo -u ponto php artisan view:clear
 echo '--- Laravel OK ---'
 if docker ps -a --format '{{.Names}}' | grep -q '^${FACE_CTR}$'; then
-  docker cp $APP_DIR/face_service/main.py ${FACE_CTR}:/app/main.py
-  docker restart ${FACE_CTR}
-  sleep 4
-  curl -s http://127.0.0.1:8001/health
-  echo ''
-  echo '--- Face Service OK ---'
+  ( docker cp $APP_DIR/face_service/main.py ${FACE_CTR}:/app/main.py && docker restart ${FACE_CTR} && sleep 4 && curl -sfS http://127.0.0.1:8001/health | head -c 200 ) && {
+    echo ''
+    echo '--- Face Service OK ---'
+  } || {
+    echo '--- Aviso: Face service nao respondeu; actualize o container manualmente se necessario ---' >&2
+  }
 else
   echo '--- Container ${FACE_CTR} nao encontrado (skipping) ---'
 fi
