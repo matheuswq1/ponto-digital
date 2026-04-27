@@ -160,39 +160,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 76,
-                            height: 76,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                width: 2,
+                          // Logo oficial RM Ponto
+                          Image.asset(
+                            'assets/images/logo_login.png',
+                            width: size.width * 0.55,
+                            height: size.width * 0.55,
+                            fit: BoxFit.contain,
+                            // Fallback se a imagem não carregar
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 76,
+                              height: 76,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
                               ),
-                            ),
-                            child: const Icon(
-                              Icons.fingerprint,
-                              size: 44,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Ponto Digital',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Controle de jornada inteligente',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.75),
-                              fontSize: 13,
+                              child: const Icon(Icons.access_time, size: 44, color: Colors.white),
                             ),
                           ),
                         ],
