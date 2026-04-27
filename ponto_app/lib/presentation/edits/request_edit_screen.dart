@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -26,40 +27,87 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
   bool _sending = false;
   String? _error;
 
+  // Controladores de texto para hora e minuto
+  late TextEditingController _hourCtrl;
+  late TextEditingController _minuteCtrl;
+
   @override
   void initState() {
     super.initState();
-    // Usa o datetime já convertido para local (evita exibir UTC)
     _newDateTime = widget.record.datetime.toLocal();
     _newType = widget.record.type;
+    _hourCtrl = TextEditingController(
+        text: _newDateTime.hour.toString().padLeft(2, '0'));
+    _minuteCtrl = TextEditingController(
+        text: _newDateTime.minute.toString().padLeft(2, '0'));
   }
 
   @override
   void dispose() {
     _justification.dispose();
+    _hourCtrl.dispose();
+    _minuteCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDateTime() async {
+  // ── Selecionar data ────────────────────────────────────────────────────────
+  Future<void> _pickDate() async {
     final d = await showDatePicker(
       context: context,
       initialDate: _newDateTime,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      locale: const Locale('pt', 'BR'),
     );
     if (d == null || !mounted) return;
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_newDateTime),
-    );
-    if (t == null || !mounted) return;
     setState(() {
-      _newDateTime = DateTime(d.year, d.month, d.day, t.hour, t.minute);
+      _newDateTime = DateTime(
+        d.year, d.month, d.day,
+        _newDateTime.hour, _newDateTime.minute,
+      );
     });
   }
 
+  // ── Selecionar hora via TimePicker nativo ──────────────────────────────────
+  Future<void> _pickTime() async {
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _newDateTime.hour, minute: _newDateTime.minute),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (t == null || !mounted) return;
+    setState(() {
+      _newDateTime = DateTime(
+        _newDateTime.year, _newDateTime.month, _newDateTime.day,
+        t.hour, t.minute,
+      );
+      _hourCtrl.text = t.hour.toString().padLeft(2, '0');
+      _minuteCtrl.text = t.minute.toString().padLeft(2, '0');
+    });
+  }
+
+  // ── Aplicar hora/minuto dos campos de texto ────────────────────────────────
+  void _applyTimeFields() {
+    final h = int.tryParse(_hourCtrl.text) ?? _newDateTime.hour;
+    final m = int.tryParse(_minuteCtrl.text) ?? _newDateTime.minute;
+    final hClamped = h.clamp(0, 23);
+    final mClamped = m.clamp(0, 59);
+    setState(() {
+      _newDateTime = DateTime(
+        _newDateTime.year, _newDateTime.month, _newDateTime.day,
+        hClamped, mClamped,
+      );
+      _hourCtrl.text = hClamped.toString().padLeft(2, '0');
+      _minuteCtrl.text = mClamped.toString().padLeft(2, '0');
+    });
+  }
+
+  // ── Enviar ────────────────────────────────────────────────────────────────
   Future<void> _submit() async {
+    _applyTimeFields();
+
     final id = widget.record.id;
     if (id == null) {
       setState(() => _error = 'Registro sem ID. Sincronize e tente novamente.');
@@ -110,14 +158,24 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
         _ => AppColors.primary,
       };
 
+  bool get _dateChanged =>
+      _newDateTime.year != widget.record.datetime.toLocal().year ||
+      _newDateTime.month != widget.record.datetime.toLocal().month ||
+      _newDateTime.day != widget.record.datetime.toLocal().day;
+
+  bool get _timeChanged =>
+      _newDateTime.hour != widget.record.datetime.toLocal().hour ||
+      _newDateTime.minute != widget.record.datetime.toLocal().minute;
+
+  bool get _typeChanged => _newType != widget.record.type;
+
+  bool get _changed => _dateChanged || _timeChanged || _typeChanged;
+
   @override
   Widget build(BuildContext context) {
-    final origTime = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR')
-        .format(widget.record.datetime.toLocal());
-    final newTime =
-        DateFormat('dd/MM/yyyy HH:mm', 'pt_BR').format(_newDateTime);
-    final changed = _newDateTime != widget.record.datetime.toLocal() ||
-        _newType != widget.record.type;
+    final origLocal = widget.record.datetime.toLocal();
+    final fmtDate = DateFormat('dd/MM/yyyy', 'pt_BR');
+    final fmtFull = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -125,310 +183,603 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
         title: const Text('Solicitar correção'),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Card do ponto original ──────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.divider),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+
+              // ── Ponto original ──────────────────────────────────────────
+              _OriginalCard(
+                record: widget.record,
+                typeColor: _typeColor(widget.record.type),
+                fmtFull: fmtFull,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Ponto original',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textHint,
-                      letterSpacing: 0.5,
+
+              const SizedBox(height: 20),
+
+              // ── Selecionar DATA ─────────────────────────────────────────
+              const _SectionLabel(label: 'Nova data'),
+              const SizedBox(height: 8),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _pickDate,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: _dateChanged ? AppColors.primary : AppColors.divider,
+                        width: _dateChanged ? 2 : 1,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _typeColor(widget.record.type)
-                              .withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          widget.record.typeLabel,
-                          style: TextStyle(
-                            color: _typeColor(widget.record.type),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: (_dateChanged ? AppColors.primary : AppColors.textHint)
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.calendar_today_rounded,
+                            color: _dateChanged ? AppColors.primary : AppColors.textHint,
+                            size: 20,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        origTime,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                fmtDate.format(_newDateTime),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: _dateChanged
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                DateFormat("EEEE", 'pt_BR').format(_newDateTime),
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Column(
+                          children: [
+                            Icon(Icons.touch_app_rounded,
+                                size: 14, color: AppColors.textHint),
+                            SizedBox(height: 2),
+                            Text('Toque para\nalternar',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 10, color: AppColors.textHint)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Selecionar HORA ─────────────────────────────────────────
+              const _SectionLabel(label: 'Novo horário'),
+              const SizedBox(height: 8),
+
+              // Campos de texto de hora e minuto + botão relógio
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Campo hora
+                  Expanded(
+                    child: _TimeField(
+                      controller: _hourCtrl,
+                      label: 'Hora',
+                      hint: '00–23',
+                      max: 23,
+                      changed: _timeChanged,
+                      onChanged: (_) => _applyTimeFields(),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 18),
+                        Text(
+                          ':',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: _timeChanged
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Campo minuto
+                  Expanded(
+                    child: _TimeField(
+                      controller: _minuteCtrl,
+                      label: 'Minuto',
+                      hint: '00–59',
+                      max: 59,
+                      changed: _timeChanged,
+                      onChanged: (_) => _applyTimeFields(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Botão relógio nativo (TimePicker)
+                  Column(
+                    children: [
+                      const SizedBox(height: 4),
+                      const Text('Relógio',
+                          style: TextStyle(
+                              fontSize: 11, color: AppColors.textHint)),
+                      const SizedBox(height: 4),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _pickTime,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: (_timeChanged ? AppColors.primary : AppColors.textHint)
+                                  .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _timeChanged
+                                    ? AppColors.primary.withValues(alpha: 0.5)
+                                    : AppColors.divider,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.access_time_rounded,
+                              color: _timeChanged ? AppColors.primary : AppColors.textHint,
+                              size: 26,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
 
-            const SizedBox(height: 16),
-
-            // ── Seção: nova data/hora ───────────────────────────────────
-            _SectionLabel(label: 'Novo horário'),
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: _pickDateTime,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _newDateTime != widget.record.datetime.toLocal()
-                        ? AppColors.primary
-                        : AppColors.divider,
-                    width: _newDateTime != widget.record.datetime.toLocal() ? 2 : 1,
+              // Preview hora actual seleccionada
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Center(
+                  child: Text(
+                    'Horário seleccionado: ${_newDateTime.hour.toString().padLeft(2, '0')}:${_newDateTime.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color:
+                          _timeChanged ? AppColors.primary : AppColors.textSecondary,
+                      fontWeight: _timeChanged ? FontWeight.w600 : FontWeight.normal,
+                    ),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.edit_calendar,
-                      color: _newDateTime != widget.record.datetime.toLocal()
-                          ? AppColors.primary
-                          : AppColors.textHint,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        newTime,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: _newDateTime != widget.record.datetime.toLocal()
-                              ? AppColors.primary
-                              : AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right,
-                        color: AppColors.textHint, size: 20),
-                  ],
-                ),
               ),
-            ),
 
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // ── Seção: tipo do ponto ────────────────────────────────────
-            _SectionLabel(label: 'Tipo do ponto'),
-            const SizedBox(height: 8),
-            Row(
-              children: AppConstants.pointTypeLabels.entries.map((e) {
-                final selected = _newType == e.key;
-                final color = _typeColor(e.key);
-                return Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                        right: e.key != AppConstants.pointTypeLabels.keys.last
-                            ? 10
-                            : 0),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _newType = e.key),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color:
-                              selected ? color.withValues(alpha: 0.12) : AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected ? color : AppColors.divider,
-                            width: selected ? 2 : 1,
+              // ── Tipo do ponto ───────────────────────────────────────────
+              const _SectionLabel(label: 'Tipo do ponto'),
+              const SizedBox(height: 8),
+              Row(
+                children: AppConstants.pointTypeLabels.entries.map((e) {
+                  final selected = _newType == e.key;
+                  final color = _typeColor(e.key);
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                          right: e.key != AppConstants.pointTypeLabels.keys.last
+                              ? 10
+                              : 0),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _newType = e.key),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? color.withValues(alpha: 0.12)
+                                : AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selected ? color : AppColors.divider,
+                              width: selected ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                e.key == 'entrada'
+                                    ? Icons.login
+                                    : Icons.logout,
+                                color: selected ? color : AppColors.textHint,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                e.value,
+                                style: TextStyle(
+                                  color: selected
+                                      ? color
+                                      : AppColors.textSecondary,
+                                  fontWeight: selected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              e.key == 'entrada' ? Icons.login : Icons.logout,
-                              color: selected ? color : AppColors.textHint,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              e.value,
-                              style: TextStyle(
-                                color: selected ? color : AppColors.textSecondary,
-                                fontWeight: selected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Preview da alteração ────────────────────────────────────
-            if (changed) ...[
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.swap_horiz,
-                        color: AppColors.primary, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${widget.record.typeLabel} $origTime  →  ${AppConstants.pointTypeLabels[_newType] ?? _newType} $newTime',
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                }).toList(),
               ),
+
               const SizedBox(height: 16),
-            ],
 
-            // ── Justificativa ───────────────────────────────────────────
-            _SectionLabel(label: 'Justificativa'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _justification,
-              minLines: 4,
-              maxLines: 8,
-              maxLength: 500,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                hintText: 'Descreva o motivo da correção com detalhes...',
-                alignLabelWithHint: true,
-              ),
-            ),
-            // Contador e requisito mínimo
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                _justification.text.length < 20
-                    ? 'Mínimo 20 caracteres (${_justification.text.length}/20)'
-                    : '${_justification.text.length} caracteres',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: _justification.text.length < 20
-                      ? AppColors.textHint
-                      : AppColors.success,
+              // ── Preview da alteração ────────────────────────────────────
+              if (_changed) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.swap_horiz,
+                              color: AppColors.primary, size: 16),
+                          SizedBox(width: 6),
+                          Text('Alterações solicitadas',
+                              style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (_dateChanged)
+                        _DiffRow(
+                          icon: Icons.calendar_today,
+                          label: 'Data',
+                          before: fmtDate.format(origLocal),
+                          after: fmtDate.format(_newDateTime),
+                        ),
+                      if (_timeChanged)
+                        _DiffRow(
+                          icon: Icons.access_time,
+                          label: 'Hora',
+                          before:
+                              '${origLocal.hour.toString().padLeft(2, '0')}:${origLocal.minute.toString().padLeft(2, '0')}',
+                          after:
+                              '${_newDateTime.hour.toString().padLeft(2, '0')}:${_newDateTime.minute.toString().padLeft(2, '0')}',
+                        ),
+                      if (_typeChanged)
+                        _DiffRow(
+                          icon: Icons.swap_horiz,
+                          label: 'Tipo',
+                          before: widget.record.typeLabel,
+                          after: AppConstants.pointTypeLabels[_newType] ?? _newType ?? '',
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // ── Justificativa ───────────────────────────────────────────
+              const _SectionLabel(label: 'Justificativa'),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _justification,
+                minLines: 4,
+                maxLines: 8,
+                maxLength: 500,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Descreva o motivo da correção com detalhes...',
+                  alignLabelWithHint: true,
                 ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _justification.text.length < 20
+                      ? 'Mínimo 20 caracteres (${_justification.text.length}/20)'
+                      : '✓ ${_justification.text.length} caracteres',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _justification.text.length < 20
+                        ? AppColors.textHint
+                        : AppColors.success,
+                  ),
+                ),
+              ),
 
-            // ── Erro ────────────────────────────────────────────────────
-            if (_error != null) ...[
+              // ── Erro ─────────────────────────────────────────────────────
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: AppColors.error, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_error!,
+                            style: const TextStyle(
+                                color: AppColors.error, fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              // ── Botão enviar ─────────────────────────────────────────────
+              ElevatedButton(
+                onPressed: _sending ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _sending
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: Colors.white),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.send, size: 18, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text('Enviar solicitação',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+              ),
+
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: AppColors.error.withValues(alpha: 0.25)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline,
-                        color: AppColors.error, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(_error!,
-                          style: const TextStyle(
-                              color: AppColors.error, fontSize: 13)),
-                    ),
-                  ],
-                ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, size: 13, color: AppColors.textHint),
+                  SizedBox(width: 4),
+                  Text(
+                    'A correção será analisada pelo gestor.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                  ),
+                ],
               ),
+              const SizedBox(height: 20),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-            const SizedBox(height: 24),
+// ─────────────────────────────────────────────────────────────────────────────
+// Widgets auxiliares
+// ─────────────────────────────────────────────────────────────────────────────
 
-            // ── Botão enviar ────────────────────────────────────────────
-            ElevatedButton(
-              onPressed: _sending ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: _sending
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: Colors.white),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.send, size: 18, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text('Enviar solicitação',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold)),
-                      ],
-                    ),
+class _OriginalCard extends StatelessWidget {
+  final TimeRecordModel record;
+  final Color typeColor;
+  final DateFormat fmtFull;
+
+  const _OriginalCard(
+      {required this.record, required this.typeColor, required this.fmtFull});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: typeColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-
-            const SizedBox(height: 12),
-
-            // ── Aviso ────────────────────────────────────────────────────
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Icon(
+              record.type == 'entrada' ? Icons.login : Icons.logout,
+              color: typeColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline, size: 13, color: AppColors.textHint),
-                SizedBox(width: 4),
                 Text(
-                  'A correção será analisada pelo gestor.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                  'Ponto original',
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textHint),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${record.typeLabel}  ·  ${fmtFull.format(record.datetime.toLocal())}',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-            const SizedBox(height: 20),
-          ],
+class _TimeField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final int max;
+  final bool changed;
+  final ValueChanged<String> onChanged;
+
+  const _TimeField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.max,
+    required this.changed,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+        const SizedBox(height: 4),
+        TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          maxLength: 2,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: onChanged,
+          onEditingComplete: () => onChanged(controller.text),
+          decoration: InputDecoration(
+            counterText: '',
+            hintText: hint,
+            hintStyle:
+                const TextStyle(fontSize: 12, color: AppColors.textHint),
+            filled: true,
+            fillColor: changed
+                ? AppColors.primary.withValues(alpha: 0.06)
+                : AppColors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: changed ? AppColors.primary : AppColors.divider),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: changed ? AppColors.primary : AppColors.divider,
+                  width: changed ? 2 : 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: AppColors.primary, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          ),
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: changed ? AppColors.primary : AppColors.textPrimary,
+          ),
         ),
+      ],
+    );
+  }
+}
+
+class _DiffRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String before;
+  final String after;
+
+  const _DiffRow(
+      {required this.icon,
+      required this.label,
+      required this.before,
+      required this.after});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: AppColors.primary),
+          const SizedBox(width: 6),
+          Text('$label: ',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary)),
+          Text(before,
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textHint,
+                  decoration: TextDecoration.lineThrough)),
+          const SizedBox(width: 6),
+          const Icon(Icons.arrow_forward, size: 12, color: AppColors.primary),
+          const SizedBox(width: 6),
+          Text(after,
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
