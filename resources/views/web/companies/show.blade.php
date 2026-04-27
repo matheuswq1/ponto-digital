@@ -404,16 +404,17 @@
                                    class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none">
                         </div>
                         <div class="sm:col-span-2">
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Endereço (pesquise para geocodificar)</label>
-                            <div class="flex gap-2">
-                                <input type="text" name="address" x-model="address" placeholder="Rua, número, cidade..."
-                                       class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none">
-                                <button type="button" @click="geocode()"
-                                        class="text-sm font-medium text-white bg-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-700 whitespace-nowrap">
-                                    Buscar
-                                </button>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Endereço</label>
+                            <div class="relative">
+                                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+                                <input type="text" name="address"
+                                       x-model="address"
+                                       data-address-input
+                                       placeholder="Digite o endereço — sugestões aparecerão automaticamente"
+                                       autocomplete="off"
+                                       class="w-full pl-9 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none">
                             </div>
-                            <p class="text-[11px] text-slate-400 mt-1" x-text="geoStatus"></p>
+                            <p class="text-[11px] mt-1" :class="geoStatus.startsWith('✓') ? 'text-emerald-600' : 'text-slate-400'" x-text="geoStatus || 'Comece a digitar para ver sugestões do Google Maps'"></p>
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">Latitude</label>
@@ -472,25 +473,26 @@
                                    class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white">
                         </div>
                         <div class="sm:col-span-2">
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Endereço (pesquise para geocodificar automaticamente)</label>
-                            <div class="flex gap-2">
-                                <input type="text" name="address" x-model="address" placeholder="Rua, número, cidade, estado..."
-                                       class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white">
-                                <button type="button" @click="geocode()"
-                                        class="text-sm font-medium text-white bg-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-700 whitespace-nowrap">
-                                    Buscar
-                                </button>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Endereço</label>
+                            <div class="relative">
+                                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+                                <input type="text" name="address"
+                                       x-model="address"
+                                       data-address-input
+                                       placeholder="Digite o endereço — sugestões aparecerão automaticamente"
+                                       autocomplete="off"
+                                       class="w-full pl-9 text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white">
                             </div>
-                            <p class="text-[11px] text-slate-400 mt-1" x-text="geoStatus"></p>
+                            <p class="text-[11px] mt-1" :class="geoStatus.startsWith('✓') ? 'text-emerald-600' : 'text-slate-400'" x-text="geoStatus || 'Comece a digitar para ver sugestões do Google Maps'"></p>
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">Latitude</label>
-                            <input type="text" name="latitude" x-model="lat" placeholder="Preenchido automaticamente"
+                            <input type="text" name="latitude" x-model="lat" placeholder="Preenchido ao escolher sugestão"
                                    class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white font-mono">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">Longitude</label>
-                            <input type="text" name="longitude" x-model="lng" placeholder="Preenchido automaticamente"
+                            <input type="text" name="longitude" x-model="lng" placeholder="Preenchido ao escolher sugestão"
                                    class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 outline-none bg-white font-mono">
                         </div>
                     </div>
@@ -716,16 +718,50 @@
 
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-{{-- Google Maps + lógica de geocodificação --}}
+{{-- Garante que o dropdown do Places Autocomplete não é cortado --}}
+<style>
+.pac-container { z-index: 9999 !important; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); border: 1px solid #e2e8f0; }
+.pac-item { padding: 8px 12px; font-size: 13px; cursor: pointer; }
+.pac-item:hover { background: #f1f5f9; }
+.pac-item-query { font-weight: 600; color: #1e293b; }
+.pac-matched { color: #4f46e5; }
+</style>
+
+{{-- Google Maps + Places Autocomplete + mapa --}}
 <script>
-// Alpine component para formulários de localização
+// ─── Alpine component para formulários de localização ──────────────────────
 document.addEventListener('alpine:init', () => {
   Alpine.data('locationForm', (initAddress, initLat, initLng) => ({
     address: initAddress || '',
     lat: initLat || '',
     lng: initLng || '',
     geoStatus: '',
-    async geocode() {
+    _autocompleteInput: null,
+
+    // Chamado após o Maps API carregar — ativa o Autocomplete no campo desta instância
+    initAutocomplete(el) {
+      if (typeof google === 'undefined' || !google.maps.places) return;
+      const input = el.querySelector('[data-address-input]');
+      if (!input || input._acInit) return;
+      input._acInit = true;
+      const ac = new google.maps.places.Autocomplete(input, {
+        types: ['geocode', 'establishment'],
+        componentRestrictions: { country: 'br' },
+        fields: ['formatted_address', 'geometry'],
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        if (!place.geometry) return;
+        this.address = place.formatted_address || input.value;
+        this.lat = place.geometry.location.lat().toFixed(7);
+        this.lng = place.geometry.location.lng().toFixed(7);
+        this.geoStatus = '✓ ' + this.address;
+        updateMap();
+      });
+    },
+
+    // Fallback: geocodificação manual via backend (quando não há Places API)
+    async geocodeFallback() {
       if (!this.address.trim()) { this.geoStatus = 'Preencha o endereço.'; return; }
       this.geoStatus = 'A pesquisar…';
       try {
@@ -735,45 +771,86 @@ document.addEventListener('alpine:init', () => {
         this.lat = d.lat;
         this.lng = d.lng;
         this.address = d.formatted_address;
-        this.geoStatus = '✓ Coordenadas encontradas: ' + d.lat + ', ' + d.lng;
-        initMap();
+        this.geoStatus = '✓ ' + d.formatted_address;
+        updateMap();
       } catch (e) { this.geoStatus = 'Erro de comunicação.'; }
     },
-    submitForm(form) {
-      form.submit();
-    }
+
+    submitForm(form) { form.submit(); }
   }));
 });
 
-// Google Maps — exibe todas as locations com círculo de raio
+// ─── Mapa Google Maps ───────────────────────────────────────────────────────
+let _map = null;
+let _mapMarkers = [];
+let _mapCircles = [];
+
 function initMap() {
+  // Activar autocomplete em todos os campos já no DOM
+  document.querySelectorAll('[data-address-input]').forEach(input => {
+    if (input._acInit || typeof google === 'undefined' || !google.maps.places) return;
+    input._acInit = true;
+    const ac = new google.maps.places.Autocomplete(input, {
+      types: ['geocode', 'establishment'],
+      componentRestrictions: { country: 'br' },
+      fields: ['formatted_address', 'geometry'],
+    });
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      if (!place.geometry) return;
+      // Encontrar o Alpine scope pai e actualizar estado
+      const scope = input.closest('[x-data]');
+      if (scope && scope._x_dataStack) {
+        const data = scope._x_dataStack[0];
+        if (data) {
+          data.address = place.formatted_address || input.value;
+          data.lat = place.geometry.location.lat().toFixed(7);
+          data.lng = place.geometry.location.lng().toFixed(7);
+          data.geoStatus = '✓ ' + data.address;
+          updateMap();
+        }
+      }
+    });
+  });
+
+  updateMap();
+}
+
+function updateMap() {
   const mapEl = document.getElementById('locations-map');
   if (!mapEl || typeof google === 'undefined') return;
 
   const locations = @json($locations->where('active', true)->values());
   if (!locations.length) return;
 
-  const map = new google.maps.Map(mapEl, {
-    zoom: 14,
-    center: { lat: parseFloat(locations[0].latitude), lng: parseFloat(locations[0].longitude) },
-    mapTypeId: 'roadmap',
-    disableDefaultUI: false,
-  });
+  if (!_map) {
+    _map = new google.maps.Map(mapEl, {
+      zoom: 14,
+      center: { lat: parseFloat(locations[0].latitude), lng: parseFloat(locations[0].longitude) },
+      mapTypeId: 'roadmap',
+    });
+  }
+
+  // Limpar marcadores e círculos anteriores
+  _mapMarkers.forEach(m => m.setMap(null));
+  _mapCircles.forEach(c => c.setMap(null));
+  _mapMarkers = [];
+  _mapCircles = [];
 
   const bounds = new google.maps.LatLngBounds();
 
   locations.forEach(loc => {
     const center = { lat: parseFloat(loc.latitude), lng: parseFloat(loc.longitude) };
 
-    new google.maps.Marker({
+    _mapMarkers.push(new google.maps.Marker({
       position: center,
-      map,
+      map: _map,
       title: loc.name,
-      label: { text: loc.name[0], color: '#fff' },
-    });
+      label: { text: loc.name[0].toUpperCase(), color: '#fff', fontSize: '12px', fontWeight: 'bold' },
+    }));
 
-    new google.maps.Circle({
-      map,
+    _mapCircles.push(new google.maps.Circle({
+      map: _map,
       center,
       radius: loc.radius_meters,
       strokeColor: '#10b981',
@@ -781,18 +858,49 @@ function initMap() {
       strokeWeight: 2,
       fillColor: '#10b981',
       fillOpacity: 0.12,
-    });
+    }));
 
     bounds.extend(new google.maps.LatLng(center.lat, center.lng));
   });
 
-  if (locations.length > 1) map.fitBounds(bounds);
+  if (locations.length > 1) _map.fitBounds(bounds);
+  else _map.setCenter({ lat: parseFloat(locations[0].latitude), lng: parseFloat(locations[0].longitude) });
 }
+
+// Observar campos de endereço adicionados dinamicamente (formulários que abrem via Alpine)
+const _acObserver = new MutationObserver(() => {
+  if (typeof google === 'undefined' || !google.maps || !google.maps.places) return;
+  document.querySelectorAll('[data-address-input]').forEach(input => {
+    if (input._acInit) return;
+    input._acInit = true;
+    const ac = new google.maps.places.Autocomplete(input, {
+      types: ['geocode', 'establishment'],
+      componentRestrictions: { country: 'br' },
+      fields: ['formatted_address', 'geometry'],
+    });
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      if (!place.geometry) return;
+      const scope = input.closest('[x-data]');
+      if (scope) {
+        const data = Alpine.$data(scope);
+        if (data) {
+          data.address = place.formatted_address || input.value;
+          data.lat = place.geometry.location.lat().toFixed(7);
+          data.lng = place.geometry.location.lng().toFixed(7);
+          data.geoStatus = '✓ ' + data.address;
+          updateMap();
+        }
+      }
+    });
+  });
+});
+_acObserver.observe(document.body, { childList: true, subtree: true });
 </script>
 
 @if($googleMapsKey)
 <script async defer
-  src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&callback=initMap">
+  src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&libraries=places&callback=initMap">
 </script>
 @endif
 
