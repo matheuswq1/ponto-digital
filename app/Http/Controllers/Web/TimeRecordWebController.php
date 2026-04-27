@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\TimeRecord;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
@@ -106,6 +107,22 @@ class TimeRecordWebController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    private function exportCartaoPDF(array $cards, string $dateFrom, string $dateTo)
+    {
+        $pdf = Pdf::loadView('web.pontos.cartao_pdf', compact('cards'))
+            ->setPaper('a4', 'portrait')
+            ->setOption('defaultFont', 'DejaVu Sans')
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('isRemoteEnabled', false);
+
+        $slug     = count($cards) === 1
+            ? Str::slug($cards[0]['employee']->user?->name ?? 'colaborador', '_').'_'
+            : '';
+        $filename = "espelho_ponto_{$slug}{$dateFrom}_a_{$dateTo}.pdf";
+
+        return $pdf->download($filename);
     }
 
     private function exportCartaoCSV(array $cards, string $dateFrom, string $dateTo)
@@ -355,9 +372,12 @@ class TimeRecordWebController extends Controller
             ];
         }
 
-        // Exportação CSV do cartão
         if ($request->get('export') === 'csv') {
             return $this->exportCartaoCSV($cards, $dateFrom, $dateTo);
+        }
+
+        if ($request->get('export') === 'pdf') {
+            return $this->exportCartaoPDF($cards, $dateFrom, $dateTo);
         }
 
         return view('web.pontos.cartao', compact(

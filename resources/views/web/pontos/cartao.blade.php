@@ -296,7 +296,8 @@ if (!function_exists('ponto_cartao_fmt_min')) {
         <button type="submit" class="btn-print">Gerar</button>
     </form>
 
-    <button onclick="exportarCSV()" class="btn-print" style="background:#0369a1;">⬇ Exportar CSV</button>
+    <button onclick="exportarCSV()" class="btn-print" style="background:#0369a1;">⬇ CSV</button>
+    <button onclick="exportarPDF()" class="btn-print" style="background:#dc2626;">⬇ PDF</button>
     <button onclick="window.print()" class="btn-print" style="background:#16a34a;">🖨️ Imprimir</button>
 
 <script>
@@ -304,6 +305,12 @@ function exportarCSV() {
     var form = document.getElementById('cartao-form');
     var params = new URLSearchParams(new FormData(form));
     params.set('export', 'csv');
+    window.location = '{{ route("painel.pontos.cartao") }}?' + params.toString();
+}
+function exportarPDF() {
+    var form = document.getElementById('cartao-form');
+    var params = new URLSearchParams(new FormData(form));
+    params.set('export', 'pdf');
     window.location = '{{ route("painel.pontos.cartao") }}?' + params.toString();
 }
 </script>
