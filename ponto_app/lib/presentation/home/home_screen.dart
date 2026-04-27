@@ -18,26 +18,13 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  late Timer _clockTimer;
-  DateTime _now = DateTime.now();
-
   @override
   void initState() {
     super.initState();
-    // Relógio a tictacar a cada segundo
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(todayProvider.notifier).refresh();
       ref.read(authProvider.notifier).refreshProfile();
     });
-  }
-
-  @override
-  void dispose() {
-    _clockTimer.cancel();
-    super.dispose();
   }
 
   @override
@@ -141,7 +128,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(_now),
+                DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(DateTime.now()),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
                   fontSize: 13,
@@ -198,9 +185,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return const _ShimmerCard();
     }
 
-    final timeStr = DateFormat('HH:mm').format(_now);
-    final secsStr = DateFormat(':ss').format(_now);
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -241,31 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                timeStr,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 56,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
-              ),
-              Text(
-                secsStr,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.65),
-                  fontSize: 28,
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
+          const _LiveClock(),
           const SizedBox(height: 16),
           _buildRecordsTimeline(state.data),
         ],
@@ -640,6 +600,65 @@ class _NavItem extends StatelessWidget {
               style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
         ],
       ),
+    );
+  }
+}
+
+/// Relógio ao vivo com Timer próprio — completamente isolado do widget pai.
+/// O setState() chama apenas este widget, sem provocar rebuilds nos providers.
+class _LiveClock extends StatefulWidget {
+  const _LiveClock();
+
+  @override
+  State<_LiveClock> createState() => _LiveClockState();
+}
+
+class _LiveClockState extends State<_LiveClock> {
+  late Timer _timer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hm = DateFormat('HH:mm').format(_now);
+    final ss = DateFormat(':ss').format(_now);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          hm,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 56,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+          ),
+        ),
+        Text(
+          ss,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.65),
+            fontSize: 28,
+            fontWeight: FontWeight.w400,
+            letterSpacing: 1,
+          ),
+        ),
+      ],
     );
   }
 }

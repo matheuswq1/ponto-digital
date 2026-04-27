@@ -73,8 +73,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return;
       }
       state = state.copyWith(status: AuthStatus.authenticated, user: user);
-      // Refrescar perfil em background sem bloquear o UI
-      refreshProfile();
     } catch (_) {
       state = state.copyWith(status: AuthStatus.unauthenticated);
     }
