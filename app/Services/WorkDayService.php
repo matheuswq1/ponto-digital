@@ -17,15 +17,9 @@ class WorkDayService
         // Garantir que departamento e escala individual estão carregados
         $employee->loadMissing(['workSchedule', 'dept']);
 
-        $tz = config('app.timezone', 'America/Sao_Paulo');
-
-        // Os datetimes são guardados em UTC; converter a data local para o intervalo UTC
-        // para não perder pontos de final de dia (ex.: saída às 22h BRT = 01h UTC d+1)
-        $startUtc = Carbon::createFromFormat('Y-m-d', $date, $tz)->startOfDay()->utc();
-        $endUtc   = Carbon::createFromFormat('Y-m-d', $date, $tz)->endOfDay()->utc();
-
+        // Os datetimes estão guardados no fuso local (não UTC) — usar whereDate directamente
         $records = $employee->timeRecords()
-            ->whereBetween('datetime', [$startUtc, $endUtc])
+            ->whereDate('datetime', $date)
             ->orderBy('datetime')
             ->get();
 
@@ -59,10 +53,9 @@ class WorkDayService
         if (! $employee) {
             return;
         }
-        $tz = config('app.timezone', 'America/Sao_Paulo');
         $dates = collect([
-            $edit->original_datetime?->copy()->setTimezone($tz)->toDateString(),
-            $edit->new_datetime?->copy()->setTimezone($tz)->toDateString(),
+            $edit->original_datetime?->toDateString(),
+            $edit->new_datetime?->toDateString(),
         ])->filter()->unique()->values();
         foreach ($dates as $date) {
             $this->calculateAndSave($employee, $date);
@@ -119,10 +112,8 @@ class WorkDayService
         $schedule  = $employee->workSchedule;
         $dept      = $employee->dept;
         $deptRef   = ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
-        $tz        = config('app.timezone', 'America/Sao_Paulo');
-
-        // Dia da semana em horário local (0=Dom … 6=Sáb)
-        $dayOfWeek = (int) Carbon::parse($date, $tz)->format('w');
+        // Dia da semana (0=Dom … 6=Sáb)
+        $dayOfWeek = (int) Carbon::parse($date)->format('w');
 
         // Dias de trabalho configurados (departamento ou escala individual)
         $configuredWorkDays = $deptRef
@@ -137,12 +128,12 @@ class WorkDayService
         $isSunday   = ($dayOfWeek === 0);
         $isSaturday = ($dayOfWeek === 6);
 
-        // Separar entradas e saídas (converter para horário local para exibição)
+        // Separar entradas e saídas — datetimes já em horário local
         $firstEntry = $records->firstWhere('type', 'entrada');
         $lastExit   = $records->filter(fn ($r) => $r->type === 'saida')->last();
 
-        $entryTime = $firstEntry?->datetime?->copy()->setTimezone($tz)->format('H:i:s');
-        $exitTime  = $lastExit?->datetime?->copy()->setTimezone($tz)->format('H:i:s');
+        $entryTime = $firstEntry?->datetime?->format('H:i:s');
+        $exitTime  = $lastExit?->datetime?->format('H:i:s');
 
         // Tempo trabalhado: soma de todos os pares entrada→saída consecutivos.
         // O intervalo de almoço é deduzido naturalmente (saída/retorno de almoço).
