@@ -17,8 +17,15 @@ class WorkDayService
         // Garantir que departamento e escala individual estão carregados
         $employee->loadMissing(['workSchedule', 'dept']);
 
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+
+        // Os datetimes são guardados em UTC; converter a data local para o intervalo UTC
+        // para não perder pontos de final de dia (ex.: saída às 22h BRT = 01h UTC d+1)
+        $startUtc = Carbon::createFromFormat('Y-m-d', $date, $tz)->startOfDay()->utc();
+        $endUtc   = Carbon::createFromFormat('Y-m-d', $date, $tz)->endOfDay()->utc();
+
         $records = $employee->timeRecords()
-            ->whereDate('datetime', $date)
+            ->whereBetween('datetime', [$startUtc, $endUtc])
             ->orderBy('datetime')
             ->get();
 
@@ -109,70 +116,84 @@ class WorkDayService
 
     public function calculate(Employee $employee, $records, string $date): array
     {
-        $schedule = $employee->workSchedule;
-        $dept     = $employee->dept;
-        $deptRef  = ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
+        $schedule  = $employee->workSchedule;
+        $dept      = $employee->dept;
+        $deptRef   = ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
+        $tz        = config('app.timezone', 'America/Sao_Paulo');
 
-        // Dia da semana (0=Dom … 6=Sáb) para expected e tolerância por dia
-        $dayOfWeek = (int) Carbon::parse($date)->format('w');
+        // Dia da semana em horário local (0=Dom … 6=Sáb)
+        $dayOfWeek = (int) Carbon::parse($date, $tz)->format('w');
 
-        // Separar entradas e saídas em ordem
-        $firstEntry = $records->firstWhere('type', 'entrada');
-        $lastExit   = $records->filter(fn ($r) => $r->type === 'saida')->last();
+        // Dias de trabalho configurados (departamento ou escala individual)
+        $configuredWorkDays = $deptRef
+            ? $deptRef->workDaysList()
+            : ($schedule?->workDaysList() ?? [1, 2, 3, 4, 5]);
 
-        $entryTime = $firstEntry?->datetime?->format('H:i:s');
-        $exitTime  = $lastExit?->datetime?->format('H:i:s');
+        // Verificar se é dia de trabalho configurado
+        $isConfiguredWorkDay = in_array($dayOfWeek, $configuredWorkDays);
 
-        // Calcula tempo trabalhado somando pares entrada→saída consecutivos.
-        // O intervalo de almoço é naturalmente deduzido: saída para almoço + entrada
-        // ao retornar — esse tempo não entra no total trabalhado.
-        $totalMinutes   = 0;
-        $totalIntervals = 0;
-        $openEntryAt    = null;
-        $firstExit      = null;
-
-        foreach ($records as $record) {
-            if ($record->type === 'entrada') {
-                if ($firstExit !== null) {
-                    $totalIntervals += $record->datetime->diffInMinutes($firstExit);
-                    $firstExit = null;
-                }
-                $openEntryAt = $record->datetime;
-            } elseif ($record->type === 'saida' && $openEntryAt !== null) {
-                $totalMinutes += $record->datetime->diffInMinutes($openEntryAt);
-                $firstExit    = $record->datetime;
-                $openEntryAt  = null;
-            }
-        }
-
-        // Minutos esperados — prioriza departamento (por dia), depois escala individual
-        $expectedMinutes = $deptRef
-            ? $deptRef->getExpectedMinutesForDay($dayOfWeek)
-            : ($schedule?->getExpectedMinutes() ?? $employee->dailyExpectedMinutes());
-
-        // Tolerância — prioriza departamento, depois escala, depois 5 min padrão
-        $tolerance = (int) ($deptRef?->tolerance_minutes ?? $schedule?->tolerance_minutes ?? 5);
-
-        // Verificar se é feriado (feriados = tudo trabalhado é extra)
+        // Feriado e dia especial
         $isHoliday  = Holiday::isHoliday($date, $employee->company_id);
         $isSunday   = ($dayOfWeek === 0);
         $isSaturday = ($dayOfWeek === 6);
 
-        // Diferença bruta entre trabalhado e esperado
-        $diff = $totalMinutes - $expectedMinutes;
+        // Separar entradas e saídas (converter para horário local para exibição)
+        $firstEntry = $records->firstWhere('type', 'entrada');
+        $lastExit   = $records->filter(fn ($r) => $r->type === 'saida')->last();
 
-        // Só conta como extra/falta se ultrapassar a tolerância
+        $entryTime = $firstEntry?->datetime?->copy()->setTimezone($tz)->format('H:i:s');
+        $exitTime  = $lastExit?->datetime?->copy()->setTimezone($tz)->format('H:i:s');
+
+        // Tempo trabalhado: soma de todos os pares entrada→saída consecutivos.
+        // O intervalo de almoço é deduzido naturalmente (saída/retorno de almoço).
+        $totalMinutes   = 0;
+        $totalIntervals = 0;
+        $openEntryAt    = null;
+        $firstExitAt    = null;
+
+        foreach ($records as $record) {
+            if ($record->type === 'entrada') {
+                if ($firstExitAt !== null) {
+                    $totalIntervals += $record->datetime->diffInMinutes($firstExitAt);
+                    $firstExitAt = null;
+                }
+                $openEntryAt = $record->datetime;
+            } elseif ($record->type === 'saida' && $openEntryAt !== null) {
+                $totalMinutes += $record->datetime->diffInMinutes($openEntryAt);
+                $firstExitAt  = $record->datetime;
+                $openEntryAt  = null;
+            }
+        }
+
+        // Minutos esperados — apenas para dias de trabalho configurados
+        // Em dias fora da jornada (folga, sáb/dom não configurados) esperado = 0
+        $expectedMinutes = 0;
+        if ($isConfiguredWorkDay && ! $isHoliday && ! $isSunday) {
+            $expectedMinutes = $deptRef
+                ? $deptRef->getExpectedMinutesForDay($dayOfWeek)
+                : ($schedule?->getExpectedMinutes() ?? $employee->dailyExpectedMinutes());
+        }
+
+        // Tolerância
+        $tolerance = (int) ($deptRef?->tolerance_minutes ?? $schedule?->tolerance_minutes ?? 5);
+
+        // Cálculo de extra/déficit
+        $diff         = $totalMinutes - $expectedMinutes;
         $extraMinutes = 0;
+
         if ($lastExit !== null) {
             if ($isHoliday || $isSunday) {
-                // Feriado / domingo: todo o tempo trabalhado é extra 100%
+                // Feriado ou domingo: tudo trabalhado é extra 100%
+                $extraMinutes = $totalMinutes;
+            } elseif (! $isConfiguredWorkDay || $isSaturday) {
+                // Sábado ou dia fora da jornada configurada: tudo trabalhado é extra
                 $extraMinutes = $totalMinutes;
             } elseif ($diff > $tolerance) {
-                $extraMinutes = $diff; // extra → banco de horas (crédito)
+                $extraMinutes = $diff;   // horas a mais → crédito
             } elseif ($diff < -$tolerance) {
-                $extraMinutes = $diff; // falta → banco de horas (débito)
+                $extraMinutes = $diff;   // horas a menos → débito
             }
-            // Dentro da tolerância em dia útil: extraMinutes = 0
+            // Dentro da tolerância em dia útil normal: extra = 0
         }
 
         return [
