@@ -209,46 +209,56 @@ class _PinEnrollFlowState extends ConsumerState<PinEnrollFlow> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(6, (i) {
-            return Container(
-              width: 44,
-              height: 56,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              child: TextFormField(
-                controller: _pinCtrls[i],
-                focusNode: _pinFocuses[i],
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                maxLength: 1,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onChanged: (v) => _onDigitChanged(i, v),
-                decoration: InputDecoration(
-                  counterText: '',
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.08),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(
-                        color: _pinError != null
-                            ? AppColors.error
-                            : Colors.white24),
+            final hasError = _pinError != null;
+            return SizedBox(
+              width: 48,
+              height: 64,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: TextFormField(
+                  controller: _pinCtrls[i],
+                  focusNode: _pinFocuses[i],
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  maxLength: 1,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (v) => _onDigitChanged(i, v),
+                  // isDense + padding vertical zero evita o texto cortado
+                  textAlignVertical: TextAlignVertical.center,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    counterText: '',
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.08),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: hasError ? AppColors.error : Colors.white24),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: hasError ? AppColors.error : Colors.white24),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: AppColors.primary, width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          const BorderSide(color: AppColors.error, width: 2),
+                    ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(
-                        color: _pinError != null
-                            ? AppColors.error
-                            : Colors.white24),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                        const BorderSide(color: AppColors.primary, width: 2),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    height: 1.0,
                   ),
                 ),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold),
               ),
             );
           }),
