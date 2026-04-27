@@ -97,7 +97,7 @@ class TimeRecordDatasource {
       final response = await _api.post(
         '/time-records/$timeRecordId/edit-request',
         data: {
-          'new_datetime': newDatetime.toUtc().toIso8601String(),
+          'new_datetime': _fmtLocal(newDatetime),
           if (newType != null) 'new_type': newType,
           'justification': justification,
         },
@@ -119,7 +119,7 @@ class TimeRecordDatasource {
     try {
       await _api.post('/time-records/request-addition', data: {
         'type': type,
-        'datetime': datetime.toUtc().toIso8601String(),
+        'datetime': _fmtLocal(datetime),
         'justification': justification,
       });
     } catch (e) {
@@ -192,6 +192,12 @@ class TimeRecordDatasource {
     } catch (e) {
       throw _handleError(e);
     }
+  }
+
+  /// Formata DateTime como string sem timezone (hora local) para enviar à API.
+  static String _fmtLocal(DateTime dt) {
+    final p = (int n, [int w = 2]) => n.toString().padLeft(w, '0');
+    return '${p(dt.year, 4)}-${p(dt.month)}-${p(dt.day)}T${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
   }
 
   AppException _handleError(dynamic e) {

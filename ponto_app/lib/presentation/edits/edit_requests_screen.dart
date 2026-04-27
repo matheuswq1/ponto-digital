@@ -141,7 +141,7 @@ class _EditRequestCard extends StatelessWidget {
 
     final createdStr = item.createdAt != null
         ? _fmt.format(
-            DateTime.tryParse(item.createdAt!)?.toLocal() ?? DateTime.now())
+            DateTime.tryParse(item.createdAt!.replaceAll(RegExp(r'[Zz]$|[+-]\d{2}:\d{2}$'), '')) ?? DateTime.now())
         : '';
 
     final typeChanged = item.newType != null && item.newType != item.originalType;

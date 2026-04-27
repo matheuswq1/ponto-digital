@@ -248,7 +248,7 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
     await _localDb.insertOfflineRecord({
       'employee_id': 0,
       'type': type,
-      'datetime': DateTime.now().toUtc().toIso8601String(),
+      'datetime': _fmtLocal(DateTime.now()),
       'latitude': location?.latitude,
       'longitude': location?.longitude,
       'photo_path': persistedPath,
@@ -285,6 +285,11 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
     } catch (_) {
       return {'synced': 0, 'failed': pending.length};
     }
+  }
+
+  static String _fmtLocal(DateTime dt) {
+    final p = (int n, [int w = 2]) => n.toString().padLeft(w, '0');
+    return '${p(dt.year, 4)}-${p(dt.month)}-${p(dt.day)}T${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
   }
 
   void reset() => state = const RegisterPointState();

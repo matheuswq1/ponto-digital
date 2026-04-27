@@ -37,7 +37,7 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
   @override
   void initState() {
     super.initState();
-    _newDateTime = widget.record.datetime.toLocal();
+    _newDateTime = widget.record.datetime;
     _newType = widget.record.type;
     _hourCtrl = TextEditingController(
         text: _newDateTime.hour.toString().padLeft(2, '0'));
@@ -151,7 +151,7 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     }
 
     // 2. Buscar registos do mesmo dia no histórico
-    final sameDay = DateFormat('yyyy-MM-dd').format(widget.record.datetime.toLocal());
+    final sameDay = DateFormat('yyyy-MM-dd').format(widget.record.datetime);
     final allRecords = ref.read(historyProvider).records
         .where((r) => DateFormat('yyyy-MM-dd').format(r.datetime) == sameDay)
         .where((r) => r.id != widget.record.id) // excluir o próprio registo
@@ -259,13 +259,13 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
       };
 
   bool get _dateChanged =>
-      _newDateTime.year != widget.record.datetime.toLocal().year ||
-      _newDateTime.month != widget.record.datetime.toLocal().month ||
-      _newDateTime.day != widget.record.datetime.toLocal().day;
+      _newDateTime.year != widget.record.datetime.year ||
+        _newDateTime.month != widget.record.datetime.month ||
+        _newDateTime.day != widget.record.datetime.day;
 
   bool get _timeChanged =>
-      _newDateTime.hour != widget.record.datetime.toLocal().hour ||
-      _newDateTime.minute != widget.record.datetime.toLocal().minute;
+      _newDateTime.hour != widget.record.datetime.hour ||
+        _newDateTime.minute != widget.record.datetime.minute;
 
   bool get _typeChanged => _newType != widget.record.type;
 
@@ -273,7 +273,7 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final origLocal = widget.record.datetime.toLocal();
+    final origLocal = widget.record.datetime;
     final fmtDate = DateFormat('dd/MM/yyyy', 'pt_BR');
     final fmtFull = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
 
@@ -787,7 +787,7 @@ class _OriginalCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${record.typeLabel}  ·  ${fmtFull.format(record.datetime.toLocal())}',
+                  '${record.typeLabel}  ·  ${fmtFull.format(record.datetime)}',
                   style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,

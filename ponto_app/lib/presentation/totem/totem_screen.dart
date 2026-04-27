@@ -660,7 +660,7 @@ class _SuccessPanel extends StatelessWidget {
         Text(point.typeLabel, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color)),
         const SizedBox(height: 2),
         Text(
-          DateFormat('HH:mm').format(DateTime.parse(point.datetime).toLocal()),
+          DateFormat('HH:mm').format(_parseLocalDt(point.datetime)),
           style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         const SizedBox(height: 4),
@@ -668,4 +668,9 @@ class _SuccessPanel extends StatelessWidget {
       ],
     );
   }
+}
+
+DateTime _parseLocalDt(String s) {
+  final clean = s.replaceAll(RegExp(r'[Zz]$'), '').replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), '');
+  return DateTime.tryParse(clean) ?? DateTime.now();
 }

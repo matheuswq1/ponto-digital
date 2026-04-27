@@ -42,8 +42,10 @@ class TimeRecordEditModel {
 
   static DateTime? _parseDate(dynamic v) {
     if (v == null) return null;
-    if (v is String) return DateTime.tryParse(v)?.toLocal();
-    return null;
+    if (v is! String) return null;
+    // Remove sufixo de fuso para garantir que é lido como hora local
+    final clean = v.replaceAll(RegExp(r'[Zz]$'), '').replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), '');
+    return DateTime.tryParse(clean);
   }
 
   String get statusLabel => switch (status) {

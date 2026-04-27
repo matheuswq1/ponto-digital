@@ -46,7 +46,7 @@ class TimeRecordModel {
       employeeId: json['employee_id'],
       type: json['type'],
       typeLabel: json['type_label'] ?? json['type'],
-      datetime: DateTime.parse(json['datetime']).toLocal(), // UTC → fuso do dispositivo
+      datetime: _parseLocalDatetime(json['datetime']),
       latitude: _toDouble(loc?['latitude']),
       longitude: _toDouble(loc?['longitude']),
       photoUrl: json['photo_url'],
@@ -55,6 +55,27 @@ class TimeRecordModel {
       offline: json['offline'] ?? false,
       isEdited: json['is_edited'] ?? false,
       hasPendingEdit: json['has_pending_edit'] ?? false,
+    );
+  }
+
+  /// Parseia datetime sem sufixo de fuso como hora local.
+  /// O backend armazena e envia os datetimes em BRT (hora local).
+  /// DateTime.parse sem 'Z' ou '+HH:mm' retorna um DateTime sem timezone (isUtc=false)
+  /// mas pode ainda ser afectado pelo timezone do dispositivo em .toLocal().
+  /// Forçamos a criação como hora local directamente.
+  static DateTime _parseLocalDatetime(String raw) {
+    // Remove qualquer sufixo de fuso que possa ter escapado do backend
+    final clean = raw.replaceAll(RegExp(r'[Zz]$'), '').replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), '');
+    final parts = clean.split(RegExp(r'[T ]'));
+    final dateParts = parts[0].split('-');
+    final timeParts = (parts.length > 1 ? parts[1] : '00:00:00').split(':');
+    return DateTime(
+      int.parse(dateParts[0]),
+      int.parse(dateParts[1]),
+      int.parse(dateParts[2]),
+      int.parse(timeParts[0]),
+      int.parse(timeParts[1]),
+      timeParts.length > 2 ? int.parse(timeParts[2].split('.')[0]) : 0,
     );
   }
 
@@ -71,7 +92,7 @@ class TimeRecordModel {
         'employee_id': employeeId,
         'type': type,
         'type_label': typeLabel,
-        'datetime': datetime.toUtc().toIso8601String(),
+        'datetime': '${datetime.year.toString().padLeft(4,'0')}-${datetime.month.toString().padLeft(2,'0')}-${datetime.day.toString().padLeft(2,'0')}T${datetime.hour.toString().padLeft(2,'0')}:${datetime.minute.toString().padLeft(2,'0')}:${datetime.second.toString().padLeft(2,'0')}',
         'location': {
           'latitude': latitude,
           'longitude': longitude,
@@ -88,7 +109,7 @@ class TimeRecordModel {
   Map<String, dynamic> toLocalDb() => {
         'employee_id': employeeId,
         'type': type,
-        'datetime': datetime.toUtc().toIso8601String(),
+        'datetime': '${datetime.year.toString().padLeft(4,'0')}-${datetime.month.toString().padLeft(2,'0')}-${datetime.day.toString().padLeft(2,'0')}T${datetime.hour.toString().padLeft(2,'0')}:${datetime.minute.toString().padLeft(2,'0')}:${datetime.second.toString().padLeft(2,'0')}',
         'latitude': latitude,
         'longitude': longitude,
         'photo_url': photoUrl,
