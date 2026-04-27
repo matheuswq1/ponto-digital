@@ -29,10 +29,9 @@
                    class="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white">
         </div>
         <select name="role" class="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-200 outline-none">
-            <option value="">Todos os roles</option>
-            <option value="admin"       @selected($role==='admin')>Administrador</option>
-            <option value="gestor"      @selected($role==='gestor')>Gestor</option>
-            <option value="funcionario" @selected($role==='funcionario')>Colaborador</option>
+            <option value="">Todos</option>
+            <option value="admin"  @selected($role==='admin')>Administrador</option>
+            <option value="gestor" @selected($role==='gestor')>Gestor de RH</option>
         </select>
         <button type="submit" class="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition">Filtrar</button>
     </form>

@@ -42,9 +42,8 @@
         <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Role</label>
             <select name="role" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white">
-                <option value="admin"       @selected(old('role', $user->role)=='admin')>Administrador</option>
-                <option value="gestor"      @selected(old('role', $user->role)=='gestor')>Gestor de RH</option>
-                <option value="funcionario" @selected(old('role', $user->role)=='funcionario')>Colaborador</option>
+                <option value="admin"  @selected(old('role', $user->role)=='admin')>Administrador</option>
+                <option value="gestor" @selected(old('role', $user->role)=='gestor')>Gestor de RH</option>
             </select>
         </div>
         <div class="flex items-center gap-3">
