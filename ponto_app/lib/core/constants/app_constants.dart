@@ -13,6 +13,7 @@ class AppConstants {
   /// Salvar credenciais de login
   static const String savedEmailKey = 'saved_email';
   static const String savedPasswordKey = 'saved_password';
+  static const String savedNameKey = 'saved_name';
   static const String rememberMeKey = 'remember_me';
 
   static const int connectTimeout = 30;

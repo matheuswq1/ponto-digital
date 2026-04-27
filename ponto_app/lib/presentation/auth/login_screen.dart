@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'auth_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/datasources/auth_datasource.dart';
 import '../../data/models/user_model.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -22,6 +23,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   bool _obscurePassword = true;
   bool _rememberMe = false;
+
+  // Credenciais salvas — apenas o nome é exibido, email/senha ficam ocultos
+  String? _savedName;
+  String? _savedEmail;
+  String? _savedPassword;
+  bool _hasSavedSession = false;
 
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
@@ -48,10 +55,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final creds = await ref.read(authProvider.notifier).getSavedCredentials();
     if (!mounted) return;
     if (creds != null) {
-      _emailCtrl.text = creds['email'] ?? '';
-      _passwordCtrl.text = creds['password'] ?? '';
-      setState(() => _rememberMe = true);
+      // Guardar internamente mas NÃO preencher os campos visíveis
+      _savedEmail    = creds['email'];
+      _savedPassword = creds['password'];
+      _savedName     = creds['name'];
+      setState(() {
+        _rememberMe       = true;
+        _hasSavedSession  = true;
+      });
     }
+  }
+
+  /// Login automático usando as credenciais salvas (tocando no card).
+  Future<void> _loginWithSaved() async {
+    if (_savedEmail == null || _savedPassword == null) return;
+    FocusScope.of(context).unfocus();
+    final result = await ref.read(authProvider.notifier).loginFull(
+          _savedEmail!,
+          _savedPassword!,
+          rememberMe: true,
+        );
+    if (!mounted || result.isEmpty) return;
+    final user = result['user'] as UserModel;
+    final faceEnrolled = result['face_enrolled'] as bool? ?? false;
+    if (user.role == 'totem') {
+      context.go('/totem');
+    } else if (!faceEnrolled && user.isFuncionario) {
+      context.go('/face-enroll');
+    } else {
+      context.go('/home');
+    }
+  }
+
+  /// Descarta a sessão salva e mostra o formulário normal.
+  void _clearSavedSession() {
+    ref.read(authProvider.notifier).getSavedCredentials().then((_) {
+      ref.read(authDatasourceProvider).clearCredentials();
+    });
+    setState(() {
+      _hasSavedSession  = false;
+      _savedEmail       = null;
+      _savedPassword    = null;
+      _savedName        = null;
+      _rememberMe       = false;
+    });
   }
 
   @override
@@ -224,6 +271,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   ),
                                 ),
                                 const SizedBox(height: 28),
+
+                                // ── Card de sessão salva ──────────────────────
+                                if (_hasSavedSession) ...[
+                                  _SavedSessionCard(
+                                    name: _savedName,
+                                    isLoading: isLoading,
+                                    onTap: _loginWithSaved,
+                                    onClear: _clearSavedSession,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Center(
+                                    child: TextButton(
+                                      onPressed: isLoading
+                                          ? null
+                                          : () => setState(
+                                              () => _hasSavedSession = false),
+                                      child: const Text(
+                                        'Usar outra conta',
+                                        style: TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13),
+                                      ),
+                                    ),
+                                  ),
+                                  if (authState.errorMessage != null) ...[
+                                    const SizedBox(height: 12),
+                                    _ErrorBanner(
+                                        message: authState.errorMessage!),
+                                  ],
+                                ]
+
+                                // ── Formulário normal ─────────────────────────
+                                else ...[
 
                                 // ── Campo email ──────────────────────────────
                                 TextFormField(
@@ -433,6 +513,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     ),
                                   ),
                                 ),
+
+                                ], // fim else formulário normal
                               ],
                             ),
                           ),
@@ -443,6 +525,168 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Card "Continuar como [Nome]" — não exibe email nem senha
+// ─────────────────────────────────────────────────────────────────────────────
+class _SavedSessionCard extends StatelessWidget {
+  final String? name;
+  final bool isLoading;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  const _SavedSessionCard({
+    required this.name,
+    required this.isLoading,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  /// Abrevia para "Nome S." (primeiro nome + inicial do apelido)
+  String _abbreviate(String? fullName) {
+    if (fullName == null || fullName.isEmpty) return 'Utilizador';
+    final parts = fullName.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts.first;
+    return '${parts.first} ${parts.last[0].toUpperCase()}.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final abbreviated = _abbreviate(name);
+    final initial = abbreviated.isNotEmpty ? abbreviated[0].toUpperCase() : '?';
+
+    return GestureDetector(
+      onTap: isLoading ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isLoading
+              ? AppColors.primary.withValues(alpha: 0.04)
+              : AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.35),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Avatar com inicial
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Nome abreviado
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Continuar como',
+                    style: TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    abbreviated,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Ícone ou spinner
+            if (isLoading)
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.5, color: AppColors.primary),
+              )
+            else ...[
+              const Icon(Icons.arrow_forward_ios,
+                  size: 16, color: AppColors.primary),
+              const SizedBox(width: 8),
+              // Botão X para limpar
+              GestureDetector(
+                onTap: onClear,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close,
+                      size: 14, color: AppColors.textSecondary),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.error, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message,
+                style:
+                    const TextStyle(color: AppColors.error, fontSize: 13)),
           ),
         ],
       ),

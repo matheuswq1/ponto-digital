@@ -93,7 +93,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final result = await _datasource.login(email, password);
       if (rememberMe) {
-        await _datasource.saveCredentials(email, password);
+        final name = (result['user'] as UserModel?)?.name;
+        await _datasource.saveCredentials(email, password, name: name);
       } else {
         await _datasource.clearCredentials();
       }

@@ -64,11 +64,16 @@ class AuthDatasource {
   }
 
   /// Salva as credenciais localmente para o "Lembrar de mim".
-  Future<void> saveCredentials(String email, String password) async {
+  /// Guarda também o nome do utilizador para exibição segura na tela de login.
+  Future<void> saveCredentials(String email, String password,
+      {String? name}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConstants.rememberMeKey, true);
     await prefs.setString(AppConstants.savedEmailKey, email);
     await prefs.setString(AppConstants.savedPasswordKey, password);
+    if (name != null) {
+      await prefs.setString(AppConstants.savedNameKey, name);
+    }
   }
 
   /// Remove as credenciais salvas.
@@ -77,6 +82,7 @@ class AuthDatasource {
     await prefs.remove(AppConstants.rememberMeKey);
     await prefs.remove(AppConstants.savedEmailKey);
     await prefs.remove(AppConstants.savedPasswordKey);
+    await prefs.remove(AppConstants.savedNameKey);
   }
 
   /// Retorna as credenciais salvas ou null se não houver.
@@ -86,8 +92,9 @@ class AuthDatasource {
     if (!remember) return null;
     final email = prefs.getString(AppConstants.savedEmailKey);
     final password = prefs.getString(AppConstants.savedPasswordKey);
+    final name = prefs.getString(AppConstants.savedNameKey);
     if (email == null || password == null) return null;
-    return {'email': email, 'password': password};
+    return {'email': email, 'password': password, if (name != null) 'name': name};
   }
 
   /// Regista token FCM no Laravel (chame após [firebase_messaging] obter o token).
