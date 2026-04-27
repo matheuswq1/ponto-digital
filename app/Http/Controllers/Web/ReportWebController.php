@@ -78,7 +78,11 @@ class ReportWebController extends Controller
             $diasTrabalhados = 0;
             $diasFalta       = 0;
 
-            $period = CarbonPeriod::create($dateFrom, $dateTo);
+            // Limitar período ao início efectivo do colaborador
+            $empStart = $emp->admission_date?->toDateString() ?? $dateFrom;
+            $periodFrom = $empStart > $dateFrom ? $empStart : $dateFrom;
+
+            $period = CarbonPeriod::create($periodFrom, $dateTo);
             foreach ($period as $date) {
                 $dateStr   = $date->toDateString();
                 $dayOfWeek = (int) $date->format('w');
@@ -226,10 +230,19 @@ class ReportWebController extends Controller
                 ->flip()
                 ->all();
 
+            // Início efectivo: admission_date ou início do período, o que for posterior
+            $empAdmission = $emp->admission_date?->toDateString() ?? $dateFrom;
+
             $dias    = [];
             $totP    = 0; $totF = 0; $totH = 0; $totFo = 0;
 
             foreach ($dates as $dateStr) {
+                // Dias antes da admissão: não contar
+                if ($dateStr < $empAdmission) {
+                    $dias[$dateStr] = '—';
+                    continue;
+                }
+
                 $dayOfWeek = (int) Carbon::parse($dateStr)->format('w');
                 $isWorkDay = in_array($dayOfWeek, $workDaysList);
                 $isHoliday = isset($holidaySet[$dateStr]);

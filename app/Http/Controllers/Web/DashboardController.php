@@ -170,6 +170,9 @@ class DashboardController extends Controller
             $absentDay = $rangeEnd->toDateString();
             $absentsEndDay = Employee::where('active', true)
                 ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                ->where(fn ($q) => $q
+                    ->whereNull('admission_date')
+                    ->orWhere('admission_date', '<=', $absentDay))
                 ->whereDoesntHave('timeRecords', fn ($q) => $q->whereDate('datetime', $absentDay))
                 ->count();
 

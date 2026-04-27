@@ -9,10 +9,11 @@ $dtCarbon = \Carbon\Carbon::parse($dateTo);
 $totalDias = count($dates);
 
 $legendaStatus = [
-    'P'  => ['label' => 'Presente',  'bg' => 'bg-emerald-100', 'text' => 'text-emerald-700', 'dot' => 'bg-emerald-500'],
-    'F'  => ['label' => 'Falta',     'bg' => 'bg-rose-100',    'text' => 'text-rose-700',    'dot' => 'bg-rose-500'],
-    'H'  => ['label' => 'Feriado',   'bg' => 'bg-violet-100',  'text' => 'text-violet-700',  'dot' => 'bg-violet-400'],
-    'Fo' => ['label' => 'Folga',     'bg' => 'bg-slate-100',   'text' => 'text-slate-400',   'dot' => 'bg-slate-300'],
+    'P'  => ['label' => 'Presente',        'bg' => 'bg-emerald-100', 'text' => 'text-emerald-700', 'dot' => 'bg-emerald-500'],
+    'F'  => ['label' => 'Falta',           'bg' => 'bg-rose-100',    'text' => 'text-rose-700',    'dot' => 'bg-rose-500'],
+    'H'  => ['label' => 'Feriado',         'bg' => 'bg-violet-100',  'text' => 'text-violet-700',  'dot' => 'bg-violet-400'],
+    'Fo' => ['label' => 'Folga/Fim-sem.',  'bg' => 'bg-slate-100',   'text' => 'text-slate-400',   'dot' => 'bg-slate-300'],
+    '—'  => ['label' => 'Antes admissão',  'bg' => 'bg-slate-200',   'text' => 'text-slate-300',   'dot' => 'bg-slate-200'],
 ];
 
 $totalP  = array_sum(array_column($rows, 'total_p'));
@@ -103,8 +104,13 @@ $diasSemana = ['D','S','T','Q','Q','S','S'];
 <div class="flex items-center gap-4 mb-4 flex-wrap">
     @foreach($legendaStatus as $key => $leg)
     <div class="flex items-center gap-1.5 text-xs {{ $leg['text'] }}">
-        <span class="inline-block w-3 h-3 rounded-sm {{ $leg['bg'] }} border border-current"></span>
-        <span class="font-semibold">{{ $key }}</span> — {{ $leg['label'] }}
+        @if($key === '—')
+            <span class="inline-block w-3 h-3 rounded-sm bg-slate-100 opacity-40 border border-slate-300"></span>
+            <span class="text-slate-400">{{ $leg['label'] }}</span>
+        @else
+            <span class="inline-block w-3 h-3 rounded-sm {{ $leg['bg'] }} border border-current"></span>
+            <span class="font-semibold">{{ $key }}</span> — {{ $leg['label'] }}
+        @endif
     </div>
     @endforeach
 </div>
@@ -173,12 +179,17 @@ $diasSemana = ['D','S','T','Q','Q','S','S'];
                         $leg = $legendaStatus[$st] ?? $legendaStatus['Fo'];
                         $dow = (int) \Carbon\Carbon::parse($d)->format('w');
                         $isWeekend = in_array($dow, [0, 6]);
+                        $isBeforeAdmission = ($st === '—');
                     @endphp
                     <td class="p-0.5 text-center w-7">
+                        @if($isBeforeAdmission)
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded bg-slate-100 opacity-40" title="Antes da admissão"></span>
+                        @else
                         <span class="inline-flex items-center justify-center w-6 h-6 rounded text-[9px] font-bold {{ $leg['bg'] }} {{ $leg['text'] }}
                             {{ $isWeekend && $st === 'Fo' ? 'opacity-50' : '' }}">
                             {{ $st }}
                         </span>
+                        @endif
                     </td>
                     @endforeach
                     <td class="px-2 py-1.5 text-center font-bold text-emerald-700">{{ $row['total_p'] }}</td>
