@@ -93,6 +93,9 @@
                     <th class="px-5 py-3 hidden md:table-cell">Localização</th>
                     <th class="px-5 py-3 hidden lg:table-cell">Foto</th>
                     <th class="px-5 py-3 hidden sm:table-cell">Origem</th>
+                    @can('delete-time-records')
+                    <th class="px-5 py-3 text-right w-24">Ações</th>
+                    @endcan
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -163,6 +166,17 @@
                             <span class="text-xs text-slate-400">Online</span>
                         @endif
                     </td>
+                    @can('delete-time-records')
+                    <td class="px-5 py-3 text-right align-middle">
+                        <button type="button"
+                                class="text-xs font-medium text-rose-600 hover:text-rose-800 hover:underline"
+                                data-destroy-url="{{ route('painel.pontos.destroy', $rec) }}"
+                                data-label="#{{ $rec->id }} — {{ $name }} — {{ $label }} · {{ $dt->format('d/m/Y H:i') }}"
+                                onclick="openDeletePontoModal(this)">
+                            Excluir
+                        </button>
+                    </td>
+                    @endcan
                 </tr>
                 @endforeach
             </tbody>
@@ -195,5 +209,7 @@
     </div>
     @endif
 </div>
+
+@include('web.components.ponto-delete-modal')
 
 @endsection

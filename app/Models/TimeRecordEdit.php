@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\WorkDayService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -92,6 +93,8 @@ class TimeRecordEdit extends Model
             'type' => $this->new_type,
             'is_edited' => true,
         ]);
+
+        app(WorkDayService::class)->recalculateDaysForApprovedEdit($this);
     }
 
     public function reject(User $approver, string $notes): void

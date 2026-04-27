@@ -53,6 +53,9 @@ class AuditLog extends Model
         if ($s instanceof Holiday) {
             return $s->name.' ('.$s->date->format('d/m/Y').')';
         }
+        if ($s instanceof TimeRecord) {
+            return 'Ponto #'.$s->id;
+        }
         if ($s instanceof TimeRecordEdit) {
             return 'Correção #'.$s->id;
         }

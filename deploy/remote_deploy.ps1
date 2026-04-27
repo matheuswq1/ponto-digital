@@ -45,6 +45,7 @@ cd $APP_DIR
 git config --global --add safe.directory $APP_DIR
 git pull origin master
 chown -R ponto:ponto .
+sudo -u ponto php artisan migrate --force --no-interaction
 sudo -u ponto php artisan config:cache
 sudo -u ponto php artisan route:cache
 sudo -u ponto php artisan view:clear

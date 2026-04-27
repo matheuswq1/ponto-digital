@@ -25,4 +25,12 @@ class AppPolicy
     {
         return in_array($user->role, ['admin', 'gestor']);
     }
+
+    /**
+     * Excluir registo de ponto (acção destrutiva; reservada a administrador).
+     */
+    public function deleteTimeRecords(User $user): bool
+    {
+        return $user->role === 'admin';
+    }
 }

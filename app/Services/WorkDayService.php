@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\HourBankTransaction;
 use App\Models\TimeRecord;
+use App\Models\TimeRecordEdit;
 use App\Models\WorkDay;
 use Carbon\Carbon;
 
@@ -30,9 +31,35 @@ class WorkDayService
 
         if ($workDay->is_closed) {
             $this->syncHourBankTransaction($employee, $workDay);
+        } else {
+            $this->removeWorkDayOnlyHourBankRow($workDay);
         }
 
         return $workDay;
+    }
+
+    /**
+     * Após aprovar correção de ponto, recalcula o(s) dia(s) afetados para atualizar
+     * WorkDay e transações de banco de horas (antes só era disparado no registro de saída).
+     */
+    public function recalculateDaysForApprovedEdit(TimeRecordEdit $edit): void
+    {
+        $timeRecord = $edit->timeRecord;
+        if (! $timeRecord) {
+            return;
+        }
+        $employee = $timeRecord->employee;
+        if (! $employee) {
+            return;
+        }
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        $dates = collect([
+            $edit->original_datetime?->copy()->setTimezone($tz)->toDateString(),
+            $edit->new_datetime?->copy()->setTimezone($tz)->toDateString(),
+        ])->filter()->unique()->values();
+        foreach ($dates as $date) {
+            $this->calculateAndSave($employee, $date);
+        }
     }
 
     /**
@@ -43,8 +70,10 @@ class WorkDayService
     {
         $extra = $workDay->extra_minutes;
 
-        // Dia sem desvio ou falta sem registro não movimenta o banco
+        // Dia sem desvio: remove linha automática vinculada a este WorkDay (ex.: ponto corrigido)
         if ($extra === 0) {
+            $this->removeWorkDayOnlyHourBankRow($workDay);
+
             return;
         }
 
@@ -65,6 +94,17 @@ class WorkDayService
                 'reference_date' => $workDay->date,
             ]
         );
+    }
+
+    /**
+     * Remove credit/débito automático deste WorkDay (não mexe em folga ou ajuste manual).
+     */
+    private function removeWorkDayOnlyHourBankRow(WorkDay $workDay): void
+    {
+        HourBankTransaction::query()
+            ->where('work_day_id', $workDay->id)
+            ->whereIn('type', ['extra', 'deficit'])
+            ->delete();
     }
 
     public function calculate(Employee $employee, $records, string $date): array

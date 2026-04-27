@@ -55,6 +55,7 @@ Route::middleware('auth')->group(function () {
 
         // Pontos
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');
+        Route::delete('/pontos/{timeRecord}', [TimeRecordWebController::class, 'destroy'])->name('pontos.destroy');
         Route::get('/pontos/exportar', [TimeRecordWebController::class, 'export'])->name('pontos.export');
         Route::get('/pontos/cartao', [TimeRecordWebController::class, 'cartaoPonto'])->name('pontos.cartao');
 

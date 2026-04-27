@@ -5,11 +5,16 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Holiday;
+use App\Models\TimeRecordEdit;
 use App\Models\TimeRecord;
+use App\Services\AuditService;
+use App\Services\WorkDayService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -43,6 +48,51 @@ class TimeRecordWebController extends Controller
         return view('web.pontos.index', compact(
             'records', 'dateFrom', 'dateTo', 'search', 'employees', 'employeeId'
         ));
+    }
+
+    public function destroy(Request $request, TimeRecord $timeRecord): RedirectResponse
+    {
+        $this->authorize('delete-time-records');
+
+        $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'confirm_excluir'  => ['required', 'in:EXCLUIR'],
+        ], [
+            'current_password.current_password' => 'A palavra-passe atual não confere.',
+            'confirm_excluir.in'                => 'Digite exatamente EXCLUIR (em maiúsculas) para confirmar.',
+        ]);
+
+        $employee = $timeRecord->employee;
+        if (! $employee) {
+            return back()->with('error', 'Registo de ponto inválido.');
+        }
+
+        $tz   = config('app.timezone', 'America/Sao_Paulo');
+        $date = $timeRecord->datetime->copy()->setTimezone($tz)->toDateString();
+
+        $snapshot = [
+            'employee_id'    => $timeRecord->employee_id,
+            'type'           => $timeRecord->type,
+            'datetime_local' => $timeRecord->datetime_local?->format('d/m/Y H:i'),
+        ];
+
+        DB::transaction(function () use ($request, $timeRecord, $employee, $snapshot) {
+            AuditService::log(
+                $request->user(),
+                'time_record.delete',
+                'Registo de ponto excluído: '.$snapshot['type'].' @ '.$snapshot['datetime_local'],
+                $timeRecord,
+                $snapshot,
+                $employee->company_id,
+                $request
+            );
+            TimeRecordEdit::query()->where('time_record_id', $timeRecord->id)->delete();
+            $timeRecord->delete();
+        });
+
+        app(WorkDayService::class)->calculateAndSave($employee, $date);
+
+        return back()->with('success', 'Registo de ponto excluído. O banco de horas do dia foi recalculado se aplicável.');
     }
 
     public function export(Request $request)
