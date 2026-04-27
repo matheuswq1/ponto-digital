@@ -9,6 +9,7 @@ import '../../core/errors/app_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../home/today_provider.dart';
+import '../history/history_provider.dart';
 import 'edit_requests_provider.dart';
 
 class RequestEditScreen extends ConsumerStatefulWidget {
@@ -142,15 +143,76 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     }
   }
 
+  // ── Validações de horário ─────────────────────────────────────────────────
+  String? _validateDateTime(DateTime proposed) {
+    // 1. Não pode ser no futuro
+    if (proposed.isAfter(DateTime.now())) {
+      return 'O horário não pode ser no futuro.';
+    }
+
+    // 2. Buscar registos do mesmo dia no histórico
+    final sameDay = DateFormat('yyyy-MM-dd').format(widget.record.datetime.toLocal());
+    final allRecords = ref.read(historyProvider).records
+        .where((r) => DateFormat('yyyy-MM-dd').format(r.datetime) == sameDay)
+        .where((r) => r.id != widget.record.id) // excluir o próprio registo
+        .toList()
+      ..sort((a, b) => a.datetime.compareTo(b.datetime));
+
+    // Posição do registo a ser corrigido (ordenado por data original)
+    final allWithCurrent = [
+      ...allRecords,
+      TimeRecordModel(
+        id: widget.record.id,
+        employeeId: widget.record.employeeId,
+        type: _newType ?? widget.record.type,
+        typeLabel: widget.record.typeLabel,
+        datetime: proposed,
+        status: widget.record.status,
+      ),
+    ]..sort((a, b) => a.datetime.compareTo(b.datetime));
+
+    final idx = allWithCurrent.indexWhere((r) => r.id == widget.record.id);
+
+    // 3. Não pode ser anterior ao registo imediatamente anterior
+    if (idx > 0) {
+      final prev = allWithCurrent[idx - 1];
+      if (!proposed.isAfter(prev.datetime)) {
+        final fmtPrev = DateFormat('HH:mm').format(prev.datetime);
+        return 'O horário deve ser posterior ao registo anterior (${prev.typeLabel} às $fmtPrev).';
+      }
+    }
+
+    // 4. Não pode ser posterior ao registo imediatamente seguinte
+    if (idx < allWithCurrent.length - 1) {
+      final next = allWithCurrent[idx + 1];
+      if (!proposed.isBefore(next.datetime)) {
+        final fmtNext = DateFormat('HH:mm').format(next.datetime);
+        return 'O horário deve ser anterior ao registo seguinte (${next.typeLabel} às $fmtNext).';
+      }
+    }
+
+    return null; // Válido
+  }
+
   // ── Enviar ────────────────────────────────────────────────────────────────
   Future<void> _submit() async {
     _applyTimeFields();
+    // Aguardar o próximo frame para _newDateTime reflectir o applyTimeFields
+    await Future.microtask(() {});
 
     final id = widget.record.id;
     if (id == null) {
       setState(() => _error = 'Registro sem ID. Sincronize e tente novamente.');
       return;
     }
+
+    // Validar horário
+    final timeError = _validateDateTime(_newDateTime);
+    if (timeError != null) {
+      setState(() => _error = timeError);
+      return;
+    }
+
     final text = _justification.text.trim();
     if (text.length < 20) {
       setState(() => _error = 'A justificativa deve ter no mínimo 20 caracteres.');
@@ -566,6 +628,36 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
                   ),
                 ),
               ),
+
+              // ── Aviso em tempo real (validação de horário) ───────────────
+              Builder(builder: (context) {
+                if (!_changed) return const SizedBox.shrink();
+                final warn = _validateDateTime(_newDateTime);
+                if (warn == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded,
+                            color: AppColors.warning, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(warn,
+                              style: const TextStyle(
+                                  color: AppColors.warning, fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
 
               // ── Erro ─────────────────────────────────────────────────────
               if (_error != null) ...[
