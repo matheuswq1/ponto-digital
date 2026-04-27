@@ -145,12 +145,12 @@ class WorkDayService
         foreach ($records as $record) {
             if ($record->type === 'entrada') {
                 if ($firstExitAt !== null) {
-                    $totalIntervals += $record->datetime->diffInMinutes($firstExitAt);
+                    $totalIntervals += (int) abs($record->datetime->diffInRealMinutes($firstExitAt));
                     $firstExitAt = null;
                 }
                 $openEntryAt = $record->datetime;
             } elseif ($record->type === 'saida' && $openEntryAt !== null) {
-                $totalMinutes += $record->datetime->diffInMinutes($openEntryAt);
+                $totalMinutes += (int) abs($record->datetime->diffInRealMinutes($openEntryAt));
                 $firstExitAt  = $record->datetime;
                 $openEntryAt  = null;
             }
