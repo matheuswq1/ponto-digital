@@ -13,11 +13,11 @@ class TimeRecordEditResource extends JsonResource
             'id' => $this->id,
             'time_record_id' => $this->time_record_id,
             'original' => [
-                'datetime' => $this->original_datetime?->toISOString(),
+                'datetime' => $this->original_datetime?->format('Y-m-d\TH:i:s'),
                 'type' => $this->original_type,
             ],
             'new' => [
-                'datetime' => $this->new_datetime?->toISOString(),
+                'datetime' => $this->new_datetime?->format('Y-m-d\TH:i:s'),
                 'type' => $this->new_type,
             ],
             'justification' => $this->justification,
