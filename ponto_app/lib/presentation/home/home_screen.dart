@@ -22,7 +22,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(todayProvider.notifier).refresh();
+      // Só refresca pontos se não tiver dados (o provider já carrega no construtor)
+      final today = ref.read(todayProvider);
+      if (today.data == null && !today.isLoading) {
+        ref.read(todayProvider.notifier).refresh();
+      }
+      // Perfil: throttle de 5 min interno no notifier
       ref.read(authProvider.notifier).refreshProfile();
     });
   }

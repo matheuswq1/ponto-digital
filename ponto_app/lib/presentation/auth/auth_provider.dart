@@ -49,6 +49,7 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthDatasource _datasource;
   final Ref _ref;
+  DateTime? _lastProfileRefresh;
 
   AuthNotifier(this._datasource, this._ref) : super(const AuthState()) {
     _checkStoredAuth();
@@ -119,13 +120,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return result.isNotEmpty;
   }
 
-  /// Refresca o perfil chamando GET /me. Silencioso em caso de erro (ex: offline).
+  /// Refresca o perfil chamando GET /me.
+  /// Throttle de 5 minutos — ignora chamadas repetidas em rápida sucessão.
+  /// Apenas atualiza o state se houver dados novos (evita rebuilds desnecessários).
   Future<void> refreshProfile() async {
+    final now = DateTime.now();
+    if (_lastProfileRefresh != null &&
+        now.difference(_lastProfileRefresh!).inMinutes < 5) {
+      return; // Ainda dentro da janela de throttle
+    }
+    _lastProfileRefresh = now;
     try {
       final user = await _datasource.getMe();
-      state = state.copyWith(user: user);
-      // Persistir dados actualizados
-      await _datasource.persistUser(user);
+      // Só notifica listeners se os dados mudaram efectivamente
+      final current = state.user;
+      final changed = current == null ||
+          current.name != user.name ||
+          current.email != user.email ||
+          current.role != user.role ||
+          current.active != user.active ||
+          current.employee?.faceEnrolled != user.employee?.faceEnrolled ||
+          current.employee?.company?.requirePhoto != user.employee?.company?.requirePhoto ||
+          current.employee?.company?.requireGeolocation != user.employee?.company?.requireGeolocation;
+      if (changed) {
+        state = state.copyWith(user: user);
+        await _datasource.persistUser(user);
+      }
     } catch (_) {
       // Silencioso — dados locais mantidos
     }
