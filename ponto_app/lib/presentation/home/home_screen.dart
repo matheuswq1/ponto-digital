@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,14 +18,26 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late Timer _clockTimer;
+  DateTime _now = DateTime.now();
+
   @override
   void initState() {
     super.initState();
+    // Relógio a tictacar a cada segundo
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(todayProvider.notifier).refresh();
-      // Refrescar perfil silenciosamente ao abrir o home
       ref.read(authProvider.notifier).refreshProfile();
     });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer.cancel();
+    super.dispose();
   }
 
   @override
@@ -128,7 +141,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(DateTime.now()),
+                DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(_now),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
                   fontSize: 13,
@@ -185,8 +198,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return const _ShimmerCard();
     }
 
-    final now = DateTime.now();
-    final timeStr = DateFormat('HH:mm').format(now);
+    final timeStr = DateFormat('HH:mm').format(_now);
+    final secsStr = DateFormat(':ss').format(_now);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -228,14 +241,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            timeStr,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                timeStr,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 56,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+              Text(
+                secsStr,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.65),
+                  fontSize: 28,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           _buildRecordsTimeline(state.data),
