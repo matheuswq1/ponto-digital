@@ -78,6 +78,26 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   Future<void> _captureAndRegister() async {
     if (ref.read(registerPointProvider).isLoading || _verifyingFace || _capturing) return;
 
+    // ── Verificar Wi-Fi ANTES de tirar a foto ───────────────────────────────
+    // Evita capturar selfie e depois bloquear — UX mais limpa
+    final authState = ref.read(authProvider);
+    final company = authState.user?.employee?.company ?? authState.user?.company;
+    if (company != null && company.requireWifi) {
+      final notifier = ref.read(registerPointProvider.notifier);
+      final wifiOk = await notifier.wifiService.isSsidAllowed(company.allowedWifiSsids);
+      if (!mounted) return;
+      if (!wifiOk) {
+        _showFraudBlockedDialog(
+          title: 'Wi-Fi não autorizado',
+          message:
+              'A sua empresa exige que esteja ligado a uma rede Wi-Fi específica para bater o ponto.\n\nConecte-se à rede da empresa e tente novamente.',
+          icon: Icons.wifi_off_rounded,
+        );
+        return;
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     // Feedback imediato — escurece o botão antes mesmo da foto ser tirada
     setState(() => _capturing = true);
 

@@ -67,6 +67,8 @@ class FraudCheckService
         }
 
         // ── 3. Wi-Fi não autorizado ───────────────────────────────────────
+        // Quando require_wifi está activo, o Wi-Fi errado SEMPRE bloqueia
+        // independentemente do fraud_action global (é um requisito de presença, não de fraude).
         if ($company->require_wifi) {
             $sentSsid    = $data['wifi_ssid'] ?? null;
             $allowed     = (array) ($company->allowed_wifi_ssids ?? []);
@@ -76,10 +78,11 @@ class FraudCheckService
                 : false;
 
             if (! $ssidAllowed) {
+                // Wi-Fi obrigatório falhou → sempre 'block', ignorar fraud_action
                 $attempt = $this->record($employee, $company, 'wifi_mismatch', [
                     'wifi_ssid_sent'  => $sentSsid,
                     'allowed_ssids'   => $allowed,
-                ], $lat, $lon, $deviceId, $ip, $company->fraud_action);
+                ], $lat, $lon, $deviceId, $ip, 'block');
                 $violations[] = 'Wi-Fi não autorizado' . ($sentSsid ? ' (' . $sentSsid . ')' : ' (desconhecido)');
                 $attempts[]   = $attempt;
             }
@@ -104,7 +107,11 @@ class FraudCheckService
             }
         }
 
-        $blocked = count($violations) > 0 && $company->fraud_action === 'block';
+        // Bloqueia se:
+        // - fraud_action global = 'block' E há violações, OU
+        // - alguma tentativa individual tem action_taken='blocked' (ex.: wifi_mismatch com require_wifi)
+        $hasForceBlock = collect($attempts)->contains(fn ($a) => $a->action_taken === 'blocked');
+        $blocked = count($violations) > 0 && ($company->fraud_action === 'block' || $hasForceBlock);
 
         return new FraudCheckResult($blocked, $violations, $attempts);
     }

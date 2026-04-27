@@ -74,6 +74,9 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
   final DeviceService _deviceService;
   final WifiService _wifiService;
 
+  // Exposto para que a UI possa verificar Wi-Fi antes de tirar foto
+  WifiService get wifiService => _wifiService;
+
   // Último ponto para calcular velocidade
   double? _lastLat;
   double? _lastLon;
