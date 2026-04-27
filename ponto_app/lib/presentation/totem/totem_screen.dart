@@ -370,29 +370,42 @@ class _TotemScreenState extends ConsumerState<TotemScreen> {
                     ),
                   ],
 
-                  // ── Botão de logout (só após desbloqueio com showLogout) ────
+                  // ── Botões de administração (aparecem após long press no cadeado) ─
                   if (_showLogoutAfterUnlock && !_locked) ...[
                     const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _logout,
-                      icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
-                      label: const Text(
-                        'Sair do Totem',
-                        style: TextStyle(color: AppColors.error, fontSize: 13),
+                    // Divisor visual
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 48),
+                      child: Row(
+                        children: [
+                          Expanded(child: Divider(color: Colors.white12)),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Text('Administração',
+                                style: TextStyle(
+                                    color: Colors.white24, fontSize: 11)),
+                          ),
+                          Expanded(child: Divider(color: Colors.white12)),
+                        ],
                       ),
                     ),
-                  ],
-
-                  // ── Botão de cadastro facial (visível no idle, desbloqueado) ─
-                  if (!_locked && _step == _TotemStep.idle) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     TextButton.icon(
                       onPressed: _openPinEnroll,
                       icon: const Icon(Icons.face_retouching_natural,
-                          size: 15, color: Colors.white30),
+                          size: 16, color: Colors.white54),
                       label: const Text(
                         'Cadastrar / Atualizar rosto',
-                        style: TextStyle(color: Colors.white30, fontSize: 12),
+                        style: TextStyle(color: Colors.white54, fontSize: 13),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _logout,
+                      icon: const Icon(Icons.logout, size: 16,
+                          color: AppColors.error),
+                      label: const Text(
+                        'Sair do Totem',
+                        style: TextStyle(color: AppColors.error, fontSize: 13),
                       ),
                     ),
                   ],
