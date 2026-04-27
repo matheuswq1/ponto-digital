@@ -25,7 +25,6 @@ class RegisterPointScreen extends ConsumerStatefulWidget {
 class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
-  File? _capturedPhoto;
   bool _cameraReady = false;
   bool _useFrontCamera = true;
 
@@ -72,15 +71,22 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     super.dispose();
   }
 
-  Future<void> _takePicture() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
-    try {
-      final xFile = await _cameraController!.takePicture();
-      setState(() => _capturedPhoto = File(xFile.path));
-    } catch (_) {}
+  /// Captura foto (se câmera disponível) e regista o ponto de uma só vez.
+  Future<void> _captureAndRegister() async {
+    if (ref.read(registerPointProvider).isLoading) return;
+
+    File? photo;
+    if (_cameraReady && _cameraController != null &&
+        _cameraController!.value.isInitialized) {
+      try {
+        final xFile = await _cameraController!.takePicture();
+        photo = File(xFile.path);
+      } catch (_) {}
+    }
+    await _confirmRegister(photo: photo);
   }
 
-  Future<void> _confirmRegister() async {
+  Future<void> _confirmRegister({File? photo}) async {
     final authState = ref.read(authProvider);
     final faceEnrolled = authState.user?.employee?.faceEnrolled ?? false;
     final company = authState.user?.employee?.company ?? authState.user?.company;
@@ -89,7 +95,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     final notifier = ref.read(registerPointProvider.notifier);
     final policy = await notifier.checkCompanyPolicy(
       company: company,
-      photo: _capturedPhoto,
+      photo: photo,
     );
 
     if (!mounted) return;
@@ -143,7 +149,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
       return;
     }
 
-    final success = await notifier.register(widget.pointType, photo: _capturedPhoto);
+    final success = await notifier.register(widget.pointType, photo: photo);
 
     if (!mounted) return;
 
@@ -324,12 +330,8 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                 children: [
                   Container(color: const Color(0xFF0A0F1E)),
 
-                  // Câmera ou foto
-                  if (_capturedPhoto != null)
-                    SizedBox.expand(
-                      child: Image.file(_capturedPhoto!, fit: BoxFit.cover),
-                    )
-                  else if (_cameraReady && _cameraController != null)
+                  // Câmera
+                  if (_cameraReady && _cameraController != null)
                     _buildCameraWithCircle()
                   else
                     Column(
@@ -386,7 +388,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                     ),
 
                   // Flip câmera
-                  if (_capturedPhoto == null && _cameraReady)
+                  if (_cameraReady)
                     Positioned(
                       top: 12,
                       right: 12,
@@ -420,9 +422,9 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                     ),
 
                   // Instrução
-                  if (!state.isLoading && _capturedPhoto == null)
+                  if (!state.isLoading)
                     Positioned(
-                      bottom: 20,
+                      bottom: 16,
                       left: 0,
                       right: 0,
                       child: Column(
@@ -431,30 +433,24 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                             'Posicione seu rosto no círculo',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.65),
-                              fontSize: 14,
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontSize: 13,
                             ),
                           ),
                           if (requirePhoto) ...[
-                            const SizedBox(height: 6),
-                            Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 40),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.warning.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.warning.withValues(alpha: 0.6)),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.camera_alt, color: AppColors.warning, size: 13),
-                                  SizedBox(width: 6),
-                                  Text('Foto obrigatória para esta empresa',
-                                      style: TextStyle(color: AppColors.warning, fontSize: 11)),
-                                ],
-                              ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.camera_alt,
+                                    color: AppColors.warning.withValues(alpha: 0.8),
+                                    size: 11),
+                                const SizedBox(width: 4),
+                                Text('Foto obrigatória',
+                                    style: TextStyle(
+                                        color: AppColors.warning.withValues(alpha: 0.8),
+                                        fontSize: 11)),
+                              ],
                             ),
                           ],
                         ],
@@ -464,24 +460,24 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
               ),
             ),
 
-            // ── Área inferior ────────────────────────────────────────────────
+            // ── Área inferior — igual ao totem ───────────────────────────────
             Container(
               color: const Color(0xFF0A0F1E),
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
               child: Column(
                 children: [
                   // Badge tipo de ponto
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
                       color: typeColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: typeColor.withValues(alpha: 0.4)),
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.access_time, color: typeColor, size: 16),
+                        Icon(Icons.access_time, color: typeColor, size: 15),
                         const SizedBox(width: 6),
                         Text(
                           label,
@@ -494,62 +490,46 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                  Row(
-                    children: [
-                      if (_capturedPhoto == null)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: state.isLoading || !_cameraReady
-                                ? null
-                                : _takePicture,
-                            icon: const Icon(Icons.camera_alt, color: Colors.white70),
-                            label: const Text('Tirar Selfie',
-                                style: TextStyle(color: Colors.white70)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.white24),
-                              minimumSize: const Size.fromHeight(50),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: state.isLoading
-                                ? null
-                                : () => setState(() => _capturedPhoto = null),
-                            icon: const Icon(Icons.refresh, color: Colors.white70),
-                            label: const Text('Refazer',
-                                style: TextStyle(color: Colors.white70)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.white24),
-                              minimumSize: const Size.fromHeight(50),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: state.isLoading ? null : _confirmRegister,
-                          icon: const Icon(Icons.check, color: Colors.white),
-                          label: const Text('Confirmar'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: typeColor,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(50),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
+                  // Botão circular único — capta foto e regista de uma vez
+                  GestureDetector(
+                    onTap: state.isLoading ? null : _captureAndRegister,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: state.isLoading
+                            ? typeColor.withValues(alpha: 0.4)
+                            : typeColor,
+                        boxShadow: state.isLoading
+                            ? []
+                            : [
+                                BoxShadow(
+                                  color: typeColor.withValues(alpha: 0.5),
+                                  blurRadius: 24,
+                                  spreadRadius: 4,
+                                ),
+                              ],
                       ),
-                    ],
+                      child: state.isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(22),
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5),
+                            )
+                          : const Icon(Icons.touch_app,
+                              color: Colors.white, size: 38),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    state.isLoading
+                        ? _loadingMessage(state.status)
+                        : 'Toque para registrar',
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ],
               ),
