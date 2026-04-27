@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
 use App\Http\Controllers\Web\HourBankWebController;
 use App\Http\Controllers\Web\LoginController;
+use App\Http\Controllers\Web\ReportWebController;
 use App\Http\Controllers\Web\TimeRecordWebController;
 use App\Http\Controllers\Web\UserWebController;
 use Illuminate\Support\Facades\Route;
@@ -53,6 +54,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/pontos', [TimeRecordWebController::class, 'index'])->name('pontos.index');
         Route::get('/pontos/exportar', [TimeRecordWebController::class, 'export'])->name('pontos.export');
         Route::get('/pontos/cartao', [TimeRecordWebController::class, 'cartaoPonto'])->name('pontos.cartao');
+
+        // Relatórios
+        Route::get('/relatorios/folha-pagamento', [ReportWebController::class, 'folhaPagamento'])->name('reports.folha-pagamento');
 
         // Banco de Horas
         Route::get('/banco-horas', [HourBankWebController::class, 'index'])->name('hour-bank.index');
