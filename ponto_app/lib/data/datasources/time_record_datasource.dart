@@ -110,6 +110,23 @@ class TimeRecordDatasource {
     }
   }
 
+  /// Solicita adição de um ponto esquecido
+  Future<void> requestAddition({
+    required String type,
+    required DateTime datetime,
+    required String justification,
+  }) async {
+    try {
+      await _api.post('/time-records/request-addition', data: {
+        'type': type,
+        'datetime': datetime.toUtc().toIso8601String(),
+        'justification': justification,
+      });
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Lista solicitações de correção (minhas, ou todas para gestor/admin no backend)
   Future<Map<String, dynamic>> getEditRequests({String? status, int page = 1}) async {
     try {

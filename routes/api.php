@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\HourBankController;
 use App\Http\Controllers\Api\TimeRecordController;
+use App\Http\Controllers\Api\TimeRecordAdditionController;
 use App\Http\Controllers\Api\TimeRecordEditController;
 use App\Http\Controllers\Api\TotemController;
 use App\Http\Controllers\Api\WorkDayController;
@@ -53,6 +54,10 @@ Route::prefix('v1')->group(function () {
 
             // Edições/Correções de ponto
             Route::post('/{timeRecord}/edit-request', [TimeRecordEditController::class, 'store'])->name('api.time-records.edit-request');
+
+            // Adição de ponto (solicitar um ponto esquecido)
+            Route::post('/request-addition', [TimeRecordAdditionController::class, 'store'])->name('api.time-records.request-addition');
+            Route::get('/additions', [TimeRecordAdditionController::class, 'index'])->name('api.time-records.additions');
         });
 
         // Solicitações de correção (gestores/admin)

@@ -175,6 +175,16 @@ class HistoryScreen extends ConsumerWidget {
                       context.pushNamed('request-edit', extra: record);
                     },
             ),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+              title: const Text('Adicionar ponto ao dia'),
+              subtitle: const Text('Solicitar adição de entrada ou saída esquecida'),
+              onTap: () {
+                Navigator.pop(ctx);
+                // Sugere a data do registo para pré-preencher
+                context.pushNamed('request-add-point', extra: record.datetime);
+              },
+            ),
             if (record.photoUrl != null)
               ListTile(
                 leading: const Icon(Icons.image_outlined),

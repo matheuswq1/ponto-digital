@@ -12,6 +12,7 @@ import '../../presentation/history/history_screen.dart';
 import '../../presentation/balance/balance_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
 import '../../presentation/edits/edit_requests_screen.dart';
+import '../../presentation/edits/request_add_point_screen.dart';
 import '../../presentation/edits/request_edit_screen.dart';
 import '../../presentation/totem/totem_screen.dart';
 import '../../presentation/balance/request_leave_screen.dart';
@@ -130,6 +131,24 @@ final routerProvider = Provider<GoRouter>((ref) {
               return CustomTransitionPage(
                 key: state.pageKey,
                 child: RequestEditScreen(record: record),
+                transitionsBuilder: (_, animation, __, child) => SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.1),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+                  child: child,
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'request-add-point',
+            name: 'request-add-point',
+            pageBuilder: (context, state) {
+              final suggestedDate = state.extra as DateTime?;
+              return CustomTransitionPage(
+                key: state.pageKey,
+                child: RequestAddPointScreen(suggestedDate: suggestedDate),
                 transitionsBuilder: (_, animation, __, child) => SlideTransition(
                   position: Tween<Offset>(
                     begin: const Offset(0, 0.1),

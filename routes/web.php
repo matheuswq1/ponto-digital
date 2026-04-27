@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Web\AdditionRequestWebController;
 use App\Http\Controllers\Web\AuditLogWebController;
 use App\Http\Controllers\Web\CompanyLocationsWebController;
 use App\Http\Controllers\Web\FraudAlertWebController;
@@ -32,6 +33,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/solicitacoes', [EditRequestWebController::class, 'index'])->name('edit-requests.index');
         Route::post('/solicitacoes/{edit}/aprovar', [EditRequestWebController::class, 'approve'])->name('edit-requests.approve');
         Route::post('/solicitacoes/{edit}/rejeitar', [EditRequestWebController::class, 'reject'])->name('edit-requests.reject');
+
+        // Adições de ponto
+        Route::get('/adicoes-ponto', [AdditionRequestWebController::class, 'index'])->name('addition-requests.index');
+        Route::post('/adicoes-ponto/{addition}/aprovar', [AdditionRequestWebController::class, 'approve'])->name('addition-requests.approve');
+        Route::post('/adicoes-ponto/{addition}/rejeitar', [AdditionRequestWebController::class, 'reject'])->name('addition-requests.reject');
 
         // Colaboradores
         Route::get('/colaboradores', [EmployeeWebController::class, 'index'])->name('employees.index');

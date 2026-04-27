@@ -88,6 +88,11 @@ class Employee extends Model
         return $this->hasMany(HourBankRequest::class);
     }
 
+    public function timeRecordAdditions(): HasMany
+    {
+        return $this->hasMany(TimeRecordAddition::class);
+    }
+
     /**
      * Saldo atual do banco de horas em minutos.
      * Positivo = crédito, negativo = débito.

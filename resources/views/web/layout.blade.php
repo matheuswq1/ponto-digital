@@ -129,7 +129,10 @@
         {{-- Gestão --}}
         <p class="nav-section" style="margin-top:0.5rem">Gestão</p>
 
-        @php $pendingBadge = \App\Models\TimeRecordEdit::where('status','pendente')->count(); @endphp
+        @php
+            $pendingBadge = \App\Models\TimeRecordEdit::where('status','pendente')->count();
+            $pendingAdditions = \App\Models\TimeRecordAddition::where('status','pendente')->count();
+        @endphp
         <a href="{{ route('painel.edit-requests.index') }}"
            class="nav-item {{ request()->routeIs('painel.edit-requests.*') ? 'active' : '' }}">
             <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
@@ -141,6 +144,20 @@
                 <span class="ml-auto inline-flex items-center justify-center h-[18px] min-w-[18px] rounded-full
                              bg-rose-500 text-white text-[10px] font-bold px-1 shadow shadow-rose-900/40">
                     {{ $pendingBadge > 99 ? '99+' : $pendingBadge }}
+                </span>
+            @endif
+        </a>
+
+        <a href="{{ route('painel.addition-requests.index') }}"
+           class="nav-item {{ request()->routeIs('painel.addition-requests.*') ? 'active' : '' }}">
+            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+            <span class="flex-1">Adições de ponto</span>
+            @if($pendingAdditions > 0)
+                <span class="ml-auto inline-flex items-center justify-center h-[18px] min-w-[18px] rounded-full
+                             bg-amber-500 text-white text-[10px] font-bold px-1 shadow shadow-amber-900/40">
+                    {{ $pendingAdditions > 99 ? '99+' : $pendingAdditions }}
                 </span>
             @endif
         </a>
