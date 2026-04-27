@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'balance_provider.dart';
 import 'hour_bank_provider.dart';
-import 'request_leave_screen.dart';
 import '../../data/models/work_day_model.dart';
 import '../../data/models/hour_bank_request_model.dart';
 import '../../core/theme/app_theme.dart';
@@ -56,10 +56,14 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen>
         actions: [
           balanceAsync.maybeWhen(
             data: (balance) => balance.isPositive
-                ? IconButton(
-                    icon: const Icon(Icons.add_circle_outline),
-                    tooltip: 'Solicitar folga',
-                    onPressed: () => _openRequestLeave(balance),
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(foregroundColor: Colors.white),
+                      icon: const Icon(Icons.event_available_outlined, size: 18),
+                      label: const Text('Solicitar folga', style: TextStyle(fontSize: 12)),
+                      onPressed: () => _openRequestLeave(balance),
+                    ),
                   )
                 : const SizedBox.shrink(),
             orElse: () => const SizedBox.shrink(),
@@ -78,11 +82,7 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen>
   }
 
   void _openRequestLeave(HourBankBalanceModel balance) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RequestLeaveScreen(balance: balance),
-      ),
-    );
+    context.pushNamed('request-leave', extra: balance);
   }
 }
 
@@ -275,31 +275,47 @@ class _TotalBalanceCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text('Saldo acumulado total',
+          Text(balance.isPositive ? 'Saldo positivo (crédito)' : 'Saldo negativo (débito)',
               style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85), fontSize: 13)),
           const SizedBox(height: 8),
-          Text(
-            balance.formatted,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 44,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                balance.isPositive ? '+' : '−',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Text(
+                balance.formatted,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 44,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _BalancePill(
+                  icon: Icons.arrow_upward,
                   label: 'Créditos',
                   value: _fmt(balance.creditMinutes, '+'),
                   color: Colors.white),
               const SizedBox(width: 16),
               _BalancePill(
+                  icon: Icons.arrow_downward,
                   label: 'Débitos',
-                  value: _fmt(balance.debitMinutes, ''),
+                  value: _fmt(balance.debitMinutes, '−'),
                   color: Colors.white70),
             ],
           ),
@@ -350,21 +366,30 @@ class _TotalBalanceCard extends StatelessWidget {
 }
 
 class _BalancePill extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
   final Color color;
   const _BalancePill(
-      {required this.label, required this.value, required this.color});
+      {required this.icon, required this.label, required this.value, required this.color});
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value,
-              style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16)),
-          Text(label, style: TextStyle(color: color, fontSize: 11)),
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value,
+                  style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15)),
+              Text(label, style: TextStyle(color: color, fontSize: 10)),
+            ],
+          ),
         ],
       );
 }

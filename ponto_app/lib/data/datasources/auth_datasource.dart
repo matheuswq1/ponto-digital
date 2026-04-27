@@ -115,6 +115,12 @@ class AuthDatasource {
     }
   }
 
+  /// Persiste dados do utilizador no armazenamento local (para sessão offline).
+  Future<void> persistUser(UserModel user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(AppConstants.userKey, user.toJsonString());
+  }
+
   AppException _handleError(dynamic e) {
     if (e is AppException) return e;
     if (e is DioException && e.error is AppException) return e.error as AppException;

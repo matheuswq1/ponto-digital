@@ -20,9 +20,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Carrega dados ao abrir a tela
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(todayProvider.notifier).refresh();
+      // Refrescar perfil silenciosamente ao abrir o home
+      ref.read(authProvider.notifier).refreshProfile();
     });
   }
 

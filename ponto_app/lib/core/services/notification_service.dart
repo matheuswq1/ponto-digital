@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:go_router/go_router.dart';
 
 /// Canal Android de alta prioridade para alertas de ponto.
 const AndroidNotificationChannel _alertChannel = AndroidNotificationChannel(
@@ -16,6 +17,9 @@ const AndroidNotificationChannel _alertChannel = AndroidNotificationChannel(
 final FlutterLocalNotificationsPlugin _localNotifications =
     FlutterLocalNotificationsPlugin();
 
+/// Router global injectado após MaterialApp ser criado.
+GoRouter? _router;
+
 /// Manipulador de mensagens em background (top-level, fora de qualquer classe).
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -24,6 +28,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 class NotificationService {
   NotificationService._();
+
+  /// Registar o router para permitir deep links.
+  static void setRouter(GoRouter router) => _router = router;
 
   static Future<void> init() async {
     // Configuração de notificações locais
@@ -107,13 +114,31 @@ class NotificationService {
   }
 
   static void _onNotificationTap(NotificationResponse response) {
-    // Navegação futura baseada em response.payload
-    if (kDebugMode) debugPrint('Notification tap: ${response.payload}');
+    final payload = response.payload;
+    if (payload != null) _navigateForType(payload, {});
   }
 
   static void _handleTap(RemoteMessage message) {
-    if (kDebugMode) {
-      debugPrint('FCM tap: ${message.data}');
+    final type = message.data['type'] as String?;
+    if (type != null) _navigateForType(type, message.data);
+  }
+
+  /// Mapeia o tipo de notificação para uma rota do GoRouter.
+  static void _navigateForType(String type, Map<String, dynamic> data) {
+    final router = _router;
+    if (router == null) return;
+
+    switch (type) {
+      case 'hour_bank_approved':
+      case 'hour_bank_rejected':
+        router.go('/home/balance');
+      case 'time_record_edit.approve':
+      case 'time_record_edit.reject':
+      case 'edit_request_approved':
+      case 'edit_request_rejected':
+        router.go('/home/edit-requests');
+      default:
+        router.go('/home');
     }
   }
 }

@@ -38,6 +38,9 @@ class PontoApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final mode = ref.watch(themeModeProvider);
 
+    // Registar o router no NotificationService para deep links
+    NotificationService.setRouter(router);
+
     return MaterialApp.router(
       title: 'Ponto Digital',
       debugShowCheckedModeBanner: false,

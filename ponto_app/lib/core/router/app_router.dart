@@ -14,7 +14,9 @@ import '../../presentation/profile/profile_screen.dart';
 import '../../presentation/edits/edit_requests_screen.dart';
 import '../../presentation/edits/request_edit_screen.dart';
 import '../../presentation/totem/totem_screen.dart';
+import '../../presentation/balance/request_leave_screen.dart';
 import '../../data/models/time_record_model.dart';
+import '../../data/models/hour_bank_request_model.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -131,6 +133,24 @@ final routerProvider = Provider<GoRouter>((ref) {
                 transitionsBuilder: (_, animation, __, child) => SlideTransition(
                   position: Tween<Offset>(
                     begin: const Offset(0, 0.1),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+                  child: child,
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'request-leave',
+            name: 'request-leave',
+            pageBuilder: (context, state) {
+              final balance = state.extra as HourBankBalanceModel;
+              return CustomTransitionPage(
+                key: state.pageKey,
+                child: RequestLeaveScreen(balance: balance),
+                transitionsBuilder: (_, animation, __, child) => SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 1),
                     end: Offset.zero,
                   ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
                   child: child,

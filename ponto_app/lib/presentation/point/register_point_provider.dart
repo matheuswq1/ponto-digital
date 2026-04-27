@@ -1,13 +1,19 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
 import '../../data/datasources/time_record_datasource.dart';
 import '../../data/models/time_record_model.dart';
+import '../../data/models/user_model.dart';
 import '../../services/location_service.dart';
 import '../../services/local_database_service.dart';
 import '../../services/device_service.dart';
 import '../../core/errors/app_exception.dart';
 
 enum RegisterPointStatus { idle, loadingLocation, takingPhoto, uploading, success, error, offline }
+
+/// Resultado da validação de políticas da empresa.
+enum PolicyCheckResult { ok, photoRequired, geofenceViolation, geofenceUnavailable }
 
 class RegisterPointState {
   final RegisterPointStatus status;
@@ -66,6 +72,42 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
     this._deviceService,
   ) : super(const RegisterPointState());
 
+  /// Valida as políticas da empresa antes de enviar.
+  /// Retorna [PolicyCheckResult.ok] se tudo estiver em ordem.
+  Future<PolicyCheckResult> checkCompanyPolicy({
+    required CompanyModel? company,
+    required File? photo,
+  }) async {
+    if (company == null) return PolicyCheckResult.ok;
+
+    // Verificar foto obrigatória
+    if (company.requirePhoto && photo == null) {
+      return PolicyCheckResult.photoRequired;
+    }
+
+    // Verificar geocerca
+    final geofence = company.geofence;
+    if (company.requireGeolocation &&
+        geofence != null &&
+        geofence.enabled &&
+        geofence.latitude != null &&
+        geofence.longitude != null) {
+      final location = await _locationService.getCurrentLocation();
+      if (location == null) return PolicyCheckResult.geofenceUnavailable;
+
+      final inside = _locationService.isWithinGeofence(
+        userLat: location.latitude,
+        userLon: location.longitude,
+        centerLat: geofence.latitude!,
+        centerLon: geofence.longitude!,
+        radiusMeters: geofence.radiusMeters.toDouble(),
+      );
+      if (!inside) return PolicyCheckResult.geofenceViolation;
+    }
+
+    return PolicyCheckResult.ok;
+  }
+
   Future<bool> register(String type, {File? photo}) async {
     state = state.copyWith(status: RegisterPointStatus.loadingLocation, errorMessage: null);
 
@@ -120,12 +162,28 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
     String deviceId,
     File? photo,
   ) async {
+    // Copiar foto para directório permanente da app para não perder com limpeza de cache
+    String? persistedPath;
+    if (photo != null) {
+      try {
+        final dbPath = await getDatabasesPath();
+        final offlineDir = Directory(join(dbPath, 'offline_photos'));
+        if (!offlineDir.existsSync()) offlineDir.createSync(recursive: true);
+        final dest = File(join(offlineDir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg'));
+        await photo.copy(dest.path);
+        persistedPath = dest.path;
+      } catch (_) {
+        persistedPath = photo.path;
+      }
+    }
+
     await _localDb.insertOfflineRecord({
       'employee_id': 0,
       'type': type,
       'datetime': DateTime.now().toUtc().toIso8601String(),
       'latitude': location?.latitude,
       'longitude': location?.longitude,
+      'photo_path': persistedPath,
       'device_id': deviceId,
       'is_mock_location': (location?.isMock ?? false) ? 1 : 0,
     });
@@ -136,16 +194,20 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
     if (pending.isEmpty) return {'synced': 0, 'failed': 0};
 
     try {
-      final result = await _datasource.syncOffline(
-        pending.map((r) => {
+      // Construir lista com foto como File quando disponível
+      final records = pending.map((r) {
+        return {
           'type': r['type'],
           'datetime': r['datetime'],
           'latitude': r['latitude'],
           'longitude': r['longitude'],
           'device_id': r['device_id'],
           'is_mock_location': r['is_mock_location'] == 1,
-        }).toList(),
-      );
+          if (r['photo_path'] != null) 'photo_path': r['photo_path'],
+        };
+      }).toList();
+
+      final result = await _datasource.syncOffline(records);
 
       final syncedIds = pending.map((r) => r['id'] as int).toList();
       await _localDb.markAllAsSynced(syncedIds);

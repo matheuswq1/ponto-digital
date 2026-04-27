@@ -125,12 +125,49 @@ class TimeRecordDatasource {
     }
   }
 
+  /// Sincroniza pontos offline. Se o registo tiver photo_path, envia como FormData multipart.
   Future<Map<String, dynamic>> syncOffline(List<Map<String, dynamic>> records) async {
     try {
-      final response = await _api.post('/time-records/sync-offline', data: {
-        'records': records,
-      });
-      return response.data;
+      // Verificar se algum registo tem foto para enviar como multipart
+      final hasPhotos = records.any((r) => r['photo_path'] != null);
+
+      if (!hasPhotos) {
+        final response = await _api.post('/time-records/sync-offline', data: {
+          'records': records.map((r) {
+            final copy = Map<String, dynamic>.from(r);
+            copy.remove('photo_path');
+            return copy;
+          }).toList(),
+        });
+        return response.data;
+      }
+
+      // Com fotos: enviar um a um para suportar multipart
+      int synced = 0;
+      int failed = 0;
+      for (final record in records) {
+        try {
+          final photoPath = record['photo_path'] as String?;
+          final photo = photoPath != null ? File(photoPath) : null;
+          await register(
+            type: record['type'] as String,
+            latitude: record['latitude'] as double?,
+            longitude: record['longitude'] as double?,
+            photo: photo,
+            deviceId: record['device_id'] as String?,
+            isMockLocation: record['is_mock_location'] as bool? ?? false,
+            offline: true,
+          );
+          synced++;
+          // Limpar foto local após sync bem-sucedido
+          if (photo != null && photo.existsSync()) {
+            try { photo.deleteSync(); } catch (_) {}
+          }
+        } catch (_) {
+          failed++;
+        }
+      }
+      return {'registered': synced, 'failed': failed};
     } catch (e) {
       throw _handleError(e);
     }

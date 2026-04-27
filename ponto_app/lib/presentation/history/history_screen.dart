@@ -178,6 +178,38 @@ class _DayGroup extends StatelessWidget {
     required this.onRecordTap,
   });
 
+  /// Calcula horas trabalhadas somando pares entrada/saída.
+  ({String worked, String? firstIn, String? lastOut}) _calcDay() {
+    final entries = records.where((r) => r.type == 'entrada').toList()
+      ..sort((a, b) => a.datetime.compareTo(b.datetime));
+    final exits = records.where((r) => r.type == 'saida').toList()
+      ..sort((a, b) => a.datetime.compareTo(b.datetime));
+
+    int totalMin = 0;
+    for (int i = 0; i < entries.length; i++) {
+      if (i < exits.length) {
+        final diff = exits[i].datetime.difference(entries[i].datetime).inMinutes;
+        if (diff > 0) totalMin += diff;
+      }
+    }
+
+    String fmtMin(int m) =>
+        '${(m ~/ 60).toString().padLeft(2, '0')}h${(m % 60).toString().padLeft(2, '0')}';
+
+    final firstIn = entries.isNotEmpty
+        ? entries.first.datetimeLocal.split(' ').last.substring(0, 5)
+        : null;
+    final lastOut = exits.isNotEmpty
+        ? exits.last.datetimeLocal.split(' ').last.substring(0, 5)
+        : null;
+
+    return (
+      worked: totalMin > 0 ? fmtMin(totalMin) : '—',
+      firstIn: firstIn,
+      lastOut: lastOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isToday = DateFormat('yyyy-MM-dd').format(date) ==
@@ -193,6 +225,8 @@ class _DayGroup extends StatelessWidget {
     } else {
       dateLabel = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(date);
     }
+
+    final summary = _calcDay();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,6 +248,37 @@ class _DayGroup extends StatelessWidget {
                 DateFormat('dd/MM', 'pt_BR').format(date),
                 style: const TextStyle(fontSize: 12, color: AppColors.textHint),
               ),
+              const Spacer(),
+              // Resumo: entrada → saída | tempo trabalhado
+              if (summary.firstIn != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.login, size: 12, color: AppColors.entrada),
+                    const SizedBox(width: 2),
+                    Text(summary.firstIn!,
+                        style: const TextStyle(fontSize: 11, color: AppColors.entrada, fontWeight: FontWeight.w600)),
+                    if (summary.lastOut != null) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.logout, size: 12, color: AppColors.saida),
+                      const SizedBox(width: 2),
+                      Text(summary.lastOut!,
+                          style: const TextStyle(fontSize: 11, color: AppColors.saida, fontWeight: FontWeight.w600)),
+                    ],
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        summary.worked,
+                        style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),

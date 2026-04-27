@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'register_point_provider.dart';
+import 'register_point_provider.dart' show registerPointProvider, RegisterPointStatus, PolicyCheckResult;
 import 'face_verify_step.dart';
 import '../home/today_provider.dart';
 import '../auth/auth_provider.dart';
@@ -83,6 +83,38 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   Future<void> _confirmRegister() async {
     final authState = ref.read(authProvider);
     final faceEnrolled = authState.user?.employee?.faceEnrolled ?? false;
+    final company = authState.user?.employee?.company ?? authState.user?.company;
+
+    // ── Verificar políticas da empresa ─────────────────────────────
+    final notifier = ref.read(registerPointProvider.notifier);
+    final policy = await notifier.checkCompanyPolicy(
+      company: company,
+      photo: _capturedPhoto,
+    );
+
+    if (!mounted) return;
+
+    if (policy == PolicyCheckResult.photoRequired) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Sua empresa exige foto para bater o ponto. Tire uma selfie antes.'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+
+    if (policy == PolicyCheckResult.geofenceViolation) {
+      _showGeofenceDialog();
+      return;
+    }
+
+    if (policy == PolicyCheckResult.geofenceUnavailable) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Não foi possível obter sua localização. Habilite o GPS e tente novamente.'),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
+    // ───────────────────────────────────────────────────────────────
 
     if (!faceEnrolled) {
       _showEnrollRequiredDialog();
@@ -111,7 +143,6 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
       return;
     }
 
-    final notifier = ref.read(registerPointProvider.notifier);
     final success = await notifier.register(widget.pointType, photo: _capturedPhoto);
 
     if (!mounted) return;
@@ -120,6 +151,32 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     if (success) {
       _showSuccessDialog(state.status == RegisterPointStatus.offline);
     }
+  }
+
+  void _showGeofenceDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_off, color: AppColors.error),
+            SizedBox(width: 10),
+            Expanded(child: Text('Fora da área permitida', style: TextStyle(fontSize: 16))),
+          ],
+        ),
+        content: const Text(
+          'Você está fora da área de trabalho configurada pela empresa.\n\n'
+          'Desloque-se para a área permitida e tente novamente.',
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendi'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showEnrollRequiredDialog() {
@@ -242,6 +299,9 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     final state = ref.watch(registerPointProvider);
     final label = AppConstants.pointTypeLabels[widget.pointType] ?? widget.pointType;
     final typeColor = _typeColor(widget.pointType);
+    final company = ref.read(authProvider).user?.employee?.company ??
+        ref.read(authProvider).user?.company;
+    final requirePhoto = company?.requirePhoto ?? false;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1E),
@@ -365,13 +425,39 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                       bottom: 20,
                       left: 0,
                       right: 0,
-                      child: Text(
-                        'Posicione seu rosto no círculo',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.65),
-                          fontSize: 14,
-                        ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Posicione seu rosto no círculo',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.65),
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (requirePhoto) ...[
+                            const SizedBox(height: 6),
+                            Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 40),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.warning.withValues(alpha: 0.6)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.camera_alt, color: AppColors.warning, size: 13),
+                                  SizedBox(width: 6),
+                                  Text('Foto obrigatória para esta empresa',
+                                      style: TextStyle(color: AppColors.warning, fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                 ],

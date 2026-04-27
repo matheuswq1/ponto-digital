@@ -20,7 +20,7 @@ class LocalDatabaseService {
 
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE offline_records (
@@ -30,13 +30,21 @@ class LocalDatabaseService {
             datetime TEXT NOT NULL,
             latitude REAL,
             longitude REAL,
-            photo_url TEXT,
+            photo_path TEXT,
             device_id TEXT,
             is_mock_location INTEGER DEFAULT 0,
             synced INTEGER DEFAULT 0,
             created_at TEXT NOT NULL
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Renomear photo_url para photo_path para armazenar caminho local
+          try {
+            await db.execute('ALTER TABLE offline_records ADD COLUMN photo_path TEXT');
+          } catch (_) {}
+        }
       },
     );
   }

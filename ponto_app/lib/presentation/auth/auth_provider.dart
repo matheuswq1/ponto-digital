@@ -73,6 +73,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return;
       }
       state = state.copyWith(status: AuthStatus.authenticated, user: user);
+      // Refrescar perfil em background sem bloquear o UI
+      refreshProfile();
     } catch (_) {
       state = state.copyWith(status: AuthStatus.unauthenticated);
     }
@@ -117,6 +119,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> login(String email, String password) async {
     final result = await loginFull(email, password);
     return result.isNotEmpty;
+  }
+
+  /// Refresca o perfil chamando GET /me. Silencioso em caso de erro (ex: offline).
+  Future<void> refreshProfile() async {
+    try {
+      final user = await _datasource.getMe();
+      state = state.copyWith(user: user);
+      // Persistir dados actualizados
+      await _datasource.persistUser(user);
+    } catch (_) {
+      // Silencioso — dados locais mantidos
+    }
   }
 
   Future<void> logout() async {

@@ -219,10 +219,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           }),
           const Divider(),
           ListTile(
+            leading: const Icon(Icons.notifications_outlined),
             title: const Text('Notificações', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
             subtitle: Text(
-              'O servidor já aceita o registo do token (FCM). Após adicionar '
-              'firebase_messaging e o google-services.json, chame a API de device-tokens no login.',
+              'Notificações push activas via Firebase Cloud Messaging. '
+              'Recebe alertas de folgas aprovadas/rejeitadas e correções de ponto.',
               style: TextStyle(fontSize: 13, color: subtle),
             ),
             isThreeLine: true,
