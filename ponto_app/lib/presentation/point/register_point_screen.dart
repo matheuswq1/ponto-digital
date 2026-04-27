@@ -356,6 +356,10 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
         ref.read(authProvider).user?.company;
     final requirePhoto = company?.requirePhoto ?? false;
 
+    // Diâmetro do círculo igual ao cálculo usado em _buildCameraWithCircle
+    final screenWidth = MediaQuery.of(context).size.width;
+    final circleDiameter = screenWidth * 0.72;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1E),
       appBar: AppBar(
@@ -370,23 +374,35 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Área da câmera com círculo central ──────────────────────────
+            // ── Área da câmera ──────────────────────────────────────────────
             Expanded(
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  // Fundo sólido (sem câmera a sangrar para fora do círculo)
                   Container(color: const Color(0xFF0A0F1E)),
 
-                  // Câmera
+                  // Círculo com câmera dentro (ClipOval) + borda
                   if (_cameraReady && _cameraController != null)
-                    _buildCameraWithCircle()
+                    _buildCameraWithCircle(circleDiameter)
                   else
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.camera_alt,
-                            color: Colors.white.withValues(alpha: 0.3), size: 64),
-                        const SizedBox(height: 12),
+                        Container(
+                          width: circleDiameter,
+                          height: circleDiameter,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF1A2035),
+                          ),
+                          child: Icon(
+                            Icons.camera_alt,
+                            color: Colors.white.withValues(alpha: 0.25),
+                            size: 64,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                         const Text(
                           'Câmera não disponível\nO ponto será registrado sem foto.',
                           textAlign: TextAlign.center,
@@ -395,7 +411,46 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                       ],
                     ),
 
-                  // Loading
+                  // Texto de instrução — centralizado abaixo do círculo
+                  if (!state.isLoading)
+                    Positioned(
+                      bottom: 12,
+                      left: 0,
+                      right: 0,
+                      child: Column(
+                        children: [
+                          Text(
+                            'Posicione seu rosto no círculo',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.45),
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (requirePhoto) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.camera_alt,
+                                    color: AppColors.warning.withValues(alpha: 0.8),
+                                    size: 11),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Foto obrigatória',
+                                  style: TextStyle(
+                                    color: AppColors.warning.withValues(alpha: 0.8),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                  // Loading overlay
                   if (state.isLoading)
                     Container(
                       color: Colors.black.withValues(alpha: 0.65),
@@ -417,7 +472,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                   // Erro
                   if (state.status == RegisterPointStatus.error)
                     Positioned(
-                      bottom: 20,
+                      bottom: 12,
                       left: 20,
                       right: 20,
                       child: Container(
@@ -467,51 +522,22 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                         ),
                       ),
                     ),
-
-                  // Instrução
-                  if (!state.isLoading)
-                    Positioned(
-                      bottom: 16,
-                      left: 0,
-                      right: 0,
-                      child: Column(
-                        children: [
-                          Text(
-                            'Posicione seu rosto no círculo',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontSize: 13,
-                            ),
-                          ),
-                          if (requirePhoto) ...[
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.camera_alt,
-                                    color: AppColors.warning.withValues(alpha: 0.8),
-                                    size: 11),
-                                const SizedBox(width: 4),
-                                Text('Foto obrigatória',
-                                    style: TextStyle(
-                                        color: AppColors.warning.withValues(alpha: 0.8),
-                                        fontSize: 11)),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
                 ],
               ),
             ),
 
-            // ── Área inferior — igual ao totem ───────────────────────────────
+            // ── Área inferior fixa ───────────────────────────────────────────
+            // Usa MediaQuery.padding.bottom para nunca sobrepormos a barra do sistema
             Container(
               color: const Color(0xFF0A0F1E),
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+              padding: EdgeInsets.fromLTRB(
+                24,
+                16,
+                24,
+                16 + MediaQuery.of(context).padding.bottom,
+              ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Badge tipo de ponto
                   Container(
@@ -539,7 +565,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Botão circular único — capta foto e regista de uma vez
+                  // Botão circular
                   GestureDetector(
                     onTap: state.isLoading ? null : _captureAndRegister,
                     child: AnimatedContainer(
@@ -587,46 +613,33 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     );
   }
 
-  /// Câmera com círculo guia central, igual ao Totem.
-  Widget _buildCameraWithCircle() {
+  /// Câmera contida no círculo — idêntico ao Totem (ClipOval + borda).
+  /// O fundo fora do círculo é o próprio Container sólido do pai.
+  Widget _buildCameraWithCircle(double circleDiameter) {
     final cam = _cameraController!;
-    final size = MediaQuery.of(context).size;
-    final circleDiameter = size.width * 0.72;
     final aspect = 1.0 / cam.value.aspectRatio;
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Preview em full screen com crop
-        SizedBox.expand(
-          child: FittedBox(
-            fit: BoxFit.cover,
-            child: SizedBox(
-              width: cam.value.previewSize?.height ?? 480,
-              height: cam.value.previewSize?.width ?? 640,
-              child: AspectRatio(
-                aspectRatio: aspect,
-                child: CameraPreview(cam),
-              ),
+    return Container(
+      width: circleDiameter,
+      height: circleDiameter,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white24, width: 2),
+      ),
+      child: ClipOval(
+        child: FittedBox(
+          fit: BoxFit.cover,
+          clipBehavior: Clip.hardEdge,
+          child: SizedBox(
+            width: cam.value.previewSize?.height ?? 480,
+            height: cam.value.previewSize?.width ?? 640,
+            child: AspectRatio(
+              aspectRatio: aspect,
+              child: CameraPreview(cam),
             ),
           ),
         ),
-        // Escurecimento fora do círculo
-        SizedBox.expand(
-          child: CustomPaint(
-            painter: _CircleOverlayPainter(diameter: circleDiameter),
-          ),
-        ),
-        // Borda do círculo
-        Container(
-          width: circleDiameter,
-          height: circleDiameter,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white54, width: 2),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -665,25 +678,3 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   }
 }
 
-/// Pinta um overlay escuro em torno do círculo central.
-class _CircleOverlayPainter extends CustomPainter {
-  final double diameter;
-  const _CircleOverlayPainter({required this.diameter});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0x99000000);
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = diameter / 2;
-
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addOval(Rect.fromCircle(center: center, radius: radius))
-      ..fillType = PathFillType.evenOdd;
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_CircleOverlayPainter old) => old.diameter != diameter;
-}
