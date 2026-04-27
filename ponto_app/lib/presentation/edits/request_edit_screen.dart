@@ -27,9 +27,11 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
   bool _sending = false;
   String? _error;
 
-  // Controladores de texto para hora e minuto
+  // Controladores e focus nodes para hora e minuto
   late TextEditingController _hourCtrl;
   late TextEditingController _minuteCtrl;
+  late FocusNode _hourFocus;
+  late FocusNode _minuteFocus;
 
   @override
   void initState() {
@@ -40,6 +42,16 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
         text: _newDateTime.hour.toString().padLeft(2, '0'));
     _minuteCtrl = TextEditingController(
         text: _newDateTime.minute.toString().padLeft(2, '0'));
+
+    // Formatar e aplicar só quando o campo perde o foco
+    _hourFocus = FocusNode()
+      ..addListener(() {
+        if (!_hourFocus.hasFocus) _applyTimeFields();
+      });
+    _minuteFocus = FocusNode()
+      ..addListener(() {
+        if (!_minuteFocus.hasFocus) _applyTimeFields();
+      });
   }
 
   @override
@@ -47,6 +59,8 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     _justification.dispose();
     _hourCtrl.dispose();
     _minuteCtrl.dispose();
+    _hourFocus.dispose();
+    _minuteFocus.dispose();
     super.dispose();
   }
 
@@ -88,20 +102,44 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     });
   }
 
-  // ── Aplicar hora/minuto dos campos de texto ────────────────────────────────
+  // ── Aplicar hora/minuto dos campos de texto (só ao perder foco ou enviar) ──
   void _applyTimeFields() {
-    final h = int.tryParse(_hourCtrl.text) ?? _newDateTime.hour;
-    final m = int.tryParse(_minuteCtrl.text) ?? _newDateTime.minute;
+    final raw = _hourCtrl.text.trim();
+    final rawM = _minuteCtrl.text.trim();
+    final h = int.tryParse(raw) ?? _newDateTime.hour;
+    final m = int.tryParse(rawM) ?? _newDateTime.minute;
     final hClamped = h.clamp(0, 23);
     final mClamped = m.clamp(0, 59);
-    setState(() {
-      _newDateTime = DateTime(
-        _newDateTime.year, _newDateTime.month, _newDateTime.day,
-        hClamped, mClamped,
-      );
-      _hourCtrl.text = hClamped.toString().padLeft(2, '0');
-      _minuteCtrl.text = mClamped.toString().padLeft(2, '0');
-    });
+
+    final fmtH = hClamped.toString().padLeft(2, '0');
+    final fmtM = mClamped.toString().padLeft(2, '0');
+
+    // Só atualizar se realmente mudou para não interferir com a edição em curso
+    final dateChanged = hClamped != _newDateTime.hour || mClamped != _newDateTime.minute;
+    final textHChanged = _hourCtrl.text != fmtH;
+    final textMChanged = _minuteCtrl.text != fmtM;
+
+    if (dateChanged || textHChanged || textMChanged) {
+      setState(() {
+        _newDateTime = DateTime(
+          _newDateTime.year, _newDateTime.month, _newDateTime.day,
+          hClamped, mClamped,
+        );
+      });
+      // Atualizar texto preservando posição do cursor apenas se diferente
+      if (textHChanged) {
+        _hourCtrl.value = TextEditingValue(
+          text: fmtH,
+          selection: TextSelection.collapsed(offset: fmtH.length),
+        );
+      }
+      if (textMChanged) {
+        _minuteCtrl.value = TextEditingValue(
+          text: fmtM,
+          selection: TextSelection.collapsed(offset: fmtM.length),
+        );
+      }
+    }
   }
 
   // ── Enviar ────────────────────────────────────────────────────────────────
@@ -288,11 +326,12 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
                   Expanded(
                     child: _TimeField(
                       controller: _hourCtrl,
+                      focusNode: _hourFocus,
+                      nextFocus: _minuteFocus,
                       label: 'Hora',
                       hint: '00–23',
                       max: 23,
                       changed: _timeChanged,
-                      onChanged: (_) => _applyTimeFields(),
                     ),
                   ),
                   Padding(
@@ -317,11 +356,11 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
                   Expanded(
                     child: _TimeField(
                       controller: _minuteCtrl,
+                      focusNode: _minuteFocus,
                       label: 'Minuto',
                       hint: '00–59',
                       max: 59,
                       changed: _timeChanged,
-                      onChanged: (_) => _applyTimeFields(),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -673,19 +712,21 @@ class _OriginalCard extends StatelessWidget {
 
 class _TimeField extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode focusNode;
+  final FocusNode? nextFocus;
   final String label;
   final String hint;
   final int max;
   final bool changed;
-  final ValueChanged<String> onChanged;
 
   const _TimeField({
     required this.controller,
+    required this.focusNode,
+    this.nextFocus,
     required this.label,
     required this.hint,
     required this.max,
     required this.changed,
-    required this.onChanged,
   });
 
   @override
@@ -698,12 +739,24 @@ class _TimeField extends StatelessWidget {
         const SizedBox(height: 4),
         TextFormField(
           controller: controller,
+          focusNode: focusNode,
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
-          maxLength: 2,
+          // Sem maxLength para não mostrar contador — a validação é por clamp
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: onChanged,
-          onEditingComplete: () => onChanged(controller.text),
+          // Selecionar tudo ao ganhar foco para facilitar substituição
+          onTap: () => controller.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: controller.text.length,
+          ),
+          // Ao confirmar, mover para próximo campo (minuto) ou fechar teclado
+          onEditingComplete: () {
+            if (nextFocus != null) {
+              FocusScope.of(context).requestFocus(nextFocus);
+            } else {
+              focusNode.unfocus();
+            }
+          },
           decoration: InputDecoration(
             counterText: '',
             hintText: hint,
