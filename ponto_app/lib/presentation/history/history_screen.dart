@@ -126,14 +126,54 @@ class HistoryScreen extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (record.hasPendingEdit)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.hourglass_top_rounded, color: AppColors.warning, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Já existe uma solicitação pendente para este ponto. Aguarde a resposta do gestor.',
+                        style: TextStyle(fontSize: 13, color: AppColors.warning),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ListTile(
-              leading: const Icon(Icons.edit_note, color: AppColors.primary),
-              title: const Text('Solicitar correção'),
-              subtitle: const Text('Peça ajuste de horário/tipo ao gestor'),
-              onTap: () {
-                Navigator.pop(ctx);
-                context.pushNamed('request-edit', extra: record);
-              },
+              leading: Icon(
+                Icons.edit_note,
+                color: record.hasPendingEdit ? AppColors.textHint : AppColors.primary,
+              ),
+              title: Text(
+                'Solicitar correção',
+                style: TextStyle(
+                  color: record.hasPendingEdit ? AppColors.textHint : AppColors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                record.hasPendingEdit
+                    ? 'Solicitação já enviada — aguardando aprovação'
+                    : 'Peça ajuste de horário/tipo ao gestor',
+                style: TextStyle(
+                  color: record.hasPendingEdit ? AppColors.warning : AppColors.textSecondary,
+                  fontWeight: record.hasPendingEdit ? FontWeight.w500 : FontWeight.normal,
+                ),
+              ),
+              onTap: record.hasPendingEdit
+                  ? null // desativado
+                  : () {
+                      Navigator.pop(ctx);
+                      context.pushNamed('request-edit', extra: record);
+                    },
             ),
             if (record.photoUrl != null)
               ListTile(
@@ -346,6 +386,8 @@ class _RecordItem extends StatelessWidget {
         children: [
           if (record.offline)
             const _Tag(label: 'Offline', color: AppColors.warning),
+          if (record.hasPendingEdit)
+            const _Tag(label: 'Correção pendente', color: AppColors.warning),
           if (record.isEdited)
             const _Tag(label: 'Editado', color: AppColors.info),
           if (record.isMockLocation)

@@ -28,6 +28,7 @@ class TimeRecordResource extends JsonResource
             'status' => $this->status,
             'rejection_reason' => $this->rejection_reason,
             'is_edited' => $this->is_edited,
+            'has_pending_edit' => $this->edits()->where('status', 'pendente')->exists(),
             'edits' => $this->whenLoaded('edits', fn() => TimeRecordEditResource::collection($this->edits)),
             'created_at' => $this->created_at?->toISOString(),
         ];

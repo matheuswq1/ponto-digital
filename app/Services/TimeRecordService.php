@@ -188,6 +188,14 @@ class TimeRecordService
             ]);
         }
 
+        // Bloquear pedido duplicado enquanto o anterior estiver pendente
+        $hasPending = $record->edits()->where('status', 'pendente')->exists();
+        if ($hasPending) {
+            throw ValidationException::withMessages([
+                'record' => ['Já existe uma solicitação de correção pendente para este registro. Aguarde a resposta do gestor.']
+            ]);
+        }
+
         return $record->edits()->create([
             'edited_by' => $editedByUserId,
             'original_datetime' => $record->datetime,

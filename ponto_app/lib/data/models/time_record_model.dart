@@ -11,6 +11,8 @@ class TimeRecordModel {
   final bool isMockLocation;
   final bool offline;
   final bool isEdited;
+  /// Verdadeiro se já existe uma solicitação de correção PENDENTE para este registo.
+  final bool hasPendingEdit;
   final String? deviceId;
 
   const TimeRecordModel({
@@ -26,6 +28,7 @@ class TimeRecordModel {
     this.isMockLocation = false,
     this.offline = false,
     this.isEdited = false,
+    this.hasPendingEdit = false,
     this.deviceId,
   });
 
@@ -51,6 +54,7 @@ class TimeRecordModel {
       isMockLocation: json['is_mock_location'] ?? false,
       offline: json['offline'] ?? false,
       isEdited: json['is_edited'] ?? false,
+      hasPendingEdit: json['has_pending_edit'] ?? false,
     );
   }
 
@@ -77,6 +81,7 @@ class TimeRecordModel {
         'is_mock_location': isMockLocation,
         'offline': offline,
         'is_edited': isEdited,
+        'has_pending_edit': hasPendingEdit,
       };
 
   // Para salvar no SQLite local
@@ -105,6 +110,7 @@ class TimeRecordModel {
         isMockLocation: isMockLocation,
         offline: offline ?? this.offline,
         isEdited: isEdited,
+        hasPendingEdit: hasPendingEdit,
         deviceId: deviceId,
       );
 }
