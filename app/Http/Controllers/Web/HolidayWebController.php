@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Holiday;
+use App\Services\AuditService;
 use App\Services\HolidayService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,8 +55,18 @@ class HolidayWebController extends Controller
         $data['recurring'] = $request->boolean('recurring');
         $data['company_id'] = $data['company_id'] ?? null;
 
-        Holiday::create($data);
+        $h = Holiday::create($data);
         Cache::flush();
+
+        AuditService::log(
+            $request->user(),
+            'holiday.create',
+            'Feriado criado: '.$h->name,
+            $h,
+            null,
+            $h->company_id,
+            $request
+        );
 
         return back()->with('success', 'Feriado cadastrado com sucesso.');
     }
@@ -80,15 +91,38 @@ class HolidayWebController extends Controller
         $holiday->update($data);
         Cache::flush();
 
+        AuditService::log(
+            $request->user(),
+            'holiday.update',
+            'Feriado actualizado: '.$holiday->name,
+            $holiday->fresh(),
+            null,
+            $holiday->company_id,
+            $request
+        );
+
         return back()->with('success', 'Feriado atualizado.');
     }
 
-    public function destroy(Holiday $holiday): RedirectResponse
+    public function destroy(Request $request, Holiday $holiday): RedirectResponse
     {
         $this->authorize('manage-employees');
 
+        $name = $holiday->name;
+        $cid  = $holiday->company_id;
+        $id   = $holiday->id;
         $holiday->delete();
         Cache::flush();
+
+        AuditService::log(
+            $request->user(),
+            'holiday.delete',
+            'Feriado removido: '.$name,
+            null,
+            ['deleted_id' => $id, 'name' => $name],
+            $cid,
+            $request
+        );
 
         return back()->with('success', 'Feriado removido.');
     }
@@ -113,6 +147,16 @@ class HolidayWebController extends Controller
                 $msg = "Sincronizados {$total} feriados para todas as empresas ({$year}).";
             }
             Cache::flush();
+
+            AuditService::log(
+                $request->user(),
+                'holiday.sync',
+                $msg,
+                null,
+                ['year' => $year, 'company_id' => $companyId],
+                $companyId ? (int) $companyId : null,
+                $request
+            );
         } catch (\Throwable $e) {
             return back()->with('error', 'Erro ao sincronizar: ' . $e->getMessage());
         }

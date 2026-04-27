@@ -20,4 +20,9 @@ class AppPolicy
     {
         return in_array($user->role, ['admin', 'gestor']);
     }
+
+    public function viewAuditLogs(User $user): bool
+    {
+        return in_array($user->role, ['admin', 'gestor']);
+    }
 }

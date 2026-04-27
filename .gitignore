@@ -31,6 +31,9 @@ ponto_app/.flutter-plugins
 ponto_app/.flutter-plugins-dependencies
 # Face service data (embeddings são dados sensíveis, não versionar)
 face_service/data/
+face_service/__pycache__/
+# Firebase service account keys (nunca versionar)
+*firebase*adminsdk*.json
 # Deploy secrets (nunca versionar)
 deploy/.env
 deploy/secret.txt

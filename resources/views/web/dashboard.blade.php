@@ -4,6 +4,48 @@
 
 @section('content')
 
+@php
+    $periodLabel = $rangeStart->locale('pt_BR')->isoFormat('D MMM') . ' — ' . $rangeEnd->locale('pt_BR')->isoFormat('D MMM YYYY');
+    $qCompany = (auth()->user()->isAdmin() && ($companyId ?? null)) ? ['company_id' => $companyId] : [];
+@endphp
+
+@if(auth()->user()->isAdmin() || auth()->user()->isGestor())
+<form method="get" class="mb-6 flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Período</label>
+        <select name="period" class="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white min-w-[11rem]">
+            <option value="today" @selected($period==='today')>Hoje</option>
+            <option value="7d" @selected($period==='7d')>Últimos 7 dias</option>
+            <option value="30d" @selected($period==='30d')>Últimos 30 dias</option>
+            <option value="month" @selected($period==='month')>Mês corrente</option>
+            <option value="custom" @selected($period==='custom')>Personalizado</option>
+        </select>
+    </div>
+    @if($period === 'custom')
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">De</label>
+        <input type="date" name="date_from" value="{{ $dateFromParam }}" class="text-sm border border-slate-300 rounded-lg px-3 py-2">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Até</label>
+        <input type="date" name="date_to" value="{{ $dateToParam }}" class="text-sm border border-slate-300 rounded-lg px-3 py-2">
+    </div>
+    @endif
+    @if(auth()->user()->isAdmin() && $companies->isNotEmpty())
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Empresa</label>
+        <select name="company_id" class="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white min-w-[12rem]">
+            <option value="">Todas</option>
+            @foreach($companies as $c)
+                <option value="{{ $c->id }}" @selected($companyId == $c->id)>{{ $c->name }}</option>
+            @endforeach
+        </select>
+    </div>
+    @endif
+    <button type="submit" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg">Aplicar</button>
+</form>
+@endif
+
 {{-- ===== CARDS ===== --}}
 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
 
@@ -43,12 +85,13 @@
     </a>
 
     {{-- Registros hoje --}}
-    <a href="{{ route('painel.pontos.index') }}"
+    <a href="{{ route('painel.pontos.index', $qCompany) }}"
        class="group bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-indigo-300 transition">
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Registros hoje</p>
-                <p class="mt-2 text-4xl font-bold text-slate-800">{{ $todayTotal }}</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Registos no período</p>
+                <p class="mt-2 text-4xl font-bold text-slate-800">{{ $recordsInRange }}</p>
+                <p class="mt-1 text-xs text-slate-400">Colaboradores com registo: {{ $uniqueEmployees }}</p>
             </div>
             <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -56,7 +99,8 @@
                 </svg>
             </span>
         </div>
-        <p class="mt-3 text-xs text-indigo-500 group-hover:underline">Ver pontos →</p>
+        <p class="mt-2 text-xs text-slate-500 line-clamp-2">{{ $periodLabel }}</p>
+        <p class="mt-2 text-xs text-indigo-500 group-hover:underline">Ver pontos →</p>
     </a>
     @endif
 
@@ -83,10 +127,10 @@
 
 {{-- Cards extras: ausentes + banco de horas pendentes --}}
 <div class="grid gap-4 sm:grid-cols-2 mb-6">
-    <div class="bg-white rounded-xl border {{ $absentsToday > 0 ? 'border-rose-200' : 'border-slate-200' }} p-5 shadow-sm">
-        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ausentes hoje</p>
-        <p class="mt-2 text-4xl font-bold {{ $absentsToday > 0 ? 'text-rose-600' : 'text-slate-800' }}">{{ $absentsToday }}</p>
-        <p class="mt-1 text-xs text-slate-400">Colaboradores sem registo até agora</p>
+    <div class="bg-white rounded-xl border {{ $absentsEndDay > 0 ? 'border-rose-200' : 'border-slate-200' }} p-5 shadow-sm">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sem ponto (último dia)</p>
+        <p class="mt-2 text-4xl font-bold {{ $absentsEndDay > 0 ? 'text-rose-600' : 'text-slate-800' }}">{{ $absentsEndDay }}</p>
+        <p class="mt-1 text-xs text-slate-400">Colaboradores sem registo a {{ $rangeEnd->format('d/m/Y') }} (empresa do filtro)</p>
     </div>
     <a href="{{ route('painel.hour-bank.index') }}"
        class="group bg-white rounded-xl border {{ $pendingHourBank > 0 ? 'border-amber-200' : 'border-slate-200' }} p-5 shadow-sm hover:shadow-md transition">
@@ -100,7 +144,8 @@
 
     {{-- ===== GRÁFICO DE BARRAS (7 dias) ===== --}}
     <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 class="text-sm font-semibold text-slate-700 mb-4">Pontos registados — últimos 7 dias</h2>
+        <h2 class="text-sm font-semibold text-slate-700 mb-1">Pontos registados</h2>
+        <p class="text-xs text-slate-400 mb-3">{{ $periodLabel }}</p>
         <div class="flex items-end gap-2 h-36">
             @foreach($weekChart as $day)
             @php $pct = $chartMax > 0 ? ($day['count'] / $chartMax) * 100 : 0; @endphp
@@ -119,11 +164,11 @@
     {{-- ===== ATIVIDADE RECENTE ===== --}}
     <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 class="text-sm font-semibold text-slate-700">Últimos registros hoje</h2>
-            <a href="{{ route('painel.pontos.index') }}" class="text-xs text-indigo-500 hover:underline">Ver todos</a>
+            <h2 class="text-sm font-semibold text-slate-700">Registos recentes</h2>
+            <a href="{{ route('painel.pontos.index', $qCompany) }}" class="text-xs text-indigo-500 hover:underline">Ver todos</a>
         </div>
         @if($recentRecords->isEmpty())
-            <p class="px-5 py-8 text-sm text-slate-400 text-center">Nenhum registro hoje.</p>
+            <p class="px-5 py-8 text-sm text-slate-400 text-center">Nenhum registo no período.</p>
         @else
         <ul class="divide-y divide-slate-100">
             @foreach($recentRecords as $rec)
@@ -151,8 +196,8 @@
 @if($deptStats->isNotEmpty())
 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-slate-700">Presença por departamento — hoje</h2>
-        <span class="text-xs text-slate-400">{{ now()->format('d/m/Y') }}</span>
+        <h2 class="text-sm font-semibold text-slate-700">Por departamento (período)</h2>
+        <span class="text-xs text-slate-400">{{ $periodLabel }}</span>
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
@@ -168,12 +213,12 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @foreach($deptStats as $ds)
-                @php $pct = $ds['total'] > 0 ? round($ds['ponto_hoje'] / $ds['total'] * 100) : 0; @endphp
+                @php $pct = $ds['total'] > 0 ? round($ds['ponto'] / $ds['total'] * 100) : 0; @endphp
                 <tr class="hover:bg-slate-50">
                     @if(auth()->user()->isAdmin())<td class="px-4 py-2 text-slate-500 text-xs">{{ $ds['company'] }}</td>@endif
                     <td class="px-4 py-2 font-medium text-slate-800">{{ $ds['name'] }}</td>
                     <td class="px-4 py-2 text-center text-slate-600">{{ $ds['total'] }}</td>
-                    <td class="px-4 py-2 text-center text-emerald-600 font-semibold">{{ $ds['ponto_hoje'] }}</td>
+                    <td class="px-4 py-2 text-center text-emerald-600 font-semibold">{{ $ds['ponto'] }}</td>
                     <td class="px-4 py-2 text-center {{ $ds['ausentes'] > 0 ? 'text-rose-600 font-semibold' : 'text-slate-400' }}">{{ $ds['ausentes'] }}</td>
                     <td class="px-4 py-2 text-center">
                         <div class="flex items-center gap-2 justify-center">

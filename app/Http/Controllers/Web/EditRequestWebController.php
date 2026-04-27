@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\TimeRecordEdit;
+use App\Services\AuditService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -36,7 +37,19 @@ class EditRequestWebController extends Controller
         }
 
         $edit->approve($request->user(), $data['notes'] ?? null);
-        app(\App\Services\PushNotificationService::class)->notifyEditRequestResolved($edit->fresh(), 'aprovado', $data['notes'] ?? null);
+        $edit = $edit->fresh();
+        app(\App\Services\PushNotificationService::class)->notifyEditRequestResolved($edit, 'aprovado', $data['notes'] ?? null);
+
+        $e = $edit->timeRecord?->employee;
+        AuditService::log(
+            $request->user(),
+            'time_record_edit.approve',
+            'Correção de ponto aprovada',
+            $edit,
+            ['notes' => $data['notes'] ?? null],
+            $e?->company_id,
+            $request
+        );
 
         return back()->with('success', 'Correção aprovada.');
     }
@@ -54,7 +67,19 @@ class EditRequestWebController extends Controller
         }
 
         $edit->reject($request->user(), $data['notes']);
-        app(\App\Services\PushNotificationService::class)->notifyEditRequestResolved($edit->fresh(), 'rejeitado', $data['notes']);
+        $edit = $edit->fresh();
+        app(\App\Services\PushNotificationService::class)->notifyEditRequestResolved($edit, 'rejeitado', $data['notes']);
+
+        $e = $edit->timeRecord?->employee;
+        AuditService::log(
+            $request->user(),
+            'time_record_edit.reject',
+            'Correção de ponto rejeitada: '.$data['notes'],
+            $edit,
+            null,
+            $e?->company_id,
+            $request
+        );
 
         return back()->with('success', 'Correção rejeitada.');
     }

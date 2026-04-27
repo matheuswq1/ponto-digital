@@ -34,5 +34,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-companies', [AppPolicy::class, 'manageCompanies']);
         Gate::define('manage-employees', [AppPolicy::class, 'manageEmployees']);
         Gate::define('approve-edit-requests', [AppPolicy::class, 'approveEditRequests']);
+        Gate::define('view-audit-logs', [AppPolicy::class, 'viewAuditLogs']);
     }
 }

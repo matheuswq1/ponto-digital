@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Web\AuditLogWebController;
 use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DepartmentWebController;
@@ -56,9 +57,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/pontos/exportar', [TimeRecordWebController::class, 'export'])->name('pontos.export');
         Route::get('/pontos/cartao', [TimeRecordWebController::class, 'cartaoPonto'])->name('pontos.cartao');
 
+        Route::get('/auditoria', [AuditLogWebController::class, 'index'])->name('audit.index');
+
         // Relatórios
         Route::get('/relatorios/folha-pagamento', [ReportWebController::class, 'folhaPagamento'])->name('reports.folha-pagamento');
         Route::get('/relatorios/presenca', [ReportWebController::class, 'presenca'])->name('reports.presenca');
+        Route::get('/relatorios/banco-horas', [ReportWebController::class, 'bancoHoras'])->name('reports.banco-horas');
 
         // Feriados
         Route::get('/feriados', [HolidayWebController::class, 'index'])->name('holidays.index');

@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\TimeRecord;
 use App\Models\User;
 use App\Models\WorkSchedule;
+use App\Services\AuditService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -225,6 +226,17 @@ class EmployeeWebController extends Controller
             }
         });
 
+        $employee->refresh();
+        AuditService::log(
+            $request->user(),
+            'employee.update',
+            'Colaborador actualizado: '.$employee->user?->name,
+            $employee,
+            null,
+            $employee->company_id,
+            $request
+        );
+
         $msg = 'Colaborador atualizado com sucesso.';
         if ($isPending && !str_ends_with($request->email, '@importado.local')) {
             $msg = 'Colaborador atualizado. Acesso ao app liberado — defina a senha na seção abaixo.';
@@ -234,12 +246,22 @@ class EmployeeWebController extends Controller
             ->with('success', $msg);
     }
 
-    public function toggle(Employee $employee): RedirectResponse
+    public function toggle(Request $request, Employee $employee): RedirectResponse
     {
         $this->authorize('manage-employees');
 
         $employee->update(['active' => !$employee->active]);
         $msg = $employee->active ? 'Colaborador reativado.' : 'Colaborador desativado.';
+
+        AuditService::log(
+            $request->user(),
+            'employee.toggle',
+            $msg.' — '.$employee->user?->name,
+            $employee,
+            ['active' => $employee->active],
+            $employee->company_id,
+            $request
+        );
 
         return back()->with('success', $msg);
     }

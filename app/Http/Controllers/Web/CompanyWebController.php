@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Services\AuditService;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -176,6 +177,16 @@ class CompanyWebController extends Controller
             'lunch_duration' => $request->lunch_duration,
             'max_daily_records' => $request->integer('max_daily_records') ?: 10,
         ]);
+
+        AuditService::log(
+            $request->user(),
+            'company.update',
+            'Empresa actualizada: '.$company->name,
+            $company,
+            null,
+            $company->id,
+            $request
+        );
 
         return redirect()
             ->route('painel.companies.show', array_merge(['company' => $company->id], ['tab' => 'dados']))

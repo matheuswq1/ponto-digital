@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\HourBankRequest;
 use App\Models\HourBankTransaction;
+use App\Services\AuditService;
 use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,6 +57,16 @@ class HourBankWebController extends Controller
 
         $hourBankRequest->approve($request->user(), $request->get('notes'));
 
+        AuditService::log(
+            $request->user(),
+            'hour_bank.approve',
+            'Folga aprovada para '.$hourBankRequest->requested_date->format('d/m/Y'),
+            $hourBankRequest->fresh(),
+            ['notes' => $request->get('notes')],
+            $employee->company_id,
+            $request
+        );
+
         $this->push->sendToEmployee($employee, [
             'title' => 'Folga aprovada',
             'body'  => 'Sua solicitação de folga para ' . $hourBankRequest->requested_date->format('d/m/Y') . ' foi aprovada.',
@@ -78,6 +89,16 @@ class HourBankWebController extends Controller
         }
 
         $hourBankRequest->reject($request->user(), $request->get('notes'));
+
+        AuditService::log(
+            $request->user(),
+            'hour_bank.reject',
+            'Folga rejeitada: '.$request->get('notes'),
+            $hourBankRequest->fresh(),
+            null,
+            $hourBankRequest->employee->company_id,
+            $request
+        );
 
         $this->push->sendToEmployee($hourBankRequest->employee, [
             'title' => 'Folga não aprovada',
@@ -122,7 +143,7 @@ class HourBankWebController extends Controller
             'date'        => 'required|date',
         ]);
 
-        HourBankTransaction::create([
+        $tx = HourBankTransaction::create([
             'employee_id'    => $employee->id,
             'type'           => 'ajuste_manual',
             'minutes'        => $data['minutes'],
@@ -130,6 +151,16 @@ class HourBankWebController extends Controller
             'reference_date' => $data['date'],
             'created_by'     => $request->user()->id,
         ]);
+
+        AuditService::log(
+            $request->user(),
+            'hour_bank.manual_adjust',
+            'Ajuste manual: '.$data['description'],
+            $tx,
+            ['minutes' => $data['minutes'], 'date' => $data['date']],
+            $employee->company_id,
+            $request
+        );
 
         return back()->with('success', 'Ajuste manual registrado com sucesso.');
     }

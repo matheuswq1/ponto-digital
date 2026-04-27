@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Holiday;
+use App\Models\HourBankTransaction;
 use App\Models\TimeRecord;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -267,6 +268,184 @@ class ReportWebController extends Controller
             'rows', 'dates', 'dateFrom', 'dateTo',
             'companies', 'departments', 'companyId', 'deptId'
         ));
+    }
+
+    /**
+     * Extrato mensal de banco de horas: saldo inicial, movimentos e saldo final por colaborador.
+     */
+    public function bancoHoras(Request $request)
+    {
+        $this->authorize('manage-employees');
+
+        $user = $request->user();
+        $tz   = config('app.timezone', 'America/Sao_Paulo');
+
+        $ym = $request->get('ym', now($tz)->format('Y-m'));
+        try {
+            $monthRef = Carbon::createFromFormat('Y-m', $ym, $tz)->startOfMonth();
+        } catch (\Throwable $e) {
+            $monthRef = now($tz)->startOfMonth();
+            $ym       = $monthRef->format('Y-m');
+        }
+        $monthStart = $monthRef->copy();
+        $monthEnd   = $monthRef->copy()->endOfMonth();
+        $refStart   = $monthStart->toDateString();
+        $refEnd     = $monthEnd->toDateString();
+
+        $companyId = $request->get('company_id');
+        $deptId    = $request->get('dept_id');
+        if ($user->isGestor() && $user->company_id) {
+            $companyId = $user->company_id;
+        } elseif (! $user->isAdmin()) {
+            $companyId = null;
+        }
+
+        $companies   = Company::orderBy('name')->get();
+        $departments = Department::query()
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->orderBy('name')
+            ->get();
+
+        $employees = Employee::with(['user', 'company', 'dept'])
+            ->where('active', true)
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->when($deptId, fn ($q) => $q->where('department_id', $deptId))
+            ->orderBy('id')
+            ->get();
+
+        $fmtMin = static fn (int $m): string => $m === 0 ? '00:00' : sprintf('%02d:%02d', (int) abs($m / 60), abs($m) % 60);
+        $signMin = static fn (int $m): string => ($m < 0 ? '−' : '+').$fmtMin(abs($m));
+
+        $sections = [];
+        foreach ($employees as $emp) {
+            $initial = (int) HourBankTransaction::query()
+                ->where('employee_id', $emp->id)
+                ->where('reference_date', '<', $refStart)
+                ->sum('minutes');
+
+            $transactions = HourBankTransaction::query()
+                ->where('employee_id', $emp->id)
+                ->whereBetween('reference_date', [$refStart, $refEnd])
+                ->orderBy('reference_date')
+                ->orderBy('id')
+                ->get();
+
+            if ($initial === 0 && $transactions->isEmpty()) {
+                continue;
+            }
+
+            $running  = $initial;
+            $txRows   = [];
+            foreach ($transactions as $tx) {
+                $running += $tx->minutes;
+                $txRows[] = [
+                    'id'        => $tx->id,
+                    'ref'       => $tx->reference_date->format('d/m/Y'),
+                    'type'      => $tx->getTypeLabel(),
+                    'desc'      => $tx->description ?? '—',
+                    'minutes'   => $tx->minutes,
+                    'signedFmt' => $signMin($tx->minutes),
+                    'balance'   => $running,
+                    'balFmt'    => $fmtMin(abs($running)).($running < 0 ? ' (def.)' : ''),
+                ];
+            }
+            $sections[] = [
+                'employee'   => $emp,
+                'initial'    => $initial,
+                'initialFmt' => $fmtMin(abs($initial)).($initial < 0 ? ' (def.)' : ''),
+                'txRows'     => $txRows,
+                'closing'    => $running,
+                'closingFmt' => $fmtMin(abs($running)).($running < 0 ? ' (def.)' : ''),
+            ];
+        }
+
+        if ($request->get('export') === 'csv') {
+            return $this->exportBancoHorasCSV($sections, $ym, $monthRef);
+        }
+
+        if ($request->get('export') === 'pdf') {
+            $pdf = Pdf::loadView('web.reports.banco_horas_pdf', [
+                'sections'   => $sections,
+                'ym'         => $ym,
+                'monthLabel' => $monthRef->locale('pt_BR')->translatedFormat('F \d\e Y'),
+                'fmtMin'     => $fmtMin,
+                'signMin'    => $signMin,
+            ])->setPaper('a4', 'landscape');
+
+            return $pdf->download('banco_horas_'.$ym.'.pdf');
+        }
+
+        return view('web.reports.banco_horas', [
+            'sections'   => $sections,
+            'ym'         => $ym,
+            'monthRef'   => $monthRef,
+            'refStart'   => $refStart,
+            'refEnd'     => $refEnd,
+            'companies'  => $companies,
+            'departments'=> $departments,
+            'companyId'  => $companyId,
+            'deptId'     => $deptId,
+            'fmtMin'     => $fmtMin,
+            'signMin'    => $signMin,
+        ]);
+    }
+
+    private function exportBancoHorasCSV(array $sections, string $ym, Carbon $monthRef)
+    {
+        $filename = 'banco_horas_'.$ym.'.csv';
+        $headers  = [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+        $fmt = static fn (int $m): string => $m === 0 ? '00:00' : sprintf('%02d:%02d', (int) abs($m / 60), abs($m) % 60);
+
+        $callback = function () use ($sections, $fmt, $monthRef) {
+            $h = fopen('php://output', 'w');
+            fputs($h, "\xEF\xBB\xBF");
+            fputcsv($h, [
+                'Mês', 'ID Colab.', 'Nome', 'Empresa', 'Depto', 'Saldo inicial (min)', 'Saldo inicial',
+                'Data ref.', 'Tipo', 'Descrição', 'Minutos mov.', 'Saldo após (min)', 'Saldo após',
+            ], ';');
+            $label = $monthRef->locale('pt_BR')->translatedFormat('F/Y');
+            foreach ($sections as $sec) {
+                $e = $sec['employee'];
+                if (empty($sec['txRows'])) {
+                    fputcsv($h, [
+                        $label,
+                        $e->id,
+                        $e->user?->name ?? '—',
+                        $e->company?->name ?? '—',
+                        $e->dept?->name ?? $e->department ?? '—',
+                        $sec['initial'],
+                        $fmt(abs($sec['initial'])).($sec['initial'] < 0 ? ' (def.)' : ''),
+                        '—', '—', 'Sem movimentos no mês', 0,
+                        $sec['closing'],
+                        $fmt(abs($sec['closing'])).($sec['closing'] < 0 ? ' (def.)' : ''),
+                    ], ';');
+                    continue;
+                }
+                foreach ($sec['txRows'] as $row) {
+                    fputcsv($h, [
+                        $label,
+                        $e->id,
+                        $e->user?->name ?? '—',
+                        $e->company?->name ?? '—',
+                        $e->dept?->name ?? $e->department ?? '—',
+                        $sec['initial'],
+                        $fmt(abs($sec['initial'])).($sec['initial'] < 0 ? ' (def.)' : ''),
+                        $row['ref'],
+                        $row['type'],
+                        $row['desc'],
+                        $row['minutes'],
+                        $row['balance'],
+                        $fmt(abs($row['balance'])).($row['balance'] < 0 ? ' (def.)' : ''),
+                    ], ';');
+                }
+            }
+            fclose($h);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     private function exportPresencaCSV(array $rows, array $dates, string $dateFrom, string $dateTo)
