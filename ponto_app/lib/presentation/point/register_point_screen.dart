@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'register_point_provider.dart' show registerPointProvider, RegisterPointStatus, PolicyCheckResult;
 import '../home/today_provider.dart';
 import '../auth/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../data/models/user_model.dart';
 import '../../services/face_service.dart';
 
 class RegisterPointScreen extends ConsumerStatefulWidget {
@@ -27,6 +29,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   bool _cameraReady = false;
   bool _useFrontCamera = true;
   bool _verifyingFace = false; // true durante a chamada /face/verify
+  bool _capturing = false;     // true durante takePicture — feedback imediato
 
   @override
   void initState() {
@@ -73,7 +76,10 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
   /// Captura foto (se câmera disponível) e regista o ponto de uma só vez.
   Future<void> _captureAndRegister() async {
-    if (ref.read(registerPointProvider).isLoading || _verifyingFace) return;
+    if (ref.read(registerPointProvider).isLoading || _verifyingFace || _capturing) return;
+
+    // Feedback imediato — escurece o botão antes mesmo da foto ser tirada
+    setState(() => _capturing = true);
 
     File? photo;
     if (_cameraReady && _cameraController != null &&
@@ -83,6 +89,8 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
         photo = File(xFile.path);
       } catch (_) {}
     }
+
+    if (mounted) setState(() => _capturing = false);
     await _confirmRegister(photo: photo);
   }
 
@@ -109,7 +117,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     }
 
     if (policy == PolicyCheckResult.geofenceViolation) {
-      _showGeofenceDialog();
+      _showGeofenceDialog(company);
       return;
     }
 
@@ -211,28 +219,40 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     );
   }
 
-  void _showGeofenceDialog() {
+  void _showGeofenceDialog(CompanyModel? company) {
+    // Pegar todas as geocercas activas (novo sistema) ou a legada
+    final locations = company?.geofences ?? [];
+    final legacyGeofence = company?.geofence;
+
+    // Montar lista de locais permitidos para exibir
+    final allowedPlaces = <_AllowedPlace>[];
+    for (final loc in locations) {
+      allowedPlaces.add(_AllowedPlace(
+        name: loc.name,
+        address: loc.address,
+        lat: loc.latitude,
+        lng: loc.longitude,
+        radiusMeters: loc.radiusMeters,
+      ));
+    }
+    if (allowedPlaces.isEmpty &&
+        legacyGeofence?.enabled == true &&
+        legacyGeofence?.latitude != null &&
+        legacyGeofence?.longitude != null) {
+      allowedPlaces.add(_AllowedPlace(
+        name: company?.name ?? 'Empresa',
+        address: null,
+        lat: legacyGeofence!.latitude!,
+        lng: legacyGeofence.longitude!,
+        radiusMeters: legacyGeofence.radiusMeters,
+      ));
+    }
+
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.location_off, color: AppColors.error),
-            SizedBox(width: 10),
-            Expanded(child: Text('Fora da área permitida', style: TextStyle(fontSize: 16))),
-          ],
-        ),
-        content: const Text(
-          'Você está fora da área de trabalho configurada pela empresa.\n\n'
-          'Desloque-se para a área permitida e tente novamente.',
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Entendi'),
-          ),
-        ],
+      builder: (_) => _GeofenceViolationDialog(
+        companyName: company?.name ?? 'sua empresa',
+        allowedPlaces: allowedPlaces,
       ),
     );
   }
@@ -579,19 +599,19 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Botão circular
+                  // Botão circular — feedback imediato ao toque
                   GestureDetector(
-                    onTap: (state.isLoading || _verifyingFace) ? null : _captureAndRegister,
+                    onTap: (state.isLoading || _verifyingFace || _capturing) ? null : _captureAndRegister,
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 80,
-                      height: 80,
+                      duration: const Duration(milliseconds: 120),
+                      width: _capturing ? 72 : 80,
+                      height: _capturing ? 72 : 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: (state.isLoading || _verifyingFace)
-                            ? typeColor.withValues(alpha: 0.4)
+                        color: (state.isLoading || _verifyingFace || _capturing)
+                            ? typeColor.withValues(alpha: 0.45)
                             : typeColor,
-                        boxShadow: (state.isLoading || _verifyingFace)
+                        boxShadow: (state.isLoading || _verifyingFace || _capturing)
                             ? []
                             : [
                                 BoxShadow(
@@ -601,7 +621,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                                 ),
                               ],
                       ),
-                      child: (state.isLoading || _verifyingFace)
+                      child: (state.isLoading || _verifyingFace || _capturing)
                           ? const Padding(
                               padding: EdgeInsets.all(22),
                               child: CircularProgressIndicator(
@@ -613,11 +633,13 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    _verifyingFace
-                        ? 'Verificando identidade...'
-                        : state.isLoading
-                            ? _loadingMessage(state.status)
-                            : 'Toque para registrar',
+                    _capturing
+                        ? 'Capturando foto...'
+                        : _verifyingFace
+                            ? 'Verificando identidade...'
+                            : state.isLoading
+                                ? _loadingMessage(state.status)
+                                : 'Toque para registrar',
                     style: const TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ],
@@ -694,3 +716,155 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   }
 }
 
+class _AllowedPlace {
+  final String name;
+  final String? address;
+  final double lat;
+  final double lng;
+  final int radiusMeters;
+  const _AllowedPlace({required this.name, required this.address, required this.lat, required this.lng, required this.radiusMeters});
+}
+
+class _GeofenceViolationDialog extends StatelessWidget {
+  final String companyName;
+  final List<_AllowedPlace> allowedPlaces;
+  const _GeofenceViolationDialog({required this.companyName, required this.allowedPlaces});
+
+  Future<void> _openMaps(_AllowedPlace place) async {
+    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}');
+    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = allowedPlaces.isNotEmpty ? allowedPlaces.first : null;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Cabeçalho com ícone de mapa ──────────────────────────────
+            Container(
+              width: double.infinity,
+              color: AppColors.error,
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+              child: Column(
+                children: [
+                  const Icon(Icons.location_off_rounded, color: Colors.white, size: 40),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Fora da área permitida',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Você precisa estar em uma das áreas de $companyName.',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Lista de locais permitidos ───────────────────────────────
+            if (allowedPlaces.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Locais onde pode bater o ponto:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF616161)),
+                    ),
+                    const SizedBox(height: 8),
+                    ...allowedPlaces.map((p) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: InkWell(
+                        onTap: () => _openMaps(p),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE0E0E0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36, height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.place, size: 20, color: AppColors.primary),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(p.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                    if (p.address != null)
+                                      Text(p.address!, style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
+                                    Text('Raio: ${p.radiusMeters}m', style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+
+            // ── Botões ───────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              child: Row(
+                children: [
+                  if (primary != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () { Navigator.pop(context); _openMaps(primary); },
+                        icon: const Icon(Icons.directions, size: 16),
+                        label: const Text('Como chegar'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.primary),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  if (primary != null) const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Entendi'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
