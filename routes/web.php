@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DepartmentWebController;
 use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
+use App\Http\Controllers\Web\HolidayWebController;
 use App\Http\Controllers\Web\HourBankWebController;
 use App\Http\Controllers\Web\LoginController;
 use App\Http\Controllers\Web\ReportWebController;
@@ -58,6 +59,13 @@ Route::middleware('auth')->group(function () {
         // Relatórios
         Route::get('/relatorios/folha-pagamento', [ReportWebController::class, 'folhaPagamento'])->name('reports.folha-pagamento');
         Route::get('/relatorios/presenca', [ReportWebController::class, 'presenca'])->name('reports.presenca');
+
+        // Feriados
+        Route::get('/feriados', [HolidayWebController::class, 'index'])->name('holidays.index');
+        Route::post('/feriados', [HolidayWebController::class, 'store'])->name('holidays.store');
+        Route::put('/feriados/{holiday}', [HolidayWebController::class, 'update'])->name('holidays.update');
+        Route::delete('/feriados/{holiday}', [HolidayWebController::class, 'destroy'])->name('holidays.destroy');
+        Route::post('/feriados/sync', [HolidayWebController::class, 'sync'])->name('holidays.sync');
 
         // Banco de Horas
         Route::get('/banco-horas', [HourBankWebController::class, 'index'])->name('hour-bank.index');
