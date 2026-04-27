@@ -5,6 +5,7 @@ Microserviço de reconhecimento facial via FastAPI + DeepFace.
 Endpoints:
   POST /enroll   — cadastra embedding para um employee_id
   POST /verify   — compara face enviada com o embedding cadastrado (retorna score 0-1)
+  POST /identify — compara a foto com vários employee_ids, retorna o melhor (totem)
   DELETE /enroll/{employee_id} — remove embedding
   GET  /health   — liveness
 
@@ -33,8 +34,9 @@ EMBEDDINGS_FILE = DATA_DIR / "embeddings.json"
 # Distância coseno: <0.40 = mesma pessoa (modelo Facenet512)
 SIMILARITY_THRESHOLD: float = float(os.getenv("FACE_THRESHOLD", "0.40"))
 MODEL_NAME = "Facenet512"
-# Ordem de tentativa: opencv costuma falhar em selfies; ssd/mtcnn/retinaface são mais robustos
-_DEFAULT_DETECTORS = "ssd,mtcnn,retinaface,opencv"
+# Padrão otimizado para latência: ssd+opencv costumam resolver selfie; mtcnn/retinaface só se falhar.
+# Defina FACE_DETECTOR_CHAIN no ambiente p.ex. "ssd" para máxima rapidez (luz/ângulo ideais).
+_DEFAULT_DETECTORS = "ssd,opencv,mtcnn,retinaface"
 DETECTOR_CHAIN: list[str] = [
     b.strip()
     for b in os.getenv("FACE_DETECTOR_CHAIN", _DEFAULT_DETECTORS).split(",")
@@ -77,7 +79,7 @@ def _save_upload_to_tmp(file: UploadFile) -> str:
     raw = file.file.read()
     pil_img = Image.open(BytesIO(raw)).convert("RGB")
     # Reduz lado máximo para acelerar e ajudar detectores (fotos 12MP+)
-    max_side = int(os.getenv("FACE_MAX_IMAGE_SIDE", "1600"))
+    max_side = int(os.getenv("FACE_MAX_IMAGE_SIDE", "1280"))
     w, h = pil_img.size
     if max(w, h) > max_side:
         scale = max_side / float(max(w, h))
@@ -87,7 +89,7 @@ def _save_upload_to_tmp(file: UploadFile) -> str:
         )
     suffix = ".jpg"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        pil_img.save(tmp.name, "JPEG", quality=92, optimize=True)
+        pil_img.save(tmp.name, "JPEG", quality=85, optimize=True)
         return tmp.name
 
 
@@ -220,6 +222,73 @@ async def verify(
         "distance": round(distance, 4),
         "threshold": SIMILARITY_THRESHOLD,
         "employee_id": employee_id,
+    }
+
+
+@app.post("/identify")
+async def identify(
+    employee_ids: str = Form(..., description="IDs separados por vírgula"),
+    photo: UploadFile = File(...),
+    x_face_service_key: Optional[str] = Header(None),
+):
+    """
+    Uma extração de embedding; compara com os embeddings de cada candidato
+    (comparação vetorial é O(n) e é desprezível frente à inferência do modelo).
+    """
+    _auth(x_face_service_key)
+
+    raw_ids = [x.strip() for x in employee_ids.split(",") if x.strip()]
+    if not raw_ids:
+        raise HTTPException(status_code=422, detail="employee_ids vazio.")
+
+    store = _load_embeddings()
+    candidates: list[str] = []
+    for eid in raw_ids:
+        if str(eid) in store:
+            candidates.append(str(eid))
+
+    if not candidates:
+        return {
+            "match": False,
+            "message": "Nenhum dos candidatos possui rosto cadastrado no serviço.",
+            "score": 0.0,
+            "distance": 1.0,
+            "threshold": SIMILARITY_THRESHOLD,
+            "employee_id": None,
+        }
+
+    tmp_path = _save_upload_to_tmp(photo)
+    try:
+        live_embedding = _get_embedding(tmp_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+    best_id: str | None = None
+    best_dist = 1.0
+    for eid in candidates:
+        d = _cosine_distance(store[eid], live_embedding)
+        if d < best_dist:
+            best_dist = d
+            best_id = eid
+
+    assert best_id is not None
+    score = _distance_to_score(best_dist)
+    match = best_dist <= SIMILARITY_THRESHOLD
+
+    # Se não bate, não devolve quem "quase" foi (evita vazamento de ID em tentativas)
+    eid_out: int | str | None
+    if not match:
+        eid_out = None
+    else:
+        eid_out = int(best_id) if best_id.isdigit() else best_id
+
+    return {
+        "match": match,
+        "score": round(score, 4),
+        "distance": round(best_dist, 4),
+        "threshold": SIMILARITY_THRESHOLD,
+        "employee_id": eid_out,
     }
 
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/utils/safe_camera_dispose.dart';
 import '../../core/theme/app_theme.dart';
@@ -60,13 +61,17 @@ class _FaceVerifyStepState extends State<FaceVerifyStep> {
       (c) => c.lensDirection == CameraLensDirection.front,
       orElse: () => cameras.first,
     );
-    _cam = CameraController(front, ResolutionPreset.medium, enableAudio: false);
+    _cam = CameraController(
+      front,
+      // Baixa resolução: menos upload, menos CPU no serviço (DeepFace já redimensiona; embedding é o mesmo)
+      kIsWeb ? ResolutionPreset.medium : ResolutionPreset.low,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
     await _cam!.initialize();
     if (!mounted) return;
     setState(() => _camReady = true);
-    // Aguarda 1s para estabilizar e captura automaticamente na primeira vez
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted && _step == _VStep.camera) _captureAndVerify();
+    // Abertura sem captura automática: evita 1s de espera e foto fora de posição; o colaborador toca quando estiver pronto
   }
 
   Future<void> _captureAndVerify() async {

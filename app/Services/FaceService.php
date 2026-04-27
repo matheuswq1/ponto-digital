@@ -25,7 +25,7 @@ class FaceService
      */
     public function enroll(int|string $employeeId, string $photoPath): array
     {
-        $response = Http::withHeaders(['X-Face-Service-Key' => $this->apiKey])
+        $response = $this->http()
             ->attach('photo', fopen($photoPath, 'r'), basename($photoPath))
             ->post("{$this->baseUrl}/enroll", [
                 'employee_id' => (string) $employeeId,
@@ -41,7 +41,7 @@ class FaceService
      */
     public function verify(int|string $employeeId, string $photoPath): array
     {
-        $response = Http::withHeaders(['X-Face-Service-Key' => $this->apiKey])
+        $response = $this->http()
             ->attach('photo', fopen($photoPath, 'r'), basename($photoPath))
             ->post("{$this->baseUrl}/verify", [
                 'employee_id' => (string) $employeeId,
@@ -59,7 +59,7 @@ class FaceService
      */
     public function identify(array $employeeIds, string $photoPath): array
     {
-        $response = Http::withHeaders(['X-Face-Service-Key' => $this->apiKey])
+        $response = $this->http()
             ->attach('photo', fopen($photoPath, 'r'), basename($photoPath))
             ->post("{$this->baseUrl}/identify", [
                 'employee_ids' => implode(',', $employeeIds),
@@ -73,10 +73,23 @@ class FaceService
      */
     public function deleteEnrollment(int|string $employeeId): array
     {
-        $response = Http::withHeaders(['X-Face-Service-Key' => $this->apiKey])
+        $response = $this->http()
             ->delete("{$this->baseUrl}/enroll/{$employeeId}");
 
         return $this->handleResponse($response, 'delete');
+    }
+
+    /**
+     * Cliente HTTP com limites explícitos (evita workers PHP presos; ML pode demorar dezenas de segundos).
+     */
+    private function http()
+    {
+        $timeout = (int) config('services.face_service.timeout', 50);
+        $connect = (int) config('services.face_service.connect_timeout', 5);
+
+        return Http::withHeaders(['X-Face-Service-Key' => $this->apiKey])
+            ->connectTimeout($connect)
+            ->timeout($timeout);
     }
 
     private function handleResponse(Response $response, string $op): array

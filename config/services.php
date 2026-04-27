@@ -38,6 +38,8 @@ return [
     'face_service' => [
         'url' => env('FACE_SERVICE_URL', 'http://localhost:8001'),
         'key' => env('FACE_SERVICE_KEY', ''),
+        'timeout' => (int) env('FACE_SERVICE_HTTP_TIMEOUT', 50),
+        'connect_timeout' => (int) env('FACE_SERVICE_HTTP_CONNECT', 5),
     ],
 
 ];
