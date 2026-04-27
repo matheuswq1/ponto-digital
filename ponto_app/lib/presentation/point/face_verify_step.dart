@@ -131,8 +131,12 @@ class _FaceVerifyStepState extends State<FaceVerifyStep> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // ── Câmera sempre visível ao fundo ────────────────────────────────
-          if (_camReady && _cam != null) _buildCameraLayer(circleDiameter),
+          // ── Fundo/câmera: câmera apenas nos estados que precisam dela ──────
+          if (_camReady && _cam != null &&
+              (_step == _VStep.camera || _step == _VStep.failed))
+            _buildCameraLayer(circleDiameter)
+          else
+            Container(color: const Color(0xFF0A0F1E)),
 
           // ── Instrução superior (apenas no estado camera) ──────────────────
           if (_step == _VStep.camera)
@@ -150,44 +154,58 @@ class _FaceVerifyStepState extends State<FaceVerifyStep> {
               ),
             ),
 
-          // ── Overlay de verificação ────────────────────────────────────────
+          // ── Overlay de verificação — fundo sólido, sem câmera visível ──────
           if (_step == _VStep.verifying)
-            Container(
-              color: Colors.black.withValues(alpha: 0.55),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 16),
-                    Text(
-                      'Verificando identidade...',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
+            const SizedBox.expand(
+              child: ColoredBox(
+                color: Color(0xFF0A0F1E),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Colors.white),
+                      SizedBox(height: 20),
+                      Text(
+                        'Verificando identidade...',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Aguarde um momento',
+                        style: TextStyle(color: Colors.white38, fontSize: 13),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
 
-          // ── Overlay de sucesso ────────────────────────────────────────────
+          // ── Overlay de sucesso — fundo sólido ────────────────────────────
           if (_step == _VStep.success)
-            Container(
-              color: Colors.black.withValues(alpha: 0.7),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.check_circle, size: 80, color: AppColors.success),
-                    SizedBox(height: 16),
-                    Text(
-                      'Identidade confirmada',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+            const SizedBox.expand(
+              child: ColoredBox(
+                color: Color(0xFF0A0F1E),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle_rounded, size: 88, color: AppColors.success),
+                      SizedBox(height: 20),
+                      Text(
+                        'Identidade confirmada',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                      SizedBox(height: 8),
+                      Text(
+                        'Ponto a ser registado',
+                        style: TextStyle(color: Colors.white54, fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -328,17 +346,24 @@ class _FaceVerifyStepState extends State<FaceVerifyStep> {
     );
   }
 
+  /// Câmera contida em ClipOval — fundo sólido fora do círculo.
   Widget _buildCameraLayer(double circleDiameter) {
     final cam = _cam!;
     final aspect = 1.0 / cam.value.aspectRatio;
+    final borderColor = _step == _VStep.failed ? AppColors.error : Colors.white38;
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Preview fullscreen
-        SizedBox.expand(
+    return Center(
+      child: Container(
+        width: circleDiameter,
+        height: circleDiameter,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: borderColor, width: 2),
+        ),
+        child: ClipOval(
           child: FittedBox(
             fit: BoxFit.cover,
+            clipBehavior: Clip.hardEdge,
             child: SizedBox(
               width: cam.value.previewSize?.height ?? 480,
               height: cam.value.previewSize?.width ?? 640,
@@ -349,47 +374,7 @@ class _FaceVerifyStepState extends State<FaceVerifyStep> {
             ),
           ),
         ),
-        // Escurecimento fora do círculo
-        if (_step == _VStep.camera || _step == _VStep.failed)
-          SizedBox.expand(
-            child: CustomPaint(
-              painter: _CircleOverlayPainter(diameter: circleDiameter),
-            ),
-          ),
-        // Borda do círculo
-        if (_step == _VStep.camera || _step == _VStep.failed)
-          Container(
-            width: circleDiameter,
-            height: circleDiameter,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: _step == _VStep.failed ? AppColors.error : Colors.white54,
-                width: 2,
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
-}
-
-/// Pinta overlay escuro em torno do círculo.
-class _CircleOverlayPainter extends CustomPainter {
-  final double diameter;
-  const _CircleOverlayPainter({required this.diameter});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0x99000000);
-    final center = Offset(size.width / 2, size.height / 2);
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addOval(Rect.fromCircle(center: center, radius: diameter / 2))
-      ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_CircleOverlayPainter old) => old.diameter != diameter;
 }
