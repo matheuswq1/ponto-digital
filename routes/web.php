@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\AuditLogWebController;
+use App\Http\Controllers\Web\FraudAlertWebController;
 use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\TotemPinWebController;
@@ -60,6 +61,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/pontos/cartao', [TimeRecordWebController::class, 'cartaoPonto'])->name('pontos.cartao');
 
         Route::get('/auditoria', [AuditLogWebController::class, 'index'])->name('audit.index');
+        Route::get('/alertas-fraude', [FraudAlertWebController::class, 'index'])->name('fraud-alerts.index');
         Route::post('/totem-pins/gerar', [TotemPinWebController::class, 'generate'])->name('totem-pins.generate');
 
         // Relatórios

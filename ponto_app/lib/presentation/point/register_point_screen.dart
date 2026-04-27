@@ -120,6 +120,26 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
       ));
       return;
     }
+
+    if (policy == PolicyCheckResult.mockBlocked) {
+      _showFraudBlockedDialog(
+        title: 'GPS Falso Detectado',
+        message:
+            'Foi detectado um app de GPS falso activo no seu dispositivo.\n\nDesactive o Mock Location e tente novamente.',
+        icon: Icons.gps_off_rounded,
+      );
+      return;
+    }
+
+    if (policy == PolicyCheckResult.wifiMismatch) {
+      _showFraudBlockedDialog(
+        title: 'Wi-Fi não autorizado',
+        message:
+            'A sua empresa exige que esteja ligado a uma rede Wi-Fi específica para bater o ponto.\n\nConecte-se à rede da empresa e tente novamente.',
+        icon: Icons.wifi_off_rounded,
+      );
+      return;
+    }
     // ───────────────────────────────────────────────────────────────
 
     if (!faceEnrolled) {
@@ -157,6 +177,33 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     if (success) {
       _showSuccessDialog(state.status == RegisterPointStatus.offline);
     }
+  }
+
+  void _showFraudBlockedDialog({
+    required String title,
+    required String message,
+    required IconData icon,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(icon, color: AppColors.error),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendi'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showGeofenceDialog() {

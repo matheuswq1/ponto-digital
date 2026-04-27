@@ -34,6 +34,8 @@ class TimeRecordDatasource {
     String? deviceId,
     bool isMockLocation = false,
     bool offline = false,
+    String? wifiSsid,
+    double? speedKmh,
   }) async {
     try {
       // FormData envia tudo como string — Laravel precisa de 0/1 para booleans
@@ -46,6 +48,8 @@ class TimeRecordDatasource {
         'is_mock_location': isMockLocation ? '1' : '0',
         'offline': offline ? '1' : '0',
         if (photoUrl != null) 'photo_url': photoUrl,
+        if (wifiSsid != null) 'wifi_ssid': wifiSsid,
+        if (speedKmh != null) 'speed_kmh': speedKmh.toStringAsFixed(2),
         if (photo != null)
           'photo': await MultipartFile.fromFile(
             photo.path,

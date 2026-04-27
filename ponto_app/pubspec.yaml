@@ -33,6 +33,9 @@ dependencies:
   geolocator: ^13.0.4
   permission_handler: ^11.4.0
 
+  # Wi-Fi (SSID para anti-fraude)
+  network_info_plus: ^8.1.0
+
   # Navegação
   go_router: ^14.8.1
 

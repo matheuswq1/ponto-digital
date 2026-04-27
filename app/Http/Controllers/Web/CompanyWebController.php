@@ -154,7 +154,23 @@ class CompanyWebController extends Controller
             'work_end' => 'nullable|date_format:H:i',
             'lunch_duration' => 'nullable|integer|min:0|max:120',
             'max_daily_records' => 'nullable|integer|min:2|max:20',
+            // Anti-fraude
+            'block_mock_location'         => 'nullable|boolean',
+            'block_velocity_jump'         => 'nullable|boolean',
+            'velocity_jump_threshold_kmh' => 'nullable|integer|min:10|max:2000',
+            'require_wifi'                => 'nullable|boolean',
+            'allowed_wifi_ssids_raw'      => 'nullable|string|max:2000',
+            'block_unknown_ip_city'       => 'nullable|boolean',
+            'fraud_action'                => 'nullable|in:warn,block',
         ]);
+
+        // Converter textarea SSIDs em array
+        $ssids = [];
+        if ($request->filled('allowed_wifi_ssids_raw')) {
+            $ssids = array_values(array_filter(
+                array_map('trim', explode("\n", str_replace("\r", '', $request->allowed_wifi_ssids_raw)))
+            ));
+        }
 
         $company->update([
             'name' => $request->name,
@@ -176,6 +192,14 @@ class CompanyWebController extends Controller
             'work_end' => $request->work_end,
             'lunch_duration' => $request->lunch_duration,
             'max_daily_records' => $request->integer('max_daily_records') ?: 10,
+            // Anti-fraude
+            'block_mock_location'         => $request->boolean('block_mock_location'),
+            'block_velocity_jump'         => $request->boolean('block_velocity_jump'),
+            'velocity_jump_threshold_kmh' => $request->integer('velocity_jump_threshold_kmh') ?: 300,
+            'require_wifi'                => $request->boolean('require_wifi'),
+            'allowed_wifi_ssids'          => $ssids,
+            'block_unknown_ip_city'       => $request->boolean('block_unknown_ip_city'),
+            'fraud_action'                => $request->input('fraud_action', 'warn'),
         ]);
 
         AuditService::log(

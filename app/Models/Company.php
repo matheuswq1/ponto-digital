@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+// FraudAttempt é usado na relação abaixo
 
 class Company extends Model
 {
@@ -28,6 +29,13 @@ class Company extends Model
         'geofence_radius',
         'require_photo',
         'require_geolocation',
+        'block_mock_location',
+        'block_velocity_jump',
+        'velocity_jump_threshold_kmh',
+        'require_wifi',
+        'allowed_wifi_ssids',
+        'block_unknown_ip_city',
+        'fraud_action',
         'work_start',
         'work_end',
         'lunch_duration',
@@ -37,12 +45,18 @@ class Company extends Model
     protected function casts(): array
     {
         return [
-            'active' => 'boolean',
-            'require_photo' => 'boolean',
-            'require_geolocation' => 'boolean',
-            'latitude' => 'decimal:7',
-            'longitude' => 'decimal:7',
-            'max_daily_records' => 'integer',
+            'active'                     => 'boolean',
+            'require_photo'              => 'boolean',
+            'require_geolocation'        => 'boolean',
+            'block_mock_location'        => 'boolean',
+            'block_velocity_jump'        => 'boolean',
+            'velocity_jump_threshold_kmh'=> 'integer',
+            'require_wifi'               => 'boolean',
+            'allowed_wifi_ssids'         => 'array',
+            'block_unknown_ip_city'      => 'boolean',
+            'latitude'                   => 'decimal:7',
+            'longitude'                  => 'decimal:7',
+            'max_daily_records'          => 'integer',
         ];
     }
 
@@ -64,6 +78,11 @@ class Company extends Model
     public function activeEmployees(): HasMany
     {
         return $this->hasMany(Employee::class)->where('active', true);
+    }
+
+    public function fraudAttempts(): HasMany
+    {
+        return $this->hasMany(FraudAttempt::class);
     }
 
     public function hasGeofence(): bool

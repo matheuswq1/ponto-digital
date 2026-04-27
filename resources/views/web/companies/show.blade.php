@@ -176,6 +176,95 @@
                 </div>
             </div>
 
+            {{-- Anti-fraude --}}
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6" x-data="{ requireWifi: {{ old('require_wifi', $company->require_wifi) ? 'true' : 'false' }}, blockVelocity: {{ old('block_velocity_jump', $company->block_velocity_jump) ? 'true' : 'false' }} }">
+                <h2 class="text-sm font-semibold text-slate-700 mb-1">Segurança / Anti-fraude</h2>
+                <p class="text-xs text-slate-400 mb-4">Cada regra pode ser activada/desactivada de forma independente. A acção global define se bloqueia o ponto ou apenas regista o alerta.</p>
+
+                <div class="space-y-4">
+                    {{-- Acção global --}}
+                    <div class="bg-slate-50 rounded-lg px-4 py-3 flex flex-wrap items-center gap-4 border border-slate-200">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-slate-700">Acção quando fraude for detectada</p>
+                            <p class="text-xs text-slate-400">Bloquear impede o ponto; Apenas avisar regista e notifica o admin.</p>
+                        </div>
+                        <select name="fraud_action" class="text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-rose-200 outline-none bg-white">
+                            <option value="warn"  @selected(old('fraud_action', $company->fraud_action ?? 'warn')  === 'warn')>Apenas avisar</option>
+                            <option value="block" @selected(old('fraud_action', $company->fraud_action ?? 'warn') === 'block')>Bloquear o ponto</option>
+                        </select>
+                    </div>
+
+                    {{-- GPS Falso --}}
+                    <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <div class="mt-0.5">
+                            <input type="hidden" name="block_mock_location" value="0">
+                            <input type="checkbox" name="block_mock_location" value="1" class="rounded border-slate-300 text-rose-500 mt-0.5"
+                                @checked(old('block_mock_location', $company->block_mock_location))>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">Detectar GPS Falso (Mock Location)</p>
+                            <p class="text-xs text-slate-400">Flutter reporta `is_mock_location=1` quando apps de GPS falso estão activos. Requer que o colaborador utilize o app original.</p>
+                        </div>
+                    </label>
+
+                    {{-- Salto de Velocidade --}}
+                    <div class="p-3 rounded-lg border border-slate-200">
+                        <label class="flex items-start gap-3 cursor-pointer" @click="blockVelocity = !blockVelocity">
+                            <div class="mt-0.5">
+                                <input type="hidden" name="block_velocity_jump" value="0">
+                                <input type="checkbox" name="block_velocity_jump" value="1" x-model="blockVelocity" class="rounded border-slate-300 text-rose-500">
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-slate-700">Detectar salto de localização suspeito</p>
+                                <p class="text-xs text-slate-400">Ex.: colaborador em SP e 2 segundos depois noutro estado — velocidade impossível é sinal de fraude.</p>
+                            </div>
+                        </label>
+                        <div x-show="blockVelocity" x-cloak class="mt-3 flex items-center gap-3 pl-7">
+                            <label class="text-xs font-medium text-slate-600 whitespace-nowrap">Velocidade máxima (km/h)</label>
+                            <input type="number" name="velocity_jump_threshold_kmh"
+                                   value="{{ old('velocity_jump_threshold_kmh', $company->velocity_jump_threshold_kmh ?? 300) }}"
+                                   min="10" max="2000"
+                                   class="w-28 text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-rose-200 outline-none">
+                            <span class="text-xs text-slate-400">300 = padrão (carro rápido; avião detectado)</span>
+                        </div>
+                    </div>
+
+                    {{-- Wi-Fi --}}
+                    <div class="p-3 rounded-lg border border-slate-200">
+                        <label class="flex items-start gap-3 cursor-pointer" @click="requireWifi = !requireWifi">
+                            <div class="mt-0.5">
+                                <input type="hidden" name="require_wifi" value="0">
+                                <input type="checkbox" name="require_wifi" value="1" x-model="requireWifi" class="rounded border-slate-300 text-rose-500">
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-slate-700">Exigir rede Wi-Fi específica</p>
+                                <p class="text-xs text-slate-400">O app verifica o SSID da rede conectada e compara com a lista abaixo (apenas Android/iOS).</p>
+                            </div>
+                        </label>
+                        <div x-show="requireWifi" x-cloak class="mt-3 pl-7 space-y-1">
+                            <label class="text-xs font-medium text-slate-600">SSIDs autorizados <span class="text-slate-400 font-normal">(um por linha)</span></label>
+                            <textarea name="allowed_wifi_ssids_raw" rows="3"
+                                      placeholder="MinhaRedeEmpresa&#10;MinhaRedeEmpresa_5G"
+                                      class="w-full text-sm font-mono border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-rose-200 outline-none resize-none">{{ old('allowed_wifi_ssids_raw', implode("\n", $company->allowed_wifi_ssids ?? [])) }}</textarea>
+                            <p class="text-[11px] text-slate-400">Sensível a maiúsculas/minúsculas. Deixe vazio para bloquear qualquer Wi-Fi desconhecido.</p>
+                        </div>
+                    </div>
+
+                    {{-- Cidade do IP --}}
+                    <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <div class="mt-0.5">
+                            <input type="hidden" name="block_unknown_ip_city" value="0">
+                            <input type="checkbox" name="block_unknown_ip_city" value="1" class="rounded border-slate-300 text-rose-500"
+                                @checked(old('block_unknown_ip_city', $company->block_unknown_ip_city))>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">Verificar cidade do endereço IP</p>
+                            <p class="text-xs text-slate-400">Se o IP de origem for de cidade diferente da empresa (campo Cidade acima), gera alerta. Requer que a "Cidade" da empresa esteja preenchida.</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
             {{-- Horário de referência --}}
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                 <h2 class="text-sm font-semibold text-slate-700 mb-4">Horário de referência</h2>

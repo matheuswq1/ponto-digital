@@ -8,12 +8,20 @@ import '../../data/models/user_model.dart';
 import '../../services/location_service.dart';
 import '../../services/local_database_service.dart';
 import '../../services/device_service.dart';
+import '../../services/wifi_service.dart';
 import '../../core/errors/app_exception.dart';
 
 enum RegisterPointStatus { idle, loadingLocation, takingPhoto, uploading, success, error, offline }
 
 /// Resultado da validação de políticas da empresa.
-enum PolicyCheckResult { ok, photoRequired, geofenceViolation, geofenceUnavailable }
+enum PolicyCheckResult {
+  ok,
+  photoRequired,
+  geofenceViolation,
+  geofenceUnavailable,
+  wifiMismatch,
+  mockBlocked,
+}
 
 class RegisterPointState {
   final RegisterPointStatus status;
@@ -64,12 +72,19 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
   final LocationService _locationService;
   final LocalDatabaseService _localDb;
   final DeviceService _deviceService;
+  final WifiService _wifiService;
+
+  // Último ponto para calcular velocidade
+  double? _lastLat;
+  double? _lastLon;
+  DateTime? _lastPointTime;
 
   RegisterPointNotifier(
     this._datasource,
     this._locationService,
     this._localDb,
     this._deviceService,
+    this._wifiService,
   ) : super(const RegisterPointState());
 
   /// Valida as políticas da empresa antes de enviar.
@@ -77,27 +92,33 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
   Future<PolicyCheckResult> checkCompanyPolicy({
     required CompanyModel? company,
     required File? photo,
+    LocationResult? location,
   }) async {
     if (company == null) return PolicyCheckResult.ok;
 
-    // Verificar foto obrigatória
+    // 1. Foto obrigatória
     if (company.requirePhoto && photo == null) {
       return PolicyCheckResult.photoRequired;
     }
 
-    // Verificar geocerca
+    // 2. GPS Falso bloqueado no lado cliente
+    if (company.blockMockLocation && location != null && location.isMock) {
+      return PolicyCheckResult.mockBlocked;
+    }
+
+    // 3. Geocerca
     final geofence = company.geofence;
     if (company.requireGeolocation &&
         geofence != null &&
         geofence.enabled &&
         geofence.latitude != null &&
         geofence.longitude != null) {
-      final location = await _locationService.getCurrentLocation();
-      if (location == null) return PolicyCheckResult.geofenceUnavailable;
+      final loc = location ?? await _locationService.getCurrentLocation();
+      if (loc == null) return PolicyCheckResult.geofenceUnavailable;
 
       final inside = _locationService.isWithinGeofence(
-        userLat: location.latitude,
-        userLon: location.longitude,
+        userLat: loc.latitude,
+        userLon: loc.longitude,
         centerLat: geofence.latitude!,
         centerLon: geofence.longitude!,
         radiusMeters: geofence.radiusMeters.toDouble(),
@@ -105,7 +126,26 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
       if (!inside) return PolicyCheckResult.geofenceViolation;
     }
 
+    // 4. Wi-Fi obrigatório
+    if (company.requireWifi) {
+      final allowed = await _wifiService.isSsidAllowed(company.allowedWifiSsids);
+      if (!allowed) return PolicyCheckResult.wifiMismatch;
+    }
+
     return PolicyCheckResult.ok;
+  }
+
+  /// Calcula velocidade (km/h) desde o último ponto registado.
+  double? _calcSpeedKmh(LocationResult? location) {
+    if (location == null || _lastLat == null || _lastLon == null || _lastPointTime == null) {
+      return null;
+    }
+    final distanceM = _locationService.distanceBetween(
+      _lastLat!, _lastLon!, location.latitude, location.longitude,
+    );
+    final seconds = DateTime.now().difference(_lastPointTime!).inSeconds;
+    if (seconds <= 0) return null;
+    return (distanceM / 1000.0) / (seconds / 3600.0);
   }
 
   Future<bool> register(String type, {File? photo}) async {
@@ -113,6 +153,7 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
 
     // 1. Capturar localização
     final location = await _locationService.getCurrentLocation();
+    final speedKmh = _calcSpeedKmh(location);
 
     state = state.copyWith(
       latitude: location?.latitude,
@@ -123,6 +164,7 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
     );
 
     final deviceId = await _deviceService.getDeviceId();
+    final wifiSsid = await _wifiService.getCurrentSsid();
 
     try {
       // 2. Enviar para a API
@@ -134,7 +176,16 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
         photo: photo,
         deviceId: deviceId,
         isMockLocation: location?.isMock ?? false,
+        wifiSsid: wifiSsid,
+        speedKmh: speedKmh,
       );
+
+      // Guardar posição para próximo cálculo de velocidade
+      if (location != null) {
+        _lastLat = location.latitude;
+        _lastLon = location.longitude;
+        _lastPointTime = DateTime.now();
+      }
 
       state = state.copyWith(status: RegisterPointStatus.success, result: record);
       return true;
@@ -229,6 +280,7 @@ final registerPointProvider =
     ref.read(locationServiceProvider),
     ref.read(localDatabaseProvider),
     ref.read(deviceServiceProvider),
+    ref.read(wifiServiceProvider),
   );
 });
 

@@ -23,6 +23,9 @@ class StoreTimeRecordRequest extends FormRequest
             'device_id' => 'nullable|string|max:255',
             'is_mock_location' => ['nullable', 'in:0,1,true,false'],
             'offline' => ['nullable', 'in:0,1,true,false'],
+            'wifi_ssid' => 'nullable|string|max:64',
+            'wifi_connected' => ['nullable', 'in:0,1,true,false'],
+            'speed_kmh' => 'nullable|numeric|min:0',
         ];
     }
 

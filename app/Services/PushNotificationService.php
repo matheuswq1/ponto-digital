@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DeviceToken;
 use App\Models\Employee;
+use App\Models\FraudAttempt;
 use App\Models\TimeRecordEdit;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -91,6 +92,68 @@ class PushNotificationService
                 Log::warning('FCM sendToEmployee: ' . $e->getMessage(), ['token' => substr($token, 0, 20)]);
             }
         }
+    }
+
+    /**
+     * Notifica admins/gestores da empresa sobre tentativas de fraude.
+     *
+     * @param FraudAttempt[] $attempts
+     */
+    public function notifyFraudAttempts(array $attempts, Employee $employee): void
+    {
+        if (empty($attempts)) {
+            return;
+        }
+        $messaging = $this->messaging();
+        if ($messaging === null) {
+            return;
+        }
+
+        $companyId   = $employee->company_id;
+        $employeeName = $employee->user?->name ?? 'Colaborador #'.$employee->id;
+        $rules        = array_unique(array_map(fn($a) => $a->getRuleLabel(), $attempts));
+        $actionTaken  = $attempts[0]->action_taken;
+
+        $title = $actionTaken === 'blocked'
+            ? 'Ponto bloqueado por fraude'
+            : 'Tentativa de fraude detectada';
+        $body = $employeeName . ': ' . implode(', ', $rules);
+
+        $notification = Notification::create($title, $body);
+
+        $adminGestorIds = User::query()
+            ->where('company_id', $companyId)
+            ->whereIn('role', ['admin', 'gestor'])
+            ->pluck('id');
+
+        // Admin global (sem company_id) também recebe
+        $globalAdminIds = User::query()
+            ->whereNull('company_id')
+            ->where('role', 'admin')
+            ->pluck('id');
+
+        $allIds = $adminGestorIds->merge($globalAdminIds)->unique();
+
+        $tokens = DeviceToken::query()
+            ->whereIn('user_id', $allIds)
+            ->pluck('token')
+            ->all();
+
+        foreach ($tokens as $token) {
+            try {
+                $message = CloudMessage::withTarget('token', $token)
+                    ->withNotification($notification)
+                    ->withData(['type' => 'fraud_alert', 'company_id' => (string) $companyId]);
+                $messaging->send($message);
+            } catch (Throwable $e) {
+                Log::warning('FCM fraud alert: ' . $e->getMessage());
+            }
+        }
+
+        FraudAttempt::query()
+            ->whereIn('id', array_map(fn($a) => $a->id, $attempts))
+            ->whereNull('notified_at')
+            ->update(['notified_at' => now()]);
     }
 
     private function messaging(): ?Messaging

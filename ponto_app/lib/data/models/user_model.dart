@@ -130,6 +130,11 @@ class CompanyModel {
   final bool requireGeolocation;
   final int maxDailyRecords;
   final GeofenceModel? geofence;
+  // Anti-fraude
+  final bool blockMockLocation;
+  final bool requireWifi;
+  final List<String> allowedWifiSsids;
+  final String fraudAction; // 'warn' | 'block'
 
   const CompanyModel({
     required this.id,
@@ -139,11 +144,19 @@ class CompanyModel {
     required this.requireGeolocation,
     this.maxDailyRecords = 10,
     this.geofence,
+    this.blockMockLocation = false,
+    this.requireWifi = false,
+    this.allowedWifiSsids = const [],
+    this.fraudAction = 'warn',
   });
 
   factory CompanyModel.fromJson(Map<String, dynamic> json) {
     final settings = json['settings'] as Map<String, dynamic>?;
     final geofenceData = json['geofence'] as Map<String, dynamic>?;
+    final rawSsids = json['allowed_wifi_ssids'];
+    final ssids = rawSsids is List
+        ? rawSsids.map((e) => e.toString()).toList()
+        : <String>[];
     return CompanyModel(
       id: json['id'],
       name: json['name'],
@@ -152,6 +165,10 @@ class CompanyModel {
       requireGeolocation: settings?['require_geolocation'] ?? false,
       maxDailyRecords: (json['max_daily_records'] as num?)?.toInt() ?? 10,
       geofence: geofenceData != null ? GeofenceModel.fromJson(geofenceData) : null,
+      blockMockLocation: json['block_mock_location'] ?? false,
+      requireWifi: json['require_wifi'] ?? false,
+      allowedWifiSsids: ssids,
+      fraudAction: json['fraud_action'] ?? 'warn',
     );
   }
 
@@ -165,6 +182,10 @@ class CompanyModel {
           'require_geolocation': requireGeolocation,
         },
         'geofence': geofence?.toJson(),
+        'block_mock_location': blockMockLocation,
+        'require_wifi': requireWifi,
+        'allowed_wifi_ssids': allowedWifiSsids,
+        'fraud_action': fraudAction,
       };
 }
 

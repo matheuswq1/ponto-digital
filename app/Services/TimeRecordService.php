@@ -9,6 +9,7 @@ use App\Jobs\ProcessWorkDay;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+// FraudCheckService é resolvido via app() para evitar injeção circular com PushNotificationService
 
 class TimeRecordService
 {
@@ -27,6 +28,21 @@ class TimeRecordService
                 (float) $data['latitude'],
                 (float) $data['longitude']
             );
+        }
+
+        // Anti-fraude: registar tentativa e bloquear se configurado
+        $fraudResult = app(FraudCheckService::class)->check($employee, array_merge($data, [
+            'ip_address' => isset($data['source']) && $data['source'] === 'totem' ? null : request()->ip(),
+        ]));
+
+        if (count($fraudResult->attempts) > 0) {
+            app(\App\Services\PushNotificationService::class)->notifyFraudAttempts($fraudResult->attempts, $employee);
+        }
+
+        if ($fraudResult->blocked) {
+            throw ValidationException::withMessages([
+                'fraud' => ['Registo bloqueado por política de segurança: ' . implode(', ', $fraudResult->violations)],
+            ]);
         }
 
         return DB::transaction(function () use ($employee, $data) {
@@ -65,6 +81,14 @@ class TimeRecordService
         foreach ($records as $recordData) {
             try {
                 $this->validateSequenceForDatetime($employee, $recordData['type'], $recordData['datetime']);
+
+                // Anti-fraude offline: apenas registar (nunca bloquear ponto offline)
+                $fraudResult = app(FraudCheckService::class)->check($employee, array_merge($recordData, [
+                    'ip_address' => request()->ip(),
+                ]));
+                if (count($fraudResult->attempts) > 0) {
+                    app(\App\Services\PushNotificationService::class)->notifyFraudAttempts($fraudResult->attempts, $employee);
+                }
 
                 $record = TimeRecord::create([
                     'employee_id' => $employee->id,
