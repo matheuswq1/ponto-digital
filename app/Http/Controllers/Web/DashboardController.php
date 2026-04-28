@@ -94,8 +94,8 @@ class DashboardController extends Controller
             if ($daysDiff <= 45) {
                 foreach (CarbonPeriod::create($rangeStart->toDateString(), $rangeEnd->toDateString()) as $d) {
                     $day = $d->copy();
-                    $dayS = $day->copy()->startOfDay()->utc();
-                    $dayE = $day->copy()->endOfDay()->utc();
+                    $dayS = $day->copy()->startOfDay();
+                    $dayE = $day->copy()->endOfDay();
                     $weekChart[] = [
                         'label' => $day->locale('pt_BR')->isoFormat('D MMM'),
                         'count' => TimeRecord::query()
@@ -113,7 +113,7 @@ class DashboardController extends Controller
                     }
                     $c = TimeRecord::whereBetween('datetime', [
                         $cur->copy()->utc(),
-                        $wEnd->copy()->endOfDay()->utc(),
+                        $wEnd->copy()->endOfDay(),
                     ])
                         ->when($companyId, fn ($q) => $q->whereHas('employee', fn ($e) => $e->where('company_id', $companyId)))
                         ->count();

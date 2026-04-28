@@ -110,6 +110,11 @@ class TimeRecordService
                 ]);
 
                 $registered[] = $record;
+
+                // Recalcular banco de horas a cada saída sincronizada offline
+                if ($recordData['type'] === 'saida') {
+                    ProcessWorkDay::dispatch($employee, $record->datetime->toDateString());
+                }
             } catch (\Exception $e) {
                 $failed[] = [
                     'data' => $recordData,

@@ -28,8 +28,8 @@ class CheckOvertimeAlert implements ShouldQueue
         $now = Carbon::now($tz);
         $todayDow = (int) $now->format('N') % 7;
 
-        $startOfDay = Carbon::now($tz)->startOfDay()->utc();
-        $endOfDay   = Carbon::now($tz)->endOfDay()->utc();
+        $startOfDay = Carbon::now($tz)->startOfDay();
+        $endOfDay   = Carbon::now($tz)->endOfDay();
 
         WorkSchedule::where('active', true)
             ->where('notify_overtime', true)

@@ -51,8 +51,8 @@ class CheckLateArrivals implements ShouldQueue
                     return;
                 }
 
-                $startOfDay = Carbon::now($tz)->startOfDay()->utc();
-                $endOfDay   = Carbon::now($tz)->endOfDay()->utc();
+                $startOfDay = Carbon::now($tz)->startOfDay();
+                $endOfDay   = Carbon::now($tz)->endOfDay();
 
                 $hasEntry = $employee->timeRecords()
                     ->where('type', 'entrada')

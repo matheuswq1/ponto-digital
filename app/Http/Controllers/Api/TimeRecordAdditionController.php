@@ -33,7 +33,8 @@ class TimeRecordAdditionController extends Controller
         }
 
         // Impedir duplicado pendente no mesmo horário aproximado (±30 min)
-        $dt = Carbon::parse($request->datetime)->utc();
+        // datetime vem do app como hora local — guardar sem conversão
+        $dt = Carbon::parse($request->datetime);
         $hasDuplicate = TimeRecordAddition::query()
             ->where('employee_id', $employee->id)
             ->where('status', 'pendente')

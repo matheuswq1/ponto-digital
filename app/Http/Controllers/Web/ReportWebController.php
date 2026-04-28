@@ -32,8 +32,8 @@ class ReportWebController extends Controller
         $companyId = $request->get('company_id');
         $deptId    = $request->get('dept_id');
 
-        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay();
 
         $employeesQuery = Employee::with(['user', 'company', 'workSchedule', 'dept'])
             ->where('active', true)
@@ -193,8 +193,8 @@ class ReportWebController extends Controller
         $companyId = $request->get('company_id');
         $deptId    = $request->get('dept_id');
 
-        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay();
 
         $companies   = Company::orderBy('name')->get();
         $departments = Department::orderBy('name')->get();

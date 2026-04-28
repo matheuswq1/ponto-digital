@@ -30,8 +30,8 @@ class TimeRecordWebController extends Controller
         $employeeId  = $request->get('employee_id');
 
         $tz = config('app.timezone', 'America/Sao_Paulo');
-        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom)->startOfDay();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
 
         $records = TimeRecord::with('employee.user')
             ->whereBetween('datetime', [$from, $to])
@@ -67,8 +67,8 @@ class TimeRecordWebController extends Controller
             return back()->with('error', 'Registo de ponto inválido.');
         }
 
-        $tz   = config('app.timezone', 'America/Sao_Paulo');
-        $date = $timeRecord->datetime->copy()->setTimezone($tz)->toDateString();
+        // datetime já está em hora local — não precisa de conversão
+        $date = $timeRecord->datetime->toDateString();
 
         $snapshot = [
             'employee_id'    => $timeRecord->employee_id,
@@ -105,8 +105,8 @@ class TimeRecordWebController extends Controller
         $search     = $request->get('q');
 
         $tz   = config('app.timezone', 'America/Sao_Paulo');
-        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom)->startOfDay();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
 
         $records = TimeRecord::with('employee.user')
             ->whereBetween('datetime', [$from, $to])
@@ -245,8 +245,8 @@ class TimeRecordWebController extends Controller
             }
         }
 
-        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay()->utc();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay()->utc();
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom)->startOfDay();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
 
         $employeesQuery = Employee::with(['user', 'company', 'workSchedule', 'dept'])
             ->where('active', true)
