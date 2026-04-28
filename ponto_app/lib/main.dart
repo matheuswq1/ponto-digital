@@ -14,9 +14,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('pt_BR', null);
 
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await NotificationService.init();
+  // Inicializar Firebase com tratamento de erros para evitar crash na splash
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await NotificationService.init();
+  } catch (e) {
+    // Firebase pode falhar em emuladores ou builds de teste — continua sem notificações
+    debugPrint('Firebase init error: $e');
+  }
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
