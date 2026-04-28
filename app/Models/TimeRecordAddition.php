@@ -30,16 +30,20 @@ class TimeRecordAddition extends Model
         ];
     }
 
+    /**
+     * Datetimes no banco estão em hora local (BRT) — lê sem conversão de fuso.
+     */
     protected function asDateTime($value): Carbon
     {
-        if ($value instanceof Carbon) return $value->copy()->utc();
-        if ($value instanceof \DateTimeInterface) return Carbon::instance($value)->utc();
-        return Carbon::createFromFormat('Y-m-d H:i:s', $value, 'UTC');
+        if ($value instanceof Carbon) return $value->copy();
+        if ($value instanceof \DateTimeInterface) return Carbon::instance($value);
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        return Carbon::createFromFormat('Y-m-d H:i:s', $value, $tz);
     }
 
     public function getDatetimeLocalAttribute(): ?Carbon
     {
-        return $this->datetime?->copy()->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+        return $this->datetime; // já é hora local
     }
 
     public function employee(): BelongsTo { return $this->belongsTo(Employee::class); }
