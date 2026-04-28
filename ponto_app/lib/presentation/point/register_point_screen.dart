@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../services/wifi_service.dart' show WifiCheckResult;
 import 'register_point_provider.dart' show registerPointProvider, RegisterPointStatus, PolicyCheckResult;
 import '../home/today_provider.dart';
 import '../auth/auth_provider.dart';
@@ -84,16 +85,43 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     final company = authState.user?.employee?.company ?? authState.user?.company;
     if (company != null && company.requireWifi) {
       final notifier = ref.read(registerPointProvider.notifier);
-      final wifiOk = await notifier.wifiService.isSsidAllowed(company.allowedWifiSsids);
+      final wifiResult = await notifier.wifiService.checkSsid(company.allowedWifiSsids);
       if (!mounted) return;
-      if (!wifiOk) {
-        _showFraudBlockedDialog(
-          title: 'Wi-Fi não autorizado',
-          message:
-              'A sua empresa exige que esteja ligado a uma rede Wi-Fi específica para bater o ponto.\n\nConecte-se à rede da empresa e tente novamente.',
-          icon: Icons.wifi_off_rounded,
-        );
-        return;
+      switch (wifiResult) {
+        case WifiCheckResult.allowed:
+          break; // OK — continua
+        case WifiCheckResult.denied:
+          _showFraudBlockedDialog(
+            title: 'Wi-Fi não autorizado',
+            message:
+                'A sua empresa exige que esteja ligado a uma rede Wi-Fi específica para bater o ponto.\n\nConecte-se à rede "${company.allowedWifiSsids.join('" ou "')}" e tente novamente.',
+            icon: Icons.wifi_off_rounded,
+          );
+          return;
+        case WifiCheckResult.locationPermissionDenied:
+          _showFraudBlockedDialog(
+            title: 'Permissão de localização necessária',
+            message:
+                'Para verificar a rede Wi-Fi autorizada, o app precisa da permissão de localização.\n\nVá em Configurações → Aplicativos → Ponto Digital → Permissões → Localização e conceda o acesso.',
+            icon: Icons.location_off_rounded,
+          );
+          return;
+        case WifiCheckResult.locationDisabled:
+          _showFraudBlockedDialog(
+            title: 'Localização desactivada',
+            message:
+                'Para verificar a rede Wi-Fi, a localização do dispositivo precisa estar activa.\n\nActive o GPS/Localização nas configurações e tente novamente.',
+            icon: Icons.gps_off_rounded,
+          );
+          return;
+        case WifiCheckResult.unableToRead:
+          _showFraudBlockedDialog(
+            title: 'Não foi possível verificar o Wi-Fi',
+            message:
+                'Não foi possível ler a rede Wi-Fi conectada. Verifique se está conectado ao Wi-Fi e tente novamente.',
+            icon: Icons.wifi_off_rounded,
+          );
+          return;
       }
     }
     // ────────────────────────────────────────────────────────────────────────
