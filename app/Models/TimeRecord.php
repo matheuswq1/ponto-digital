@@ -53,24 +53,28 @@ class TimeRecord extends Model
      * Lê o campo datetime do banco (armazenado em UTC) e garante que
      * o Carbon resultante está em UTC, ignorando o timezone do PHP runtime.
      */
+    /**
+     * Datetimes no banco estão em hora local (BRT) — lê sem conversão de fuso.
+     */
     protected function asDateTime($value): Carbon
     {
         if ($value instanceof Carbon) {
-            return $value->copy()->utc();
+            return $value->copy();
         }
         if ($value instanceof \DateTimeInterface) {
-            return Carbon::instance($value)->utc();
+            return Carbon::instance($value);
         }
-        // String do banco: '2026-04-24 08:55:30' — interpreta como UTC
-        return Carbon::createFromFormat('Y-m-d H:i:s', $value, 'UTC');
+        // String do banco: '2026-04-28 08:00:15' — já é hora local
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        return Carbon::createFromFormat('Y-m-d H:i:s', $value, $tz);
     }
 
     /**
-     * Retorna o datetime convertido para o timezone da aplicação (BRT).
+     * Alias — datetime já está em hora local.
      */
     public function getDatetimeLocalAttribute(): ?Carbon
     {
-        return $this->datetime?->copy()->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+        return $this->datetime;
     }
 
     public function employee(): BelongsTo

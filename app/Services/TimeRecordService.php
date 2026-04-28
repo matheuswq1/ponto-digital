@@ -46,10 +46,12 @@ class TimeRecordService
         }
 
         return DB::transaction(function () use ($employee, $data) {
+            // Gravar no fuso da aplicação (BRT) — todos os datetimes do sistema estão em hora local
+            $tz = config('app.timezone', 'America/Sao_Paulo');
             $record = TimeRecord::create([
                 'employee_id' => $employee->id,
                 'type' => $data['type'],
-                'datetime' => Carbon::now('UTC'),
+                'datetime' => Carbon::now($tz),
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
                 'accuracy' => $data['accuracy'] ?? null,
@@ -63,10 +65,9 @@ class TimeRecordService
                 'status' => 'pendente',
             ]);
 
-            // Recalcula o dia de trabalho a cada saída
+            // Recalcula o dia de trabalho a cada saída — datetime já está em hora local
             if ($data['type'] === 'saida') {
-                $tz = config('app.timezone', 'America/Sao_Paulo');
-                ProcessWorkDay::dispatch($employee, $record->datetime->copy()->setTimezone($tz)->toDateString());
+                ProcessWorkDay::dispatch($employee, $record->datetime->toDateString());
             }
 
             return $record;
@@ -93,7 +94,8 @@ class TimeRecordService
                 $record = TimeRecord::create([
                     'employee_id' => $employee->id,
                     'type' => $recordData['type'],
-                    'datetime' => Carbon::parse($recordData['datetime'])->utc(),
+                    // datetime vem do app como hora local (sem fuso) — guardar como está
+                    'datetime' => Carbon::parse($recordData['datetime']),
                     'latitude' => $recordData['latitude'] ?? null,
                     'longitude' => $recordData['longitude'] ?? null,
                     'accuracy' => $recordData['accuracy'] ?? null,
@@ -124,12 +126,9 @@ class TimeRecordService
         $employee->loadMissing('company');
         $maxRecords = $employee->company?->max_daily_records ?? 10;
 
-        $tz = config('app.timezone', 'America/Sao_Paulo');
-        $startOfDay = Carbon::now($tz)->startOfDay()->utc();
-        $endOfDay   = Carbon::now($tz)->endOfDay()->utc();
-
+        // Datetimes no banco estão em hora local — usar whereDate directamente
         $todayRecords = $employee->timeRecords()
-            ->whereBetween('datetime', [$startOfDay, $endOfDay])
+            ->whereDate('datetime', today())
             ->orderBy('datetime')
             ->get();
 
@@ -223,7 +222,7 @@ class TimeRecordService
         return $record->edits()->create([
             'edited_by' => $editedByUserId,
             'original_datetime' => $record->datetime,
-            'new_datetime' => Carbon::parse($data['new_datetime'])->utc(),
+            'new_datetime' => Carbon::parse($data['new_datetime']),
             'original_type' => $record->type,
             'new_type' => $data['new_type'] ?? $record->type,
             'justification' => $data['justification'],

@@ -36,27 +36,29 @@ class TimeRecordEdit extends Model
     }
 
     /**
-     * Interpreta campos datetime do banco como UTC antes de qualquer conversão.
+     * Datetimes no banco estão em hora local (BRT) — lê como hora local sem conversão.
      */
     protected function asDateTime($value): Carbon
     {
         if ($value instanceof Carbon) {
-            return $value->copy()->utc();
+            return $value->copy();
         }
         if ($value instanceof \DateTimeInterface) {
-            return Carbon::instance($value)->utc();
+            return Carbon::instance($value);
         }
-        return Carbon::createFromFormat('Y-m-d H:i:s', $value, 'UTC');
+        // String do banco: interpreta como hora local da aplicação
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        return Carbon::createFromFormat('Y-m-d H:i:s', $value, $tz);
     }
 
     public function getOriginalDatetimeLocalAttribute(): ?Carbon
     {
-        return $this->original_datetime?->copy()->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+        return $this->original_datetime;
     }
 
     public function getNewDatetimeLocalAttribute(): ?Carbon
     {
-        return $this->new_datetime?->copy()->setTimezone(config('app.timezone', 'America/Sao_Paulo'));
+        return $this->new_datetime;
     }
 
     public function timeRecord(): BelongsTo
