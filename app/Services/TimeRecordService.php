@@ -224,6 +224,45 @@ class TimeRecordService
             ]);
         }
 
+        // Validar que o novo horário não conflita com os vizinhos do mesmo dia
+        $newDt   = Carbon::parse($data['new_datetime']);
+        $dateStr = $newDt->toDateString();
+        $employee = $record->employee;
+
+        // Pontos do mesmo dia, excluindo o próprio registo, ordenados por hora
+        $dayRecords = $employee->timeRecords()
+            ->whereDate('datetime', $dateStr)
+            ->where('id', '!=', $record->id)
+            ->orderBy('datetime')
+            ->get();
+
+        // Construir lista com o registo proposto e ordenar
+        $allSorted = $dayRecords->push((object)[
+            'id'       => $record->id,
+            'type'     => $data['new_type'] ?? $record->type,
+            'datetime' => $newDt,
+        ])->sortBy('datetime')->values();
+
+        $idx  = $allSorted->search(fn ($r) => $r->id === $record->id);
+        $prev = $idx > 0 ? $allSorted[$idx - 1] : null;
+        $next = $idx < $allSorted->count() - 1 ? $allSorted[$idx + 1] : null;
+
+        if ($prev && ! $newDt->isAfter($prev->datetime)) {
+            $typeLabel = $prev->type === 'entrada' ? 'Entrada' : 'Saída';
+            $hora = $prev->datetime->format('H:i');
+            throw ValidationException::withMessages([
+                'new_datetime' => ["O horário deve ser posterior ao $typeLabel das {$hora}."],
+            ]);
+        }
+
+        if ($next && ! $newDt->isBefore($next->datetime)) {
+            $typeLabel = $next->type === 'entrada' ? 'Entrada' : 'Saída';
+            $hora = $next->datetime->format('H:i');
+            throw ValidationException::withMessages([
+                'new_datetime' => ["O horário deve ser anterior ao $typeLabel das {$hora}."],
+            ]);
+        }
+
         return $record->edits()->create([
             'edited_by' => $editedByUserId,
             'original_datetime' => $record->datetime,

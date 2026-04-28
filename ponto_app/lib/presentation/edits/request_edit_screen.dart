@@ -143,24 +143,21 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     }
   }
 
-  // ── Validações de horário ─────────────────────────────────────────────────
-  String? _validateDateTime(DateTime proposed) {
-    // 1. Não pode ser no futuro
-    if (proposed.isAfter(DateTime.now())) {
-      return 'O horário não pode ser no futuro.';
-    }
-
-    // 2. Buscar registos do mesmo dia no histórico
+  // ── Registos vizinhos do mesmo dia (excluindo o actual) ──────────────────
+  List<TimeRecordModel> _sameDayRecords() {
     final sameDay = DateFormat('yyyy-MM-dd').format(widget.record.datetime);
-    final allRecords = ref.read(historyProvider).records
+    return ref.read(historyProvider).records
         .where((r) => DateFormat('yyyy-MM-dd').format(r.datetime) == sameDay)
-        .where((r) => r.id != widget.record.id) // excluir o próprio registo
+        .where((r) => r.id != widget.record.id)
         .toList()
       ..sort((a, b) => a.datetime.compareTo(b.datetime));
+  }
 
-    // Posição do registo a ser corrigido (ordenado por data original)
+  // Retorna o registo imediatamente anterior e seguinte ao actual (com a hora proposta)
+  ({TimeRecordModel? prev, TimeRecordModel? next}) _neighbours(DateTime proposed) {
+    final others = _sameDayRecords();
     final allWithCurrent = [
-      ...allRecords,
+      ...others,
       TimeRecordModel(
         id: widget.record.id,
         employeeId: widget.record.employeeId,
@@ -172,23 +169,37 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     ]..sort((a, b) => a.datetime.compareTo(b.datetime));
 
     final idx = allWithCurrent.indexWhere((r) => r.id == widget.record.id);
+    return (
+      prev: idx > 0 ? allWithCurrent[idx - 1] : null,
+      next: idx < allWithCurrent.length - 1 ? allWithCurrent[idx + 1] : null,
+    );
+  }
 
-    // 3. Não pode ser anterior ao registo imediatamente anterior
-    if (idx > 0) {
-      final prev = allWithCurrent[idx - 1];
-      if (!proposed.isAfter(prev.datetime)) {
-        final fmtPrev = DateFormat('HH:mm').format(prev.datetime);
-        return 'O horário deve ser posterior ao registo anterior (${prev.typeLabel} às $fmtPrev).';
-      }
+  // ── Validações de horário ─────────────────────────────────────────────────
+  String? _validateDateTime(DateTime proposed) {
+    // 1. Não pode ser no futuro
+    if (proposed.isAfter(DateTime.now())) {
+      return 'O horário não pode ser no futuro.';
     }
 
-    // 4. Não pode ser posterior ao registo imediatamente seguinte
-    if (idx < allWithCurrent.length - 1) {
-      final next = allWithCurrent[idx + 1];
-      if (!proposed.isBefore(next.datetime)) {
-        final fmtNext = DateFormat('HH:mm').format(next.datetime);
-        return 'O horário deve ser anterior ao registo seguinte (${next.typeLabel} às $fmtNext).';
-      }
+    final nb = _neighbours(proposed);
+    final fmt = DateFormat('HH:mm');
+
+    // 2. Não pode ser igual ou anterior ao ponto imediatamente anterior
+    //    (excepto se for o primeiro do dia — prev == null)
+    if (nb.prev != null && !proposed.isAfter(nb.prev!.datetime)) {
+      final label = nb.prev!.typeLabel;
+      final hora = fmt.format(nb.prev!.datetime);
+      return 'Horário inválido: deve ser DEPOIS do $label às $hora.\n'
+          'Não é possível ter um ponto anterior a um que já existe.';
+    }
+
+    // 3. Não pode ser igual ou posterior ao ponto imediatamente seguinte
+    if (nb.next != null && !proposed.isBefore(nb.next!.datetime)) {
+      final label = nb.next!.typeLabel;
+      final hora = fmt.format(nb.next!.datetime);
+      return 'Horário inválido: deve ser ANTES do $label às $hora.\n'
+          'Não é possível ter um ponto posterior a um que já existe.';
     }
 
     return null; // Válido
@@ -629,29 +640,114 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
                 ),
               ),
 
-              // ── Aviso em tempo real (validação de horário) ───────────────
+              // ── Contexto: timeline dos pontos do dia ─────────────────────
               Builder(builder: (context) {
-                if (!_changed) return const SizedBox.shrink();
-                final warn = _validateDateTime(_newDateTime);
-                if (warn == null) return const SizedBox.shrink();
+                final others = _sameDayRecords();
+                if (others.isEmpty) return const SizedBox.shrink();
+                final fmt = DateFormat('HH:mm');
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Pontos do dia (referência)',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textHint),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            ...others.map((r) => _PointChip(
+                                  label: r.typeLabel,
+                                  time: fmt.format(r.datetime),
+                                  isRef: r.id == widget.record.id,
+                                  highlight: false,
+                                )),
+                            // Mostrar o horário proposto
+                            if (_changed)
+                              _PointChip(
+                                label: '${AppConstants.pointTypeLabels[_newType ?? widget.record.type] ?? ''} (novo)',
+                                time: '${_newDateTime.hour.toString().padLeft(2, '0')}:${_newDateTime.minute.toString().padLeft(2, '0')}',
+                                isRef: false,
+                                highlight: true,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+
+              // ── Aviso em tempo real (validação de horário) ───────────────
+              Builder(builder: (context) {
+                if (!_changed) return const SizedBox.shrink();
+                final err = _validateDateTime(_newDateTime);
+                if (err == null) {
+                  // Válido — mostrar confirmação verde
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.check_circle_outline,
+                              color: AppColors.success, size: 18),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Horário válido — não conflita com outros pontos do dia.',
+                              style: TextStyle(
+                                  color: AppColors.success, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                // Inválido — vermelho forte, não deixa enviar
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.5), width: 1.5),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.warning_amber_rounded,
-                            color: AppColors.warning, size: 18),
-                        const SizedBox(width: 8),
+                        const Icon(Icons.block_rounded,
+                            color: AppColors.error, size: 20),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: Text(warn,
-                              style: const TextStyle(
-                                  color: AppColors.warning, fontSize: 13)),
+                          child: Text(
+                            err,
+                            style: const TextStyle(
+                                color: AppColors.error,
+                                fontSize: 13,
+                                height: 1.4),
+                          ),
                         ),
                       ],
                     ),
@@ -689,7 +785,9 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
 
               // ── Botão enviar ─────────────────────────────────────────────
               ElevatedButton(
-                onPressed: _sending ? null : _submit,
+                onPressed: (_sending || (_changed && _validateDateTime(_newDateTime) != null))
+                    ? null
+                    : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   minimumSize: const Size.fromHeight(52),
@@ -943,6 +1041,68 @@ class _SectionLabel extends StatelessWidget {
         fontWeight: FontWeight.w700,
         color: AppColors.textHint,
         letterSpacing: 0.8,
+      ),
+    );
+  }
+}
+
+/// Chip de ponto para a timeline contextual
+class _PointChip extends StatelessWidget {
+  final String label;
+  final String time;
+  final bool isRef;     // é o ponto sendo editado (original)
+  final bool highlight; // é o horário proposto (novo)
+
+  const _PointChip({
+    required this.label,
+    required this.time,
+    required this.isRef,
+    required this.highlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color border;
+    final Color textColor;
+
+    if (highlight) {
+      bg = AppColors.primary.withValues(alpha: 0.12);
+      border = AppColors.primary.withValues(alpha: 0.5);
+      textColor = AppColors.primary;
+    } else if (isRef) {
+      bg = AppColors.warning.withValues(alpha: 0.1);
+      border = AppColors.warning.withValues(alpha: 0.4);
+      textColor = AppColors.warning;
+    } else {
+      bg = const Color(0xFFEFF6FF);
+      border = const Color(0xFFBFDBFE);
+      textColor = const Color(0xFF1D4ED8);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            time,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 9, color: textColor),
+          ),
+        ],
       ),
     );
   }
