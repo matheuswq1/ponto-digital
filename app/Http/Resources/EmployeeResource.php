@@ -25,6 +25,7 @@ class EmployeeResource extends JsonResource
             'active' => $this->active,
             'photo_url' => $this->photo_url,
             'face_enrolled' => (bool) $this->face_enrolled,
+            'app_punch_disabled' => (bool) ($this->dept?->app_punch_disabled ?? false),
             'user' => $this->whenLoaded('user', fn() => new UserResource($this->user)),
             'company' => $this->whenLoaded('company', fn() => new CompanyResource($this->company)),
             'work_schedule' => $this->whenLoaded('workSchedule', fn() => new WorkScheduleResource($this->workSchedule)),

@@ -14,6 +14,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/user_model.dart';
 import '../../services/face_service.dart';
+import 'geofence_map_screen.dart';
 
 class RegisterPointScreen extends ConsumerStatefulWidget {
   final String pointType;
@@ -165,7 +166,12 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     }
 
     if (policy == PolicyCheckResult.geofenceViolation) {
-      _showGeofenceDialog(company);
+      final pos = ref.read(registerPointProvider);
+      _showGeofenceDialog(
+        company,
+        userLat: pos.latitude,
+        userLon: pos.longitude,
+      );
       return;
     }
 
@@ -267,40 +273,38 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     );
   }
 
-  void _showGeofenceDialog(CompanyModel? company) {
-    // Pegar todas as geocercas activas (novo sistema) ou a legada
-    final locations = company?.geofences ?? [];
-    final legacyGeofence = company?.geofence;
-
-    // Montar lista de locais permitidos para exibir
-    final allowedPlaces = <_AllowedPlace>[];
-    for (final loc in locations) {
-      allowedPlaces.add(_AllowedPlace(
-        name: loc.name,
-        address: loc.address,
-        lat: loc.latitude,
-        lng: loc.longitude,
-        radiusMeters: loc.radiusMeters,
-      ));
-    }
-    if (allowedPlaces.isEmpty &&
-        legacyGeofence?.enabled == true &&
-        legacyGeofence?.latitude != null &&
-        legacyGeofence?.longitude != null) {
-      allowedPlaces.add(_AllowedPlace(
-        name: company?.name ?? 'Empresa',
-        address: null,
-        lat: legacyGeofence!.latitude!,
-        lng: legacyGeofence.longitude!,
-        radiusMeters: legacyGeofence.radiusMeters,
-      ));
-    }
+  void _showGeofenceDialog(
+    CompanyModel? company, {
+    double? userLat,
+    double? userLon,
+  }) {
+    final allowedPlaces = geofencePlacesFromCompany(company);
 
     showDialog<void>(
       context: context,
       builder: (_) => _GeofenceViolationDialog(
         companyName: company?.name ?? 'sua empresa',
         allowedPlaces: allowedPlaces,
+        userLat: userLat,
+        userLon: userLon,
+      ),
+    );
+  }
+
+  void _openGeofenceMapFullscreen({
+    required CompanyModel? company,
+    double? userLat,
+    double? userLon,
+  }) {
+    final places = geofencePlacesFromCompany(company);
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => GeofenceMapScreen(
+          companyName: company?.name ?? 'Empresa',
+          places: places,
+          userLatitude: userLat,
+          userLongitude: userLon,
+        ),
       ),
     );
   }
@@ -422,11 +426,23 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final appPunchDisabled = authState.user?.employee?.appPunchDisabled ?? false;
+
+    // Guard: se o departamento exige somente totem, não permite acesso a esta tela
+    if (appPunchDisabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/home');
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final state = ref.watch(registerPointProvider);
     final label = AppConstants.pointTypeLabels[widget.pointType] ?? widget.pointType;
     final typeColor = _typeColor(widget.pointType);
-    final company = ref.read(authProvider).user?.employee?.company ??
-        ref.read(authProvider).user?.company;
+    final company = authState.user?.employee?.company ?? authState.user?.company;
     final requirePhoto = company?.requirePhoto ?? false;
 
     // Diâmetro do círculo igual ao cálculo usado em _buildCameraWithCircle
@@ -551,24 +567,38 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                       ),
                     ),
 
-                  // Erro
+                  // Erro (geocerca no servidor: cartão com atalho para o mapa)
                   if (state.status == RegisterPointStatus.error)
                     Positioned(
-                      bottom: 12,
-                      left: 20,
-                      right: 20,
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          state.errorMessage ?? 'Erro ao registrar ponto.',
-                          style: const TextStyle(color: Colors.white),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                      bottom: 8,
+                      left: 12,
+                      right: 12,
+                      child: state.locationGeofenceApiError
+                          ? _GeofenceRegisterErrorCard(
+                              message: state.errorMessage ?? 'Erro ao registrar ponto.',
+                              onDismiss: () =>
+                                  ref.read(registerPointProvider.notifier).dismissRegisterError(),
+                              onOpenMap: () {
+                                ref.read(registerPointProvider.notifier).dismissRegisterError();
+                                _openGeofenceMapFullscreen(
+                                  company: company,
+                                  userLat: state.latitude,
+                                  userLon: state.longitude,
+                                );
+                              },
+                            )
+                          : Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.error,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                state.errorMessage ?? 'Erro ao registrar ponto.',
+                                style: const TextStyle(color: Colors.white),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                     ),
 
                   // Flip câmera (oculto durante verificação/carregamento)
@@ -764,153 +794,326 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   }
 }
 
-class _AllowedPlace {
-  final String name;
-  final String? address;
-  final double lat;
-  final double lng;
-  final int radiusMeters;
-  const _AllowedPlace({required this.name, required this.address, required this.lat, required this.lng, required this.radiusMeters});
+/// Erro de geocerca após envio ao servidor — destaca o atalho para o mapa (tema escuro da câmera).
+class _GeofenceRegisterErrorCard extends StatelessWidget {
+  final String message;
+  final VoidCallback onDismiss;
+  final VoidCallback onOpenMap;
+
+  const _GeofenceRegisterErrorCard({
+    required this.message,
+    required this.onDismiss,
+    required this.onOpenMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF152238),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.65)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.location_off_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Fora da área autorizada',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: onOpenMap,
+            icon: const Icon(Icons.map_outlined, size: 22),
+            label: const Text('Ver áreas permitidas no mapa'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: onDismiss,
+            child: const Text('Fechar aviso', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GeofenceViolationDialog extends StatelessWidget {
   final String companyName;
-  final List<_AllowedPlace> allowedPlaces;
-  const _GeofenceViolationDialog({required this.companyName, required this.allowedPlaces});
+  final List<GeofenceMapPlace> allowedPlaces;
+  final double? userLat;
+  final double? userLon;
 
-  Future<void> _openMaps(_AllowedPlace place) async {
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}');
+  const _GeofenceViolationDialog({
+    required this.companyName,
+    required this.allowedPlaces,
+    this.userLat,
+    this.userLon,
+  });
+
+  void _openFullScreenMap(BuildContext context) {
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    navigator.push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => GeofenceMapScreen(
+          companyName: companyName,
+          places: allowedPlaces,
+          userLatitude: userLat,
+          userLongitude: userLon,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openMaps(GeofenceMapPlace place) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}',
+    );
     if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
   Widget build(BuildContext context) {
     final primary = allowedPlaces.isNotEmpty ? allowedPlaces.first : null;
+    final maxH = MediaQuery.of(context).size.height * 0.88;
 
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Cabeçalho com ícone de mapa ──────────────────────────────
-            Container(
-              width: double.infinity,
-              color: AppColors.error,
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-              child: Column(
-                children: [
-                  const Icon(Icons.location_off_rounded, color: Colors.white, size: 40),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Fora da área permitida',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Você precisa estar em uma das áreas de $companyName.',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Lista de locais permitidos ───────────────────────────────
-            if (allowedPlaces.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: SizedBox(
+        width: double.maxFinite,
+        height: maxH.clamp(320, 640),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: double.infinity,
+                color: AppColors.error,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Locais onde pode bater o ponto:',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF616161)),
-                    ),
+                    const Icon(Icons.location_off_rounded, color: Colors.white, size: 36),
                     const SizedBox(height: 8),
-                    ...allowedPlaces.map((p) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
-                        onTap: () => _openMaps(p),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE0E0E0)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 36, height: 36,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.place, size: 20, color: AppColors.primary),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(p.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                    if (p.address != null)
-                                      Text(p.address!, style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
-                                    Text('Raio: ${p.radiusMeters}m', style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
-                            ],
-                          ),
-                        ),
+                    const Text(
+                      'Fora da área permitida',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
-                    )),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Você precisa estar numa área autorizada de $companyName.',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               ),
 
-            // ── Botões ───────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-              child: Row(
-                children: [
-                  if (primary != null)
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () { Navigator.pop(context); _openMaps(primary); },
-                        icon: const Icon(Icons.directions, size: 16),
-                        label: const Text('Como chegar'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          side: const BorderSide(color: AppColors.primary),
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // Atalho ao mapa sempre visível (logo abaixo do cabeçalho)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: FilledButton.icon(
+                  onPressed: () => _openFullScreenMap(context),
+                  icon: const Icon(Icons.map_outlined, size: 22),
+                  label: const Text('Ver áreas permitidas no mapa'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+
+              if (allowedPlaces.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Text(
+                    'Os locais não foram carregados neste dispositivo. Abra o mapa acima ou actualize os dados no menu do app.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF757575)),
+                  ),
+                ),
+
+              Expanded(
+                child: allowedPlaces.isEmpty
+                    ? const SizedBox.shrink()
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Locais onde pode bater o ponto:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF616161),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ...allowedPlaces.map((p) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: InkWell(
+                                    onTap: () => _openMaps(p),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF5F5F5),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: const Color(0xFFE0E0E0)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primary.withValues(alpha: 0.1),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(Icons.place, size: 20, color: AppColors.primary),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  p.name,
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                if (p.address != null)
+                                                  Text(
+                                                    p.address!,
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      color: Color(0xFF9E9E9E),
+                                                    ),
+                                                  ),
+                                                Text(
+                                                  'Raio: ${p.radiusMeters} m',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Color(0xFF9E9E9E),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Icon(Icons.chevron_right, size: 18, color: AppColors.primary),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                )),
+                          ],
                         ),
                       ),
-                    ),
-                  if (primary != null) const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Entendi'),
-                    ),
-                  ),
-                ],
               ),
-            ),
-          ],
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  children: [
+                    if (primary != null)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _openMaps(primary);
+                          },
+                          icon: const Icon(Icons.directions, size: 16),
+                          label: const Text('Como chegar'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (primary != null) const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.surfaceVariant,
+                          foregroundColor: AppColors.textPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Fechar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

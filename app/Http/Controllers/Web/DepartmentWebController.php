@@ -65,16 +65,17 @@ class DepartmentWebController extends Controller
         $this->authorize('manage-employees');
 
         $rules = [
-            'name'               => 'required|string|max:120',
-            'entry_time'         => 'nullable|date_format:H:i',
-            'exit_time'          => 'nullable|date_format:H:i',
-            'lunch_minutes'      => 'nullable|integer|min:0|max:300',
-            'lunch_by_day'       => 'nullable|array',
-            'lunch_by_day.*'     => 'nullable|integer|min:0|max:300',
-            'tolerance_minutes'  => 'nullable|integer|min:0|max:120',
-            'work_days'          => 'nullable|array',
-            'work_days.*'        => 'integer|between:0,6',
-            'active'             => 'nullable|boolean',
+            'name'                 => 'required|string|max:120',
+            'entry_time'           => 'nullable|date_format:H:i',
+            'exit_time'            => 'nullable|date_format:H:i',
+            'lunch_minutes'        => 'nullable|integer|min:0|max:300',
+            'lunch_by_day'         => 'nullable|array',
+            'lunch_by_day.*'       => 'nullable|integer|min:0|max:300',
+            'tolerance_minutes'    => 'nullable|integer|min:0|max:120',
+            'work_days'            => 'nullable|array',
+            'work_days.*'          => 'integer|between:0,6',
+            'active'               => 'nullable|boolean',
+            'app_punch_disabled'   => 'nullable|boolean',
         ];
         if (auth()->user()->isAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
@@ -105,6 +106,7 @@ class DepartmentWebController extends Controller
             'tolerance_minutes'      => $validated['tolerance_minutes'] ?? 10,
             'work_days'              => $workDays,
             'active'                 => $request->boolean('active', true),
+            'app_punch_disabled'     => $request->boolean('app_punch_disabled', false),
         ]);
 
         return redirect()->route('painel.departments.index')
@@ -129,16 +131,17 @@ class DepartmentWebController extends Controller
         $this->ensureCanAccessDepartment($department);
 
         $rules = [
-            'name'               => 'required|string|max:120',
-            'entry_time'         => 'nullable|date_format:H:i',
-            'exit_time'          => 'nullable|date_format:H:i',
-            'lunch_minutes'      => 'nullable|integer|min:0|max:300',
-            'lunch_by_day'       => 'nullable|array',
-            'lunch_by_day.*'     => 'nullable|integer|min:0|max:300',
-            'tolerance_minutes'  => 'nullable|integer|min:0|max:120',
-            'work_days'          => 'nullable|array',
-            'work_days.*'        => 'integer|between:0,6',
-            'active'             => 'nullable|boolean',
+            'name'                 => 'required|string|max:120',
+            'entry_time'           => 'nullable|date_format:H:i',
+            'exit_time'            => 'nullable|date_format:H:i',
+            'lunch_minutes'        => 'nullable|integer|min:0|max:300',
+            'lunch_by_day'         => 'nullable|array',
+            'lunch_by_day.*'       => 'nullable|integer|min:0|max:300',
+            'tolerance_minutes'    => 'nullable|integer|min:0|max:120',
+            'work_days'            => 'nullable|array',
+            'work_days.*'          => 'integer|between:0,6',
+            'active'               => 'nullable|boolean',
+            'app_punch_disabled'   => 'nullable|boolean',
         ];
         if (auth()->user()->isAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
@@ -169,6 +172,7 @@ class DepartmentWebController extends Controller
             'tolerance_minutes'      => $validated['tolerance_minutes'] ?? 10,
             'work_days'              => $workDays,
             'active'                 => $request->boolean('active', true),
+            'app_punch_disabled'     => $request->boolean('app_punch_disabled', false),
         ]);
 
         return redirect()->route('painel.departments.index')

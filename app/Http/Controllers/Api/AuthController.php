@@ -50,7 +50,7 @@ class AuthController extends Controller
             }
         }
 
-        $user->load(['employee.company.activeLocations', 'company.activeLocations']);
+        $user->load(['employee.company.activeLocations', 'employee.dept', 'company.activeLocations']);
 
         $faceEnrolled = $user->employee
             ? (bool) $user->employee->face_enrolled
@@ -76,7 +76,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'user' => new UserResource($request->user()->load(['employee.company.activeLocations', 'company.activeLocations'])),
+            'user' => new UserResource($request->user()->load(['employee.company.activeLocations', 'employee.dept', 'company.activeLocations'])),
         ]);
     }
 

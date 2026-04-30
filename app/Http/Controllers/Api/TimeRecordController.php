@@ -50,6 +50,16 @@ class TimeRecordController extends Controller
             return response()->json(['message' => 'Funcionário não encontrado.'], 404);
         }
 
+        $employee->loadMissing('dept');
+
+        // Bloqueia registro via app se o departamento exige somente totem
+        if ($employee->dept && $employee->dept->app_punch_disabled) {
+            return response()->json([
+                'message' => 'O registro de ponto pelo app está desativado para o seu departamento. Utilize o totem para registrar o ponto.',
+                'error_code' => 'app_punch_disabled',
+            ], 403);
+        }
+
         $data = $request->validated();
 
         if ($request->hasFile('photo')) {

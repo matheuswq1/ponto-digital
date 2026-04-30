@@ -38,6 +38,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final todayState = ref.watch(todayProvider);
     final pendingCount = ref.watch(pendingOfflineCountProvider);
     final user = authState.user;
+    final appPunchDisabled = user?.employee?.appPunchDisabled ?? false;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,12 +67,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Botão principal de bater ponto
-                  if (todayState.data != null && !todayState.data!.isComplete)
-                    _buildPunchButton(context, ref, todayState.data!),
+                  // Registro de ponto — bloqueado pelo departamento ou disponível
+                  if (appPunchDisabled)
+                    _buildTotemOnlyCard()
+                  else ...[
+                    if (todayState.data != null && !todayState.data!.isComplete)
+                      _buildPunchButton(context, ref, todayState.data!),
 
-                  if (todayState.data?.isComplete == true)
-                    _buildCompletedCard(),
+                    if (todayState.data?.isComplete == true)
+                      _buildCompletedCard(),
+                  ],
 
                   const SizedBox(height: 20),
 
@@ -373,6 +378,107 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotemOnlyCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6366F1).withValues(alpha: 0.08),
+            const Color(0xFF8B5CF6).withValues(alpha: 0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.tablet_android,
+                  color: Color(0xFF6366F1),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ponto pelo totem',
+                      style: TextStyle(
+                        color: Color(0xFF4338CA),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Registro via app desativado',
+                      style: TextStyle(
+                        color: Color(0xFF6366F1),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(color: Color(0xFFE0E7FF), height: 1),
+          const SizedBox(height: 14),
+          const Text(
+            'O seu departamento está configurado para registrar o ponto exclusivamente pelo totem. '
+            'Dirija-se ao totem da empresa para registrar a entrada ou saída.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.info_outline, color: Color(0xFF6366F1), size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'Consultas e solicitações permanecem disponíveis',
+                  style: TextStyle(
+                    color: Color(0xFF4338CA),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -69,6 +69,7 @@ class EmployeeModel {
   final int weeklyHours;
   final bool active;
   final bool faceEnrolled;
+  final bool appPunchDisabled;
   final CompanyModel? company;
 
   const EmployeeModel({
@@ -80,6 +81,7 @@ class EmployeeModel {
     required this.weeklyHours,
     required this.active,
     this.faceEnrolled = false,
+    this.appPunchDisabled = false,
     this.company,
   });
 
@@ -92,6 +94,7 @@ class EmployeeModel {
         weeklyHours: json['weekly_hours'] ?? 44,
         active: json['active'] ?? true,
         faceEnrolled: json['face_enrolled'] ?? false,
+        appPunchDisabled: json['app_punch_disabled'] ?? false,
         company: json['company'] != null
             ? CompanyModel.fromJson(json['company'])
             : null,
@@ -106,10 +109,11 @@ class EmployeeModel {
         'weekly_hours': weeklyHours,
         'active': active,
         'face_enrolled': faceEnrolled,
+        'app_punch_disabled': appPunchDisabled,
         'company': company?.toJson(),
       };
 
-  EmployeeModel copyWith({bool? faceEnrolled}) => EmployeeModel(
+  EmployeeModel copyWith({bool? faceEnrolled, bool? appPunchDisabled}) => EmployeeModel(
         id: id,
         companyId: companyId,
         cpf: cpf,
@@ -118,6 +122,7 @@ class EmployeeModel {
         weeklyHours: weeklyHours,
         active: active,
         faceEnrolled: faceEnrolled ?? this.faceEnrolled,
+        appPunchDisabled: appPunchDisabled ?? this.appPunchDisabled,
         company: company,
       );
 }

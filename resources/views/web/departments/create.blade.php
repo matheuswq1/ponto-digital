@@ -75,6 +75,30 @@
                 Departamento ativo
             </label>
         </div>
+
+        <div class="border-t border-slate-100 pt-4">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Controle de registro</p>
+            <div class="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+                <div class="flex-shrink-0 mt-0.5">
+                    <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+                        <input type="hidden" name="app_punch_disabled" value="0">
+                        <input type="checkbox" name="app_punch_disabled" value="1"
+                               @checked(old('app_punch_disabled', false))
+                               class="rounded border-amber-400 text-amber-600 focus:ring-amber-500">
+                        Bloquear registro pelo app — somente totem
+                    </label>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Quando ativado, os colaboradores deste departamento não poderão registrar o ponto pelo aplicativo.
+                        O ponto ficará disponível apenas pelo totem da empresa.
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
     <div class="flex gap-3">
         <button type="submit" class="bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-indigo-700">Guardar</button>

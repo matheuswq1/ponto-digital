@@ -19,6 +19,7 @@ class Department extends Model
         'tolerance_minutes',
         'work_days',
         'active',
+        'app_punch_disabled',
     ];
 
     protected function casts(): array
@@ -26,6 +27,7 @@ class Department extends Model
         return [
             'work_days'              => 'array',
             'active'                 => 'boolean',
+            'app_punch_disabled'     => 'boolean',
             'lunch_minutes'          => 'integer',
             'tolerance_minutes'      => 'integer',
             'lunch_minutes_by_day'   => 'array',
