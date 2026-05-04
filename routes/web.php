@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Web\AdditionRequestWebController;
+use App\Http\Controllers\Web\CommunicationWebController;
 use App\Http\Controllers\Web\PayslipWebController;
+use App\Http\Controllers\Web\VacationRequestWebController;
 use App\Http\Controllers\Web\AuditLogWebController;
 use App\Http\Controllers\Web\CompanyLocationsWebController;
 use App\Http\Controllers\Web\FraudAlertWebController;
@@ -109,6 +111,19 @@ Route::middleware('auth')->group(function () {
         Route::post('/empresas/{company}/totems', [CompanyWebController::class, 'addTotem'])->name('companies.totems.add');
         Route::post('/empresas/{company}/totems/{totem}/toggle', [CompanyWebController::class, 'toggleTotem'])->name('companies.totems.toggle');
         Route::post('/empresas/{company}/totems/{totem}/senha', [CompanyWebController::class, 'resetTotemPassword'])->name('companies.totems.password');
+
+        // Comunicados
+        Route::get('/comunicados', [CommunicationWebController::class, 'index'])->name('communications.index');
+        Route::get('/comunicados/novo', [CommunicationWebController::class, 'create'])->name('communications.create');
+        Route::post('/comunicados', [CommunicationWebController::class, 'store'])->name('communications.store');
+        Route::get('/comunicados/{communication}/editar', [CommunicationWebController::class, 'edit'])->name('communications.edit');
+        Route::match(['PUT','POST'], '/comunicados/{communication}/atualizar', [CommunicationWebController::class, 'update'])->name('communications.update');
+        Route::delete('/comunicados/{communication}', [CommunicationWebController::class, 'destroy'])->name('communications.destroy');
+
+        // Férias
+        Route::get('/ferias', [VacationRequestWebController::class, 'index'])->name('vacation-requests.index');
+        Route::post('/ferias/{vacationRequest}/aprovar', [VacationRequestWebController::class, 'approve'])->name('vacation-requests.approve');
+        Route::post('/ferias/{vacationRequest}/rejeitar', [VacationRequestWebController::class, 'reject'])->name('vacation-requests.reject');
 
         // Holerites
         Route::get('/holerites', [PayslipWebController::class, 'index'])->name('payslips.index');

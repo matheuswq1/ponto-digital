@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CommunicationController;
 use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\HourBankController;
 use App\Http\Controllers\Api\PayslipController;
+use App\Http\Controllers\Api\VacationRequestController;
 use App\Http\Controllers\Api\TimeRecordController;
 use App\Http\Controllers\Api\TimeRecordAdditionController;
 use App\Http\Controllers\Api\TimeRecordEditController;
@@ -70,6 +72,16 @@ Route::prefix('v1')->group(function () {
             Route::post('/{edit}/reject', [TimeRecordEditController::class, 'reject'])
                 ->middleware('can:approve-edit-requests')
                 ->name('api.edit-requests.reject');
+        });
+
+        // Comunicados
+        Route::get('/communications', [CommunicationController::class, 'index'])->name('api.communications.index');
+
+        // Férias
+        Route::prefix('vacation-requests')->group(function () {
+            Route::get('/', [VacationRequestController::class, 'index'])->name('api.vacation-requests.index');
+            Route::post('/', [VacationRequestController::class, 'store'])->name('api.vacation-requests.store');
+            Route::delete('/{id}', [VacationRequestController::class, 'destroy'])->name('api.vacation-requests.destroy');
         });
 
         // Holerites

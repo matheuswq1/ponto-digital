@@ -16,7 +16,9 @@ import '../../presentation/edits/request_add_point_screen.dart';
 import '../../presentation/edits/request_edit_screen.dart';
 import '../../presentation/totem/totem_screen.dart';
 import '../../presentation/balance/request_leave_screen.dart';
+import '../../presentation/communications/communications_screen.dart';
 import '../../presentation/payslips/payslips_screen.dart';
+import '../../presentation/vacation/vacation_screen.dart';
 import '../../data/models/time_record_model.dart';
 import '../../data/models/hour_bank_request_model.dart';
 
@@ -164,6 +166,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'payslips',
             name: 'payslips',
             builder: (_, __) => const PayslipsScreen(),
+          ),
+          GoRoute(
+            path: 'communications',
+            name: 'communications',
+            builder: (_, __) => const CommunicationsScreen(),
+          ),
+          GoRoute(
+            path: 'vacation',
+            name: 'vacation',
+            builder: (_, __) => const VacationScreen(),
           ),
           GoRoute(
             path: 'request-leave',
