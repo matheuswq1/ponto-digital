@@ -5,13 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\TimeRecordAddition;
 use App\Services\PushNotificationService;
+use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TimeRecordAdditionController extends Controller
 {
-    public function __construct(private readonly PushNotificationService $push) {}
+    public function __construct(
+        private readonly PushNotificationService $push,
+        private readonly WhatsAppService $whatsapp,
+    ) {}
 
     /**
      * Colaborador solicita adição de um ponto que esqueceu de bater.
@@ -55,6 +59,20 @@ class TimeRecordAdditionController extends Controller
             'justification' => $request->justification,
             'status'        => 'pendente',
         ]);
+
+        // ── Notificação WhatsApp para o RH da empresa ────────────────────────
+        $company = $employee->company()->with([])->first();
+        if ($company?->notification_contact) {
+            $this->whatsapp->notifyAdditionRequest(
+                toNumber: $company->notification_contact,
+                employeeName: $request->user()->name,
+                companyName: $company->name,
+                requestedDate: $dt->format('d/m/Y'),
+                requestedTime: $dt->format('H:i') . ' (' . ucfirst($request->type) . ')',
+                reason: $request->justification,
+                adminUrl: url('/painel/adições'),
+            );
+        }
 
         return response()->json([
             'message' => 'Solicitação de adição de ponto enviada. Aguardando aprovação.',

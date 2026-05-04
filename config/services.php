@@ -46,4 +46,10 @@ return [
         'key' => env('GOOGLE_MAPS_KEY', ''),
     ],
 
+    'whatsapp' => [
+        'url'     => env('WHATSAPP_API_URL', 'https://whats.approsamistica.com/api/integration'),
+        'api_key' => env('WHATSAPP_API_KEY', ''),
+        'enabled' => env('WHATSAPP_ENABLED', false),
+    ],
+
 ];

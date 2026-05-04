@@ -8,6 +8,7 @@ use App\Models\TimeRecord;
 use App\Models\TimeRecordEdit;
 use App\Services\PushNotificationService;
 use App\Services\TimeRecordService;
+use App\Services\WhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,6 +17,7 @@ class TimeRecordEditController extends Controller
     public function __construct(
         private readonly TimeRecordService $timeRecordService,
         private readonly PushNotificationService $pushNotification,
+        private readonly WhatsAppService $whatsapp,
     ) {}
 
     public function store(Request $request, TimeRecord $timeRecord): JsonResponse
@@ -31,6 +33,20 @@ class TimeRecordEditController extends Controller
             $request->all(),
             $request->user()->id
         );
+
+        // ── Notificação WhatsApp para o RH da empresa ────────────────────────
+        $employee = $timeRecord->employee()->with('company')->first();
+        if ($employee?->company?->notification_contact) {
+            $newDt = \Carbon\Carbon::parse($request->new_datetime);
+            $this->whatsapp->notifyEditRequest(
+                toNumber: $employee->company->notification_contact,
+                employeeName: $request->user()->name,
+                companyName: $employee->company->name,
+                requestedDate: $newDt->format('d/m/Y H:i'),
+                reason: $request->justification,
+                adminUrl: url('/painel/solicitacoes'),
+            );
+        }
 
         return response()->json([
             'message' => 'Solicitação de correção enviada. Aguardando aprovação.',

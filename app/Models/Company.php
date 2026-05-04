@@ -40,6 +40,7 @@ class Company extends Model
         'work_end',
         'lunch_duration',
         'max_daily_records',
+        'notification_contact',
     ];
 
     protected function casts(): array
