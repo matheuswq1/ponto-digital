@@ -103,7 +103,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
           _showFraudBlockedDialog(
             title: 'Permissão de localização necessária',
             message:
-                'Para verificar a rede Wi-Fi autorizada, o app precisa da permissão de localização.\n\nVá em Configurações → Aplicativos → Ponto Digital → Permissões → Localização e conceda o acesso.',
+                'Para verificar a rede Wi-Fi autorizada, o app precisa da permissão de localização.\n\nVá em Configurações → Aplicativos → RM Colaboradores → Permissões → Localização e conceda o acesso.',
             icon: Icons.location_off_rounded,
           );
           return;

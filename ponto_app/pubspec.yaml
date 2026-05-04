@@ -1,5 +1,5 @@
 name: ponto_app
-description: Sistema de Ponto Eletrônico Digital
+description: RM Colaboradores — Gestão de pessoas
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -54,6 +54,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   local_auth: ^3.0.1
   url_launcher: ^6.3.2
+  google_maps_flutter: ^2.10.0
 
 dev_dependencies:
   flutter_test:

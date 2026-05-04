@@ -80,7 +80,7 @@
 
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h2 class="text-sm font-semibold text-slate-700 mb-1">Acesso ao aplicativo (gestor)</h2>
-        <p class="text-xs text-slate-500 mb-4">Será criado um utilizador <strong>gestor</strong> ligado a esta empresa. Use estas credenciais no telemóvel ou tablet com o app Ponto Digital.</p>
+        <p class="text-xs text-slate-500 mb-4">Será criado um utilizador <strong>gestor</strong> ligado a esta empresa. Use estas credenciais no telemóvel ou tablet com o app RM Colaboradores.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2">
                 <label class="block text-xs font-medium text-slate-600 mb-1">Nome do gestor <span class="text-rose-500">*</span></label>

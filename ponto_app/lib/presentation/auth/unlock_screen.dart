@@ -54,7 +54,7 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
               const Icon(Icons.fingerprint, size: 72, color: AppColors.primary),
               const SizedBox(height: 24),
               const Text(
-                'Desbloquear Ponto Digital',
+                'Desbloquear RM Colaboradores',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),

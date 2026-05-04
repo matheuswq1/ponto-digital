@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title', 'Painel') — Ponto Digital</title>
+    <title>@yield('title', 'Painel') — RM Colaboradores</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -92,19 +92,17 @@
 
     {{-- ── LOGO ── --}}
     <div class="flex items-center gap-3 px-5 py-4 border-b border-white/[0.07] shrink-0">
-        <div class="relative flex h-10 w-10 items-center justify-center rounded-xl
-                    bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg shadow-brand-900/60">
-            <svg class="w-5 h-5 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-            </svg>
-            {{-- Pulso de status online --}}
+        <div class="relative flex h-10 w-10 items-center justify-center rounded-xl shadow-lg flex-shrink-0"
+             style="background: linear-gradient(135deg, #1d4ed8, #2563eb);">
+            <span class="text-white font-black text-base tracking-tight leading-none">RM</span>
+            {{-- Badge vermelho --}}
             <span class="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
-                <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style="background:#dc2626"></span>
+                <span class="relative inline-flex h-2.5 w-2.5 rounded-full" style="background:#dc2626"></span>
             </span>
         </div>
         <div class="min-w-0">
-            <p class="text-white font-bold text-sm leading-tight tracking-wide">Ponto Digital</p>
+            <p class="text-white font-bold text-sm leading-tight tracking-wide">RM Colaboradores</p>
             <p class="text-brand-400 text-[11px] leading-tight mt-0.5">Painel de gestão</p>
         </div>
     </div>
@@ -408,7 +406,7 @@
     {{-- ── FOOTER ── --}}
     <footer class="shrink-0 flex items-center justify-between px-6 py-2.5
                    text-[11px] text-slate-400 border-t border-slate-200 bg-white">
-        <span>Ponto Digital &copy; {{ date('Y') }} &mdash; v1.0</span>
+        <span>RM Colaboradores &copy; {{ date('Y') }} &mdash; v2.0</span>
         <span class="hidden sm:inline">Painel de gestão &amp; RH</span>
     </footer>
 </div>

@@ -506,7 +506,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 // ── Rodapé ───────────────────────────────────
                                 Center(
                                   child: Text(
-                                    'Ponto Digital © ${DateTime.now().year}',
+                                    'RM Colaboradores © ${DateTime.now().year}',
                                     style: const TextStyle(
                                       color: AppColors.textHint,
                                       fontSize: 12,

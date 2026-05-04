@@ -49,7 +49,7 @@ class PontoApp extends ConsumerWidget {
     NotificationService.setRouter(router);
 
     return MaterialApp.router(
-      title: 'Ponto Digital',
+      title: 'RM Colaboradores',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
