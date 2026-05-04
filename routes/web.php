@@ -78,6 +78,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/relatorios/folha-pagamento', [ReportWebController::class, 'folhaPagamento'])->name('reports.folha-pagamento');
         Route::get('/relatorios/presenca', [ReportWebController::class, 'presenca'])->name('reports.presenca');
         Route::get('/relatorios/banco-horas', [ReportWebController::class, 'bancoHoras'])->name('reports.banco-horas');
+        Route::get('/relatorios/espelho-ponto', [ReportWebController::class, 'espelhoPonto'])->name('reports.espelho-ponto');
 
         // Feriados
         Route::get('/feriados', [HolidayWebController::class, 'index'])->name('holidays.index');

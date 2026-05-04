@@ -67,16 +67,43 @@ $diasSemana = ['D','S','T','Q','Q','S','S'];
         <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition">
             Gerar relatório
         </button>
-        <a href="{{ request()->fullUrlWithQuery(['export' => 'csv']) }}"
-           class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg transition">
-            ⬇ Exportar CSV
-        </a>
         @if(count($rows) > 0)
+        <div class="relative" id="export-dd-presenca">
+            <button type="button" onclick="toggleExportDd('presenca')"
+                    class="inline-flex items-center gap-2 bg-slate-700 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-slate-800">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                Exportar ▾
+            </button>
+            <div id="export-menu-presenca" class="hidden absolute left-0 mt-1 w-44 bg-white rounded-xl border border-slate-200 shadow-xl z-10 overflow-hidden">
+                <a href="{{ request()->fullUrlWithQuery(['export' => 'pdf']) }}"
+                   class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-rose-50">
+                    <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                    PDF (mapa visual)
+                </a>
+                <a href="{{ request()->fullUrlWithQuery(['export' => 'csv']) }}"
+                   class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 border-t border-slate-100">
+                    <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125-.504 1.125-1.125"/></svg>
+                    CSV / Excel
+                </a>
+            </div>
+        </div>
         <span class="text-xs text-slate-400">{{ count($rows) }} colaborador(es) &middot;
             {{ $dfCarbon->format('d/m/Y') }} a {{ $dtCarbon->format('d/m/Y') }}</span>
         @endif
     </div>
 </form>
+<script>
+function toggleExportDd(k) {
+    const m = document.getElementById('export-menu-'+k);
+    m.classList.toggle('hidden');
+    document.addEventListener('click', function h(e) {
+        if (!document.getElementById('export-dd-'+k)?.contains(e.target)) {
+            m.classList.add('hidden');
+            document.removeEventListener('click', h);
+        }
+    });
+}
+</script>
 
 @if(count($rows) > 0)
 

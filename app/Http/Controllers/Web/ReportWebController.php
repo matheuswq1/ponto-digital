@@ -173,6 +173,12 @@ class ReportWebController extends Controller
             return $this->exportFolhaCSV($rows, $dateFrom, $dateTo);
         }
 
+        if ($request->get('export') === 'pdf') {
+            $pdf = Pdf::loadView('web.reports.folha_pagamento_pdf', compact('rows', 'dateFrom', 'dateTo'))
+                ->setPaper('a4', 'landscape');
+            return $pdf->download("folha_pagamento_{$dateFrom}_a_{$dateTo}.pdf");
+        }
+
         return view('web.reports.folha_pagamento', compact(
             'rows', 'dateFrom', 'dateTo',
             'companies', 'departments', 'companyId', 'deptId'
@@ -275,6 +281,12 @@ class ReportWebController extends Controller
 
         if ($request->get('export') === 'csv') {
             return $this->exportPresencaCSV($rows, $dates, $dateFrom, $dateTo);
+        }
+
+        if ($request->get('export') === 'pdf') {
+            $pdf = Pdf::loadView('web.reports.presenca_pdf', compact('rows', 'dates', 'dateFrom', 'dateTo'))
+                ->setPaper('a4', count($dates) > 20 ? 'a3' : 'a4', count($dates) > 15 ? 'landscape' : 'portrait');
+            return $pdf->download("presenca_{$dateFrom}_a_{$dateTo}.pdf");
         }
 
         return view('web.reports.presenca', compact(
@@ -401,6 +413,147 @@ class ReportWebController extends Controller
             'fmtMin'     => $fmtMin,
             'signMin'    => $signMin,
         ]);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // Espelho de ponto — detalhe dia a dia por colaborador
+    // ────────────────────────────────────────────────────────────────────────────
+
+    public function espelhoPonto(Request $request): \Illuminate\View\View|\Symfony\Component\HttpFoundation\BinaryFileResponse|\Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->authorize('manage-employees');
+
+        $tz        = config('app.timezone', 'America/Sao_Paulo');
+        $dateFrom  = $request->get('date_from', today()->startOfMonth()->toDateString());
+        $dateTo    = $request->get('date_to',   today()->endOfMonth()->toDateString());
+        $companyId = $request->get('company_id');
+        $empId     = $request->get('employee_id');
+
+        $from = Carbon::createFromFormat('Y-m-d', $dateFrom, $tz)->startOfDay();
+        $to   = Carbon::createFromFormat('Y-m-d', $dateTo,   $tz)->endOfDay();
+
+        $companies = Company::orderBy('name')->get();
+        $employees = collect();
+        if ($companyId || auth()->user()->isGestor()) {
+            $cid = auth()->user()->isGestor() ? auth()->user()->company_id : $companyId;
+            $employees = Employee::where('company_id', $cid)->where('active', true)->with('user')->get();
+        }
+
+        $rows = collect();
+        $emp  = null;
+        if ($empId) {
+            $emp = Employee::with(['user', 'company', 'dept', 'workSchedule'])->findOrFail($empId);
+
+            $records = TimeRecord::where('employee_id', $empId)
+                ->whereBetween('datetime', [$from, $to])
+                ->orderBy('datetime')
+                ->get();
+
+            $byDay = [];
+            foreach ($records as $rec) {
+                $day = $rec->datetime->setTimezone($tz)->toDateString();
+                $byDay[$day][] = $rec;
+            }
+
+            $ws       = $emp->workSchedule;
+            $dept     = $emp->dept;
+            $deptRef  = $dept && $dept->entry_time ? $dept : null;
+            $workList = $deptRef ? $deptRef->workDaysList() : ($ws?->work_days ?? [1,2,3,4,5]);
+            $holidays = array_flip(Holiday::datesInPeriod($dateFrom, $dateTo, $emp->company_id));
+            $fmtMin   = fn(int $m) => $m === 0 ? '00:00' : sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
+
+            $period = CarbonPeriod::create($dateFrom, $dateTo);
+            foreach ($period as $date) {
+                $ds  = $date->toDateString();
+                $dow = (int) $date->format('w');
+                $recs= $byDay[$ds] ?? [];
+
+                $entries = array_values(array_filter($recs, fn($r) => $r->type === 'entrada'));
+                $exits   = array_values(array_filter($recs, fn($r) => $r->type === 'saida'));
+
+                $worked = 0;
+                foreach ($entries as $i => $e) {
+                    $s = $exits[$i] ?? null;
+                    if ($s) $worked += $e->datetime->diffInMinutes($s->datetime);
+                }
+
+                $expectedMin = $deptRef
+                    ? $deptRef->getExpectedMinutesForDay($dow)
+                    : ($ws ? $ws->getExpectedMinutes() : $emp->dailyExpectedMinutes());
+
+                $isWork    = in_array($dow, $workList);
+                $isHoliday = isset($holidays[$ds]);
+                $diff      = $worked - $expectedMin;
+
+                $status = '—';
+                if ($isHoliday)       $status = 'Feriado';
+                elseif (!$isWork)     $status = 'Folga';
+                elseif ($worked > 0)  $status = 'Presente';
+                elseif ($ds > today()->toDateString()) $status = 'Futuro';
+                else                  $status = 'Falta';
+
+                $rows->push([
+                    'date'      => $ds,
+                    'date_fmt'  => $date->locale('pt_BR')->translatedFormat('D, d/m/Y'),
+                    'entries'   => collect($entries)->map(fn($r) => $r->datetime->setTimezone($tz)->format('H:i')),
+                    'exits'     => collect($exits)->map(fn($r) => $r->datetime->setTimezone($tz)->format('H:i')),
+                    'worked'    => $fmtMin($worked),
+                    'worked_m'  => $worked,
+                    'expected'  => $fmtMin($expectedMin),
+                    'diff'      => $worked > 0 ? ($diff >= 0 ? '+'.$fmtMin($diff) : '-'.$fmtMin(abs($diff))) : '—',
+                    'diff_m'    => $diff,
+                    'status'    => $status,
+                    'is_work'   => $isWork,
+                    'is_holiday'=> $isHoliday,
+                ]);
+            }
+
+            if ($request->get('export') === 'pdf') {
+                $pdf = Pdf::loadView('web.reports.espelho_ponto_pdf', [
+                    'emp'      => $emp,
+                    'rows'     => $rows,
+                    'dateFrom' => $dateFrom,
+                    'dateTo'   => $dateTo,
+                    'fmtMin'   => $fmtMin,
+                ])->setPaper('a4', 'portrait');
+                return $pdf->download("espelho_ponto_{$emp->id}_{$dateFrom}_a_{$dateTo}.pdf");
+            }
+
+            if ($request->get('export') === 'csv') {
+                return $this->exportEspelhoCSV($emp, $rows, $dateFrom, $dateTo);
+            }
+        }
+
+        return view('web.reports.espelho_ponto', compact(
+            'rows', 'companies', 'employees',
+            'dateFrom', 'dateTo', 'companyId', 'empId',
+            'emp'
+        ));
+    }
+
+    private function exportEspelhoCSV($emp, $rows, string $from, string $to)
+    {
+        $filename = "espelho_ponto_{$emp->id}_{$from}_a_{$to}.csv";
+        $headers  = ['Content-Type' => 'text/csv; charset=UTF-8', 'Content-Disposition' => "attachment; filename=\"$filename\""];
+        $callback = function () use ($emp, $rows) {
+            $h = fopen('php://output', 'w');
+            fputs($h, "\xEF\xBB\xBF");
+            fputcsv($h, ['Data', 'Dia', 'Entradas', 'Saídas', 'Trabalhado', 'Esperado', 'Diferença', 'Status'], ';');
+            foreach ($rows as $row) {
+                fputcsv($h, [
+                    $row['date'],
+                    $row['date_fmt'],
+                    $row['entries']->implode(' | '),
+                    $row['exits']->implode(' | '),
+                    $row['worked'],
+                    $row['expected'],
+                    $row['diff'],
+                    $row['status'],
+                ], ';');
+            }
+            fclose($h);
+        };
+        return response()->stream($callback, 200, $headers);
     }
 
     private function exportBancoHorasCSV(array $sections, string $ym, Carbon $monthRef)
