@@ -93,6 +93,38 @@ class FirebaseStorageService
         return $this->getPublicUrl($path);
     }
 
+    public function uploadPayslip(
+        UploadedFile $file,
+        int $companyId,
+        int $employeeId,
+        int $year,
+        int $month
+    ): string {
+        $ext  = $file->getClientOriginalExtension() ?: 'pdf';
+        $path = sprintf(
+            'payslips/%d/%d/%02d/%d_%s.%s',
+            $companyId,
+            $year,
+            $month,
+            $employeeId,
+            now()->format('His'),
+            $ext
+        );
+
+        $bucket   = $this->getBucketName();
+        $mime     = $file->getMimeType() ?: 'application/pdf';
+        $response = Http::withToken($this->getAccessToken())
+            ->withHeaders(['Content-Type' => $mime])
+            ->withBody(file_get_contents($file->getRealPath()), $mime)
+            ->post("https://storage.googleapis.com/upload/storage/v1/b/{$bucket}/o?uploadType=media&name=".rawurlencode($path));
+
+        if ($response->failed()) {
+            throw new \RuntimeException('Falha ao fazer upload do holerite: '.$response->body());
+        }
+
+        return $this->getPublicUrl($path);
+    }
+
     public function generateSignedUploadUrl(int $employeeId, string $type, string $extension): array
     {
         $path = sprintf(

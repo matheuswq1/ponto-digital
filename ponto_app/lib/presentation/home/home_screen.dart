@@ -80,6 +80,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                   const SizedBox(height: 20),
 
+                  // Módulos do app (hub)
+                  _buildModuleGrid(context),
+
+                  const SizedBox(height: 20),
+
                   // Registros do dia
                   if (todayState.data != null)
                     _buildTodayRecords(todayState.data!.records),
@@ -505,6 +510,118 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildModuleGrid(BuildContext context) {
+    final modules = [
+      _ModuleTile(
+        icon: Icons.history_rounded,
+        label: 'Histórico',
+        subtitle: 'Registros de ponto',
+        color: const Color(0xFF3B82F6),
+        onTap: () => context.goNamed('history'),
+      ),
+      _ModuleTile(
+        icon: Icons.account_balance_wallet_rounded,
+        label: 'Banco de Horas',
+        subtitle: 'Saldo e transações',
+        color: const Color(0xFF10B981),
+        onTap: () => context.goNamed('balance'),
+      ),
+      _ModuleTile(
+        icon: Icons.receipt_long_rounded,
+        label: 'Holerites',
+        subtitle: 'Contracheques',
+        color: const Color(0xFFEF4444),
+        onTap: () => context.goNamed('payslips'),
+      ),
+      _ModuleTile(
+        icon: Icons.edit_calendar_rounded,
+        label: 'Solicitações',
+        subtitle: 'Correções e adições',
+        color: const Color(0xFFF59E0B),
+        onTap: () => context.goNamed('edit-requests'),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Serviços',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.65,
+          children: modules.map((m) => _buildModuleTile(context, m)).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModuleTile(BuildContext context, _ModuleTile module) {
+    return GestureDetector(
+      onTap: module.onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: module.color.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: module.color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(module.icon, color: module.color, size: 20),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  module.label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  module.subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
@@ -772,6 +889,22 @@ class _LiveClockState extends State<_LiveClock> {
       ],
     );
   }
+}
+
+class _ModuleTile {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ModuleTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
 }
 
 class _ShimmerCard extends StatelessWidget {

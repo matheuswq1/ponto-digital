@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\AdditionRequestWebController;
+use App\Http\Controllers\Web\PayslipWebController;
 use App\Http\Controllers\Web\AuditLogWebController;
 use App\Http\Controllers\Web\CompanyLocationsWebController;
 use App\Http\Controllers\Web\FraudAlertWebController;
@@ -108,6 +109,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/empresas/{company}/totems', [CompanyWebController::class, 'addTotem'])->name('companies.totems.add');
         Route::post('/empresas/{company}/totems/{totem}/toggle', [CompanyWebController::class, 'toggleTotem'])->name('companies.totems.toggle');
         Route::post('/empresas/{company}/totems/{totem}/senha', [CompanyWebController::class, 'resetTotemPassword'])->name('companies.totems.password');
+
+        // Holerites
+        Route::get('/holerites', [PayslipWebController::class, 'index'])->name('payslips.index');
+        Route::get('/holerites/enviar', [PayslipWebController::class, 'create'])->name('payslips.create');
+        Route::post('/holerites', [PayslipWebController::class, 'store'])->name('payslips.store');
+        Route::delete('/holerites/{payslip}', [PayslipWebController::class, 'destroy'])->name('payslips.destroy');
+        Route::get('/holerites/colaboradores/{companyId}', [PayslipWebController::class, 'employeesByCompany'])->name('payslips.employees');
 
         // Utilizadores (apenas admin)
         Route::get('/utilizadores', [UserWebController::class, 'index'])->name('users.index');

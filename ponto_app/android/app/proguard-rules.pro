@@ -41,6 +41,12 @@
 # URL Launcher
 -keep class io.flutter.plugins.urllauncher.** { *; }
 
+# Google Maps (Flutter)
+-keep class com.google.android.gms.maps.** { *; }
+-keep interface com.google.android.gms.maps.** { *; }
+-dontwarn com.google.android.gms.maps.**
+-keep class io.flutter.plugins.googlemaps.** { *; }
+
 # Kotlin coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}

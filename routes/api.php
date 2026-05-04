@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\HourBankController;
+use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\TimeRecordController;
 use App\Http\Controllers\Api\TimeRecordAdditionController;
 use App\Http\Controllers\Api\TimeRecordEditController;
@@ -69,6 +70,12 @@ Route::prefix('v1')->group(function () {
             Route::post('/{edit}/reject', [TimeRecordEditController::class, 'reject'])
                 ->middleware('can:approve-edit-requests')
                 ->name('api.edit-requests.reject');
+        });
+
+        // Holerites
+        Route::prefix('payslips')->group(function () {
+            Route::get('/', [PayslipController::class, 'index'])->name('api.payslips.index');
+            Route::get('/{id}', [PayslipController::class, 'show'])->name('api.payslips.show');
         });
 
         // Banco de horas — solicitações de folga

@@ -32,6 +32,9 @@ class RegisterPointState {
   final double? accuracy;
   final bool isMock;
 
+  /// Erro da API com campo `location` (geocerca no servidor) — mostrar atalho para o mapa.
+  final bool locationGeofenceApiError;
+
   const RegisterPointState({
     this.status = RegisterPointStatus.idle,
     this.result,
@@ -40,6 +43,7 @@ class RegisterPointState {
     this.longitude,
     this.accuracy,
     this.isMock = false,
+    this.locationGeofenceApiError = false,
   });
 
   RegisterPointState copyWith({
@@ -50,6 +54,7 @@ class RegisterPointState {
     double? longitude,
     double? accuracy,
     bool? isMock,
+    bool? locationGeofenceApiError,
   }) =>
       RegisterPointState(
         status: status ?? this.status,
@@ -59,6 +64,8 @@ class RegisterPointState {
         longitude: longitude ?? this.longitude,
         accuracy: accuracy ?? this.accuracy,
         isMock: isMock ?? this.isMock,
+        locationGeofenceApiError:
+            locationGeofenceApiError ?? this.locationGeofenceApiError,
       );
 
   bool get isLoading =>
@@ -113,6 +120,14 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
     if (company.requireGeolocation && company.hasAnyGeofence) {
       final loc = location ?? await _locationService.getCurrentLocation();
       if (loc == null) return PolicyCheckResult.geofenceUnavailable;
+
+      // Guarda posição para o mapa de áreas permitidas (diálogo de geocerca)
+      state = state.copyWith(
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy: loc.accuracy,
+        isMock: loc.isMock,
+      );
 
       final multiGeofences = company.geofences;
       if (multiGeofences.isNotEmpty) {
@@ -219,12 +234,36 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
         );
         return true;
       }
-      state = state.copyWith(
+      state = RegisterPointState(
         status: RegisterPointStatus.error,
         errorMessage: e.firstError() ?? e.message,
+        latitude: state.latitude,
+        longitude: state.longitude,
+        accuracy: state.accuracy,
+        isMock: state.isMock,
+        locationGeofenceApiError: _isGeofenceLocationApiError(e),
       );
       return false;
     }
+  }
+
+  /// Falha de geocerca após envio ao servidor (mensagem com distância, etc.).
+  static bool _isGeofenceLocationApiError(AppException e) {
+    if (e.errors != null && e.errors!.containsKey('location')) return true;
+    final t = (e.firstError() ?? e.message).toLowerCase();
+    return t.contains('área permitida') || t.contains('áreas permitidas');
+  }
+
+  /// Fecha o banner de erro mantendo a última posição GPS.
+  void dismissRegisterError() {
+    if (state.status != RegisterPointStatus.error) return;
+    state = RegisterPointState(
+      status: RegisterPointStatus.idle,
+      latitude: state.latitude,
+      longitude: state.longitude,
+      accuracy: state.accuracy,
+      isMock: state.isMock,
+    );
   }
 
   Future<void> _saveOffline(

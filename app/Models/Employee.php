@@ -93,6 +93,11 @@ class Employee extends Model
         return $this->hasMany(TimeRecordAddition::class);
     }
 
+    public function payslips(): HasMany
+    {
+        return $this->hasMany(Payslip::class);
+    }
+
     /**
      * Saldo atual do banco de horas em minutos.
      * Positivo = crédito, negativo = débito.
