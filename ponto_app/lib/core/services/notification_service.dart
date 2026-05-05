@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,8 +23,20 @@ final FlutterLocalNotificationsPlugin _localNotifications =
 GoRouter? _router;
 
 /// Manipulador de mensagens em background (top-level, fora de qualquer classe).
+/// Precisa de [Firebase.initializeApp] neste isolate; mensagens com payload
+/// `notification` já são mostradas pelo sistema Android/iOS — evita duplicar.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('FCM background: Firebase init falhou: $e');
+    return;
+  }
+  if (message.notification != null) {
+    return;
+  }
   await NotificationService._showLocal(message);
 }
 
@@ -111,6 +125,7 @@ class NotificationService {
       'time_record_edit.reject' || 'edit_request_rejected' => 'edit',
       'point_addition_approved' || 'point_addition_rejected' => 'add',
       'hour_bank_approved' || 'hour_bank_rejected' => 'ponto',
+      'admin_broadcast' => 'info',
       _ => 'info',
     };
     onInAppNotification?.call(

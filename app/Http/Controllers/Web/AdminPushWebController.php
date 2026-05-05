@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Department;
+use App\Models\DeviceToken;
 use App\Models\Employee;
 use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -182,6 +183,19 @@ class AdminPushWebController extends Controller
                 ->withInput();
         }
 
+        $countRecipients = count($userIds);
+
+        $tokenRowCount = DeviceToken::query()
+            ->whereIn('user_id', $userIds)
+            ->count();
+
+        if ($tokenRowCount === 0) {
+            return redirect()->back()
+                ->with('error', 'Nenhum token FCM registado para '.$countRecipients.' conta(s) deste destino. '
+                    .'Peça ao colaborador para abrir o app com sessão iniciada, aceitar notificações e aguardar alguns segundos.')
+                ->withInput();
+        }
+
         $this->push->sendToUserIds(
             $userIds,
             $validated['title'],
@@ -192,10 +206,12 @@ class AdminPushWebController extends Controller
             ]
         );
 
-        $countRecipients = count(array_unique(array_map('intval', $userIds)));
-
         return redirect()
             ->route('painel.admin-push.create', $authUser->isAdmin() ? ['company_id' => $companyId] : [])
-            ->with('success', 'Notificação enviada para '.$countRecipients.' utilizador(es) com dispositivo registado.');
+            ->with(
+                'success',
+                'Pedido enviado ao FCM para '.$tokenRowCount.' registo(s) de dispositivo ('.$countRecipients.' conta(s)). '
+                    .'Verifique os logs do servidor se não chegar ao telemóvel.'
+            );
     }
 }

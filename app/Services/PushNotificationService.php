@@ -172,21 +172,41 @@ class PushNotificationService
             return;
         }
 
-        $notification = Notification::create($title, $body);
         $payload = $this->normalizeDataForFcm(array_merge([
             'type' => 'admin_broadcast',
         ], $data));
 
+        $sent = 0;
         foreach ($tokens as $token) {
             try {
-                $message = CloudMessage::withTarget('token', $token)
-                    ->withNotification($notification)
-                    ->withData($payload);
+                // Canal Android alinhado com Flutter (NotificationService: ponto_alerts) + prioridade alta.
+                $message = CloudMessage::fromArray([
+                    'token' => $token,
+                    'notification' => [
+                        'title' => $title,
+                        'body' => $body,
+                    ],
+                    'data' => $payload,
+                    'android' => [
+                        'priority' => 'HIGH',
+                        'notification' => [
+                            'channel_id' => 'ponto_alerts',
+                            'sound' => 'default',
+                        ],
+                    ],
+                ]);
                 $messaging->send($message);
+                $sent++;
             } catch (Throwable $e) {
                 Log::warning('FCM sendToUserIds: '.$e->getMessage(), ['token' => substr((string) $token, 0, 20)]);
             }
         }
+
+        Log::info('PushNotificationService: admin broadcast enviado', [
+            'tokens_ok' => $sent,
+            'tokens_total' => count($tokens),
+            'user_ids' => count($ids),
+        ]);
     }
 
     /**
