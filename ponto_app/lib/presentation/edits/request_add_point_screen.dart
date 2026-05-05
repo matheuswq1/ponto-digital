@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/context_colors.dart';
 import '../../data/datasources/time_record_datasource.dart';
 
 class RequestAddPointScreen extends ConsumerStatefulWidget {
@@ -117,19 +118,19 @@ class _RequestAddPointScreenState extends ConsumerState<RequestAddPointScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.07),
+                    color: AppColors.primary.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.14 : 0.07),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: AppColors.primary, size: 18),
-                      SizedBox(width: 10),
+                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary, size: 18),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'Use esta opção quando esqueceu de bater um ponto. '
                           'Após enviado, o gestor irá analisar e aprovar ou rejeitar.',
-                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          style: TextStyle(fontSize: 13, color: context.appTextSecondary),
                         ),
                       ),
                     ],
@@ -177,14 +178,14 @@ class _RequestAddPointScreenState extends ConsumerState<RequestAddPointScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                           decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: context.appDivider),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.primary),
+                              Icon(Icons.calendar_today_outlined, size: 18, color: Theme.of(context).colorScheme.primary),
                               const SizedBox(width: 8),
-                              Text(dateLabel, style: const TextStyle(fontSize: 15)),
+                              Text(dateLabel, style: TextStyle(fontSize: 15, color: context.appTextPrimary)),
                             ],
                           ),
                         ),
@@ -198,14 +199,14 @@ class _RequestAddPointScreenState extends ConsumerState<RequestAddPointScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                           decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: context.appDivider),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.access_time_rounded, size: 18, color: AppColors.primary),
+                              Icon(Icons.access_time_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
                               const SizedBox(width: 8),
-                              Text(timeLabel, style: const TextStyle(fontSize: 15)),
+                              Text(timeLabel, style: TextStyle(fontSize: 15, color: context.appTextPrimary)),
                             ],
                           ),
                         ),
@@ -227,7 +228,7 @@ class _RequestAddPointScreenState extends ConsumerState<RequestAddPointScreen> {
                     hintStyle: const TextStyle(fontSize: 13),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
+                    fillColor: context.appSurfaceVariant,
                   ),
                   validator: (v) {
                     if (v == null || v.trim().length < 20) {
@@ -266,8 +267,6 @@ class _RequestAddPointScreenState extends ConsumerState<RequestAddPointScreen> {
                         : const Icon(Icons.send_rounded, size: 18),
                     label: Text(_loading ? 'Enviando...' : 'Enviar solicitação'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
@@ -299,6 +298,10 @@ class _TypeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final idleBg = context.appSurfaceVariant;
+    final outline = context.appDivider;
+    final hint = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -306,21 +309,21 @@ class _TypeButton extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.12) : const Color(0xFFF8FAFC),
+          color: selected ? color.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.22 : 0.12) : idleBg,
           border: Border.all(
-            color: selected ? color : const Color(0xFFE2E8F0),
+            color: selected ? color : outline,
             width: selected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           children: [
-            Icon(icon, color: selected ? color : AppColors.textHint, size: 24),
+            Icon(icon, color: selected ? color : hint, size: 24),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: selected ? color : AppColors.textSecondary,
+                color: selected ? color : context.appTextSecondary,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 14,
               ),

@@ -10,6 +10,7 @@ import 'today_provider.dart';
 import 'notifications_provider.dart';
 import '../../data/models/time_record_model.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/context_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/widgets/skeleton.dart';
 
@@ -62,7 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     final profileLoading = authState.isRefreshingProfile || authState.isLoading;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appBackground,
       body: RefreshIndicator(
         onRefresh: () async => ref.read(todayProvider.notifier).refresh(),
         child: CustomScrollView(
@@ -92,7 +93,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   if (profileLoading)
                     const SkeletonPunchButton()
                   else if (appPunchDisabled)
-                    _buildTotemOnlyCard()
+                    _buildTotemOnlyCard(context)
                   else ...[
                     if (todayState.isLoading && todayState.data == null)
                       const SkeletonPunchButton()
@@ -100,7 +101,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                         !todayState.data!.isComplete)
                       _buildPunchButton(context, ref, todayState.data!)
                     else if (todayState.data?.isComplete == true)
-                      _buildCompletedCard()
+                      _buildCompletedCard(context)
                     else ...[
                       // Falha ao carregar /dia ou estado vazio — ainda permite bater ponto
                       if (todayState.error != null)
@@ -128,7 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
                   // Registros do dia
                   if (todayState.data != null)
-                    _buildTodayRecords(todayState.data!.records),
+                    _buildTodayRecords(context, todayState.data!.records),
 
                   const SizedBox(height: 100),
                 ]),
@@ -168,7 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
+                    border: Border.all(color: context.badgeBorderOnNav, width: 1.5),
                   ),
                   child: Center(
                     child: Text(
@@ -280,7 +281,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
   Widget _buildTodayCard(BuildContext context, TodayState state) {
     if (state.isLoading) {
-      return const _ShimmerCard();
+      return Container(
+        height: 180,
+        decoration: BoxDecoration(
+          color: context.appSurfaceVariant,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      );
     }
 
     return Container(
@@ -492,22 +499,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _buildCompletedCard() {
+  Widget _buildCompletedCard(BuildContext context) {
+    final secondary = context.appTextSecondary;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.08),
+        color: AppColors.success.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.14 : 0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.check_circle, color: AppColors.success, size: 28),
-          SizedBox(width: 12),
+          const Icon(Icons.check_circle, color: AppColors.success, size: 28),
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Jornada concluída!',
                 style: TextStyle(
                   color: AppColors.success,
@@ -517,7 +525,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               ),
               Text(
                 'Todos os pontos do dia foram registrados.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                style: TextStyle(color: secondary, fontSize: 12),
               ),
             ],
           ),
@@ -526,21 +534,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _buildTotemOnlyCard() {
+  Widget _buildTotemOnlyCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleCol = isDark ? const Color(0xFFC7D2FE) : const Color(0xFF4338CA);
+    final subtitleCol = context.appTextSecondary;
+    final accent = const Color(0xFF6366F1);
+    final iconTint = isDark ? const Color(0xFF818CF8) : accent;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF6366F1).withValues(alpha: 0.08),
-            const Color(0xFF8B5CF6).withValues(alpha: 0.06),
+            accent.withValues(alpha: isDark ? 0.22 : 0.08),
+            const Color(0xFF8B5CF6).withValues(alpha: isDark ? 0.18 : 0.06),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF6366F1).withValues(alpha: 0.25),
+          color: accent.withValues(alpha: isDark ? 0.45 : 0.25),
           width: 1.5,
         ),
       ),
@@ -549,20 +563,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+              color: accent.withValues(alpha: isDark ? 0.28 : 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.tablet_android, color: Color(0xFF6366F1), size: 22),
+            child: Icon(Icons.tablet_android, color: iconTint, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Ponto exclusivo pelo totem',
                   style: TextStyle(
-                    color: Color(0xFF4338CA),
+                    color: titleCol,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -571,7 +585,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 Text(
                   'Dirija-se ao totem para registrar entrada ou saída.',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: subtitleCol,
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -583,14 +597,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+              color: accent.withValues(alpha: isDark ? 0.22 : 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text(
+            child: Text(
               'Consultas\ndisponíveis',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Color(0xFF4338CA),
+                color: titleCol,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
@@ -602,18 +616,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _buildTodayRecords(List records) {
+  Widget _buildTodayRecords(BuildContext context, List records) {
     if (records.isEmpty) return const SizedBox.shrink();
 
+    final primary = context.appTextPrimary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Registros de hoje',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: primary,
           ),
         ),
         const SizedBox(height: 12),
@@ -623,6 +638,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   }
 
   Widget _buildModuleGrid(BuildContext context) {
+    final headingColor = context.appTextPrimary;
     final modules = [
       _ModuleTile(
         icon: Icons.history_rounded,
@@ -671,12 +687,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Serviços',
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: headingColor,
           ),
         ),
         const SizedBox(height: 12),
@@ -694,16 +710,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   }
 
   Widget _buildModuleTile(BuildContext context, _ModuleTile module) {
+    final surface = context.appSurface;
+    final divider = context.appDivider;
+    final primary = context.appTextPrimary;
+    final secondary = context.appTextSecondary;
     return GestureDetector(
       onTap: module.onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: divider),
           boxShadow: [
             BoxShadow(
-              color: module.color.withValues(alpha: 0.08),
+              color: module.color.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.18 : 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -717,7 +737,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: module.color.withValues(alpha: 0.1),
+                color: module.color.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.22 : 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(module.icon, color: module.color, size: 20),
@@ -727,17 +747,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               children: [
                 Text(
                   module.label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
-                    color: AppColors.textPrimary,
+                    color: primary,
                   ),
                 ),
                 Text(
                   module.subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textSecondary,
+                    color: secondary,
                   ),
                 ),
               ],
@@ -760,10 +780,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appNavBarBg,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: context.appShadow,
             blurRadius: 24,
             offset: const Offset(0, -4),
           ),
@@ -813,7 +833,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                               child: Icon(
                                 item.icon,
                                 size: 24,
-                                color: isSelected ? item.color : AppColors.textSecondary,
+                                color: isSelected ? item.color : context.appTextSecondary,
                               ),
                             ),
                             if (item.badge > 0)
@@ -826,7 +846,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEF4444),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 1.5),
+                                    border: Border.all(color: context.badgeBorderOnNav, width: 1.5),
                                   ),
                                   child: Center(
                                     child: Text(
@@ -844,7 +864,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                            color: isSelected ? item.color : AppColors.textSecondary,
+                            color: isSelected ? item.color : context.appTextSecondary,
                           ),
                           child: Text(item.label),
                         ),
@@ -973,9 +993,9 @@ class _RecordTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.appDivider),
       ),
       child: Row(
         children: [
@@ -988,17 +1008,17 @@ class _RecordTile extends StatelessWidget {
           Expanded(
             child: Text(
               record.typeLabel as String,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
+                color: context.appTextPrimary,
               ),
             ),
           ),
           Text(
             time,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: context.appTextPrimary,
               fontSize: 16,
             ),
           ),
@@ -1008,7 +1028,7 @@ class _RecordTile extends StatelessWidget {
           ],
           if (record.photoUrl != null) ...[
             const SizedBox(width: 8),
-            const Icon(Icons.photo_camera, size: 14, color: AppColors.textSecondary),
+            Icon(Icons.photo_camera, size: 14, color: context.appTextSecondary),
           ],
         ],
       ),
@@ -1044,10 +1064,10 @@ class _NotificationsSheet extends ConsumerWidget {
       minChildSize: 0.35,
       maxChildSize: 0.85,
       expand: false,
-      builder: (_, controller) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (sheetContext, controller) => Container(
+        decoration: BoxDecoration(
+          color: sheetContext.appSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
@@ -1055,7 +1075,7 @@ class _NotificationsSheet extends ConsumerWidget {
             Container(
               width: 40, height: 4,
               decoration: BoxDecoration(
-                color: AppColors.divider,
+                color: sheetContext.appDivider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1064,12 +1084,12 @@ class _NotificationsSheet extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'Notificações',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: sheetContext.appTextPrimary,
                     ),
                   ),
                   const Spacer(),
@@ -1081,18 +1101,18 @@ class _NotificationsSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1, color: sheetContext.appDivider),
             Expanded(
               child: notifications.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.notifications_none, size: 48, color: AppColors.textSecondary),
-                          SizedBox(height: 12),
+                          Icon(Icons.notifications_none, size: 48, color: sheetContext.appTextSecondary),
+                          const SizedBox(height: 12),
                           Text(
                             'Nenhuma notificação',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                            style: TextStyle(color: sheetContext.appTextSecondary, fontSize: 14),
                           ),
                         ],
                       ),
@@ -1101,7 +1121,7 @@ class _NotificationsSheet extends ConsumerWidget {
                       controller: controller,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: notifications.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, indent: 64),
+                      separatorBuilder: (_, __) => Divider(height: 1, indent: 64, color: sheetContext.appDivider),
                       itemBuilder: (_, i) {
                         final n = notifications[i];
                         final iconData = switch (n.icon) {
@@ -1133,17 +1153,17 @@ class _NotificationsSheet extends ConsumerWidget {
                             style: TextStyle(
                               fontWeight: n.read ? FontWeight.w500 : FontWeight.bold,
                               fontSize: 13,
-                              color: AppColors.textPrimary,
+                              color: sheetContext.appTextPrimary,
                             ),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(n.body, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text(n.body, style: TextStyle(fontSize: 12, color: sheetContext.appTextSecondary)),
                               const SizedBox(height: 2),
                               Text(
                                 _formatTime(n.createdAt),
-                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                style: TextStyle(fontSize: 10, color: sheetContext.appTextSecondary),
                               ),
                             ],
                           ),
@@ -1241,19 +1261,3 @@ class _ModuleTile {
     required this.onTap,
   });
 }
-
-class _ShimmerCard extends StatelessWidget {
-  const _ShimmerCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 180,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(20),
-      ),
-    );
-  }
-}
-

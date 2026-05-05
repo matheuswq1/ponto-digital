@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'edit_requests_provider.dart';
 import '../../data/models/time_record_edit_model.dart';
 import '../../core/theme/app_theme.dart';
-
 class EditRequestsScreen extends ConsumerWidget {
   const EditRequestsScreen({super.key});
 
@@ -13,7 +12,6 @@ class EditRequestsScreen extends ConsumerWidget {
     final state = ref.watch(editRequestsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Correções solicitadas'),
         centerTitle: true,
@@ -34,6 +32,7 @@ class EditRequestsScreen extends ConsumerWidget {
     }
 
     if (state.error != null && state.items.isEmpty) {
+      final muted = Theme.of(context).colorScheme.onSurfaceVariant;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -44,7 +43,7 @@ class EditRequestsScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               Text(state.error!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary)),
+                  style: TextStyle(color: muted)),
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: () =>
@@ -59,21 +58,22 @@ class EditRequestsScreen extends ConsumerWidget {
     }
 
     if (state.items.isEmpty) {
-      return const Center(
+      final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.edit_off_outlined, size: 64, color: AppColors.textHint),
-            SizedBox(height: 12),
+            Icon(Icons.edit_off_outlined, size: 64, color: muted.withValues(alpha: 0.65)),
+            const SizedBox(height: 12),
             Text(
               'Nenhuma solicitação ainda.',
               style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 15),
+                  color: muted, fontSize: 15),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'As correções de ponto aparecem aqui.',
-              style: TextStyle(color: AppColors.textHint, fontSize: 13),
+              style: TextStyle(color: muted.withValues(alpha: 0.8), fontSize: 13),
             ),
           ],
         ),
@@ -133,6 +133,8 @@ class _EditRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final muted = cs.onSurfaceVariant;
     final statusColor = switch (item.status) {
       'aprovado' => AppColors.success,
       'rejeitado' => AppColors.error,
@@ -151,11 +153,17 @@ class _EditRequestCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: const [
-          BoxShadow(color: AppColors.shadow, blurRadius: 8, offset: Offset(0, 2)),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.black.withValues(alpha: 0.35)
+                : AppColors.shadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -168,19 +176,19 @@ class _EditRequestCard extends StatelessWidget {
               children: [
                 _StatusChip(status: item.status, label: item.statusLabel),
                 const Spacer(),
-                Icon(Icons.access_time, size: 12, color: AppColors.textHint),
+                Icon(Icons.access_time, size: 12, color: muted),
                 const SizedBox(width: 4),
                 Text(
                   createdStr,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textHint),
+                  style: TextStyle(
+                      fontSize: 11, color: muted),
                 ),
               ],
             ),
           ),
 
           const SizedBox(height: 12),
-          const Divider(height: 1, color: AppColors.divider),
+          Divider(height: 1, color: cs.outlineVariant),
           const SizedBox(height: 12),
 
           // ── De: horário/tipo original ─────────────────────────────────
@@ -188,15 +196,15 @@ class _EditRequestCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                const _RowIcon(icon: Icons.history, color: AppColors.textHint),
+                _RowIcon(icon: Icons.history, color: muted),
                 const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Original',
+                    Text('Original',
                         style: TextStyle(
                             fontSize: 10,
-                            color: AppColors.textHint,
+                            color: muted,
                             fontWeight: FontWeight.w600)),
                     const SizedBox(height: 2),
                     Row(
@@ -208,10 +216,10 @@ class _EditRequestCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           _fmtDate(item.originalDatetime),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                            color: cs.onSurface,
                           ),
                         ),
                       ],
@@ -240,10 +248,10 @@ class _EditRequestCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Solicitado',
+                      Text('Solicitado',
                           style: TextStyle(
                               fontSize: 10,
-                              color: AppColors.textHint,
+                              color: muted,
                               fontWeight: FontWeight.w600)),
                       const SizedBox(height: 2),
                       Row(
@@ -271,7 +279,7 @@ class _EditRequestCard extends StatelessWidget {
           ],
 
           const SizedBox(height: 12),
-          const Divider(height: 1, color: AppColors.divider),
+          Divider(height: 1, color: cs.outlineVariant),
 
           // ── Justificativa ─────────────────────────────────────────────
           Padding(
@@ -279,21 +287,21 @@ class _EditRequestCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'JUSTIFICATIVA',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textHint,
+                    color: muted,
                     letterSpacing: 0.6,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   item.justification,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.textSecondary,
+                    color: cs.onSurfaceVariant,
                     height: 1.4,
                   ),
                 ),

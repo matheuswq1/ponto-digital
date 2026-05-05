@@ -16,6 +16,10 @@ class SkeletonBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? const Color(0xFF334155) : const Color(0xFFE8EDF5);
+    final mid = isDark ? const Color(0xFF475569) : const Color(0xFFF5F7FA);
+
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 1200),
@@ -30,14 +34,14 @@ class SkeletonBox extends StatelessWidget {
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                const Color(0xFFE8EDF5),
+                base,
                 Color.lerp(
-                  const Color(0xFFE8EDF5),
-                  const Color(0xFFF5F7FA),
+                  base,
+                  mid,
                   (value <= 0.5 ? value * 2 : (1.0 - value) * 2)
                       .clamp(0.0, 1.0),
                 )!,
-                const Color(0xFFE8EDF5),
+                base,
               ],
               stops: const [0.0, 0.5, 1.0],
             ),
@@ -91,6 +95,10 @@ class _SkeletonShimmerState extends State<SkeletonShimmer>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final edge = isDark ? const Color(0xFF334155) : const Color(0xFFE4E9F2);
+    final peak = isDark ? const Color(0xFF475569) : const Color(0xFFF3F6FB);
+
     return AnimatedBuilder(
       animation: _animation,
       builder: (_, __) => Container(
@@ -102,13 +110,9 @@ class _SkeletonShimmerState extends State<SkeletonShimmer>
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
             colors: [
-              const Color(0xFFE4E9F2),
-              Color.lerp(
-                const Color(0xFFE4E9F2),
-                const Color(0xFFF3F6FB),
-                _animation.value,
-              )!,
-              const Color(0xFFE4E9F2),
+              edge,
+              Color.lerp(edge, peak, _animation.value)!,
+              edge,
             ],
             stops: const [0.0, 0.5, 1.0],
           ),

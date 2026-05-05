@@ -25,11 +25,6 @@ void main() async {
     debugPrint('Firebase init error: $e');
   }
 
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-  ));
-
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -66,6 +61,21 @@ class PontoApp extends ConsumerWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: mode,
+      builder: (context, child) {
+        final brightness = Theme.of(context).brightness;
+        final overlayStyle = SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness:
+              brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+          systemNavigationBarColor: Theme.of(context).colorScheme.surface,
+          systemNavigationBarIconBrightness:
+              brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+        );
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: overlayStyle,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       routerConfig: router,
       locale: const Locale('pt', 'BR'),
       supportedLocales: const [Locale('pt', 'BR'), Locale('en')],

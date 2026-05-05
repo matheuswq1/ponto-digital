@@ -76,7 +76,6 @@ class VacationScreen extends ConsumerWidget {
     final async = ref.watch(vacationListProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,

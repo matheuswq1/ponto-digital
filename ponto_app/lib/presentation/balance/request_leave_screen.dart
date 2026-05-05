@@ -98,7 +98,6 @@ class _RequestLeaveScreenState extends ConsumerState<RequestLeaveScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Solicitar Folga'),
         backgroundColor: AppColors.surface,

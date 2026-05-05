@@ -27,7 +27,6 @@ class PayslipsScreen extends ConsumerWidget {
     final years = List.generate(5, (i) => currentYear - i);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,

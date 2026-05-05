@@ -289,7 +289,6 @@ class _RequestEditScreenState extends ConsumerState<RequestEditScreen> {
     final fmtFull = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Solicitar correção'),
         centerTitle: true,

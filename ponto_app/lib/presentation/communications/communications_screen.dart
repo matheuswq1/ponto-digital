@@ -70,7 +70,6 @@ class CommunicationsScreen extends ConsumerWidget {
     final async = ref.watch(communicationsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
