@@ -207,7 +207,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Logo oficial RM Ponto
+                          // Logo RM Colaboradores (PNG transparente sobre o gradiente)
                           Image.asset(
                             'assets/images/logo_login.png',
                             width: size.width * 0.55,
