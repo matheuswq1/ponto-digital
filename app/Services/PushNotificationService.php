@@ -19,11 +19,15 @@ class PushNotificationService
     {
         $messaging = $this->messaging();
         if ($messaging === null) {
+            Log::warning('PushNotificationService: FCM indisponível ao notificar correção de ponto');
+
             return;
         }
 
         $user = User::query()->find($edit->edited_by);
         if (! $user) {
+            Log::warning('PushNotificationService: usuário edited_by não encontrado para edit '.$edit->id);
+
             return;
         }
 
@@ -41,15 +45,21 @@ class PushNotificationService
         }
 
         $notification = Notification::create($title, $body);
-        $dataPayload = [
-            'type'    => $outcome === 'aprovado' ? 'edit_request_approved' : 'edit_request_rejected',
+        $dataPayload = $this->normalizeDataForFcm([
+            'type' => $outcome === 'aprovado' ? 'edit_request_approved' : 'edit_request_rejected',
             'edit_id' => (string) $edit->id,
-        ];
+        ]);
 
         $tokens = DeviceToken::query()
             ->where('user_id', $user->id)
             ->pluck('token')
             ->all();
+
+        if (empty($tokens)) {
+            Log::info("PushNotificationService: sem tokens FCM para user_id {$user->id} (correção de ponto)");
+
+            return;
+        }
 
         foreach ($tokens as $token) {
             try {
@@ -64,6 +74,52 @@ class PushNotificationService
     }
 
     /**
+     * Envia push para todos os dispositivos registados de um utilizador.
+     *
+     * @param  array{title: string, body: string, data?: array<string, mixed>}  $payload
+     */
+    public function sendToUser(?User $user, array $payload): void
+    {
+        if ($user === null) {
+            Log::warning('PushNotificationService: sendToUser com utilizador null');
+
+            return;
+        }
+
+        $messaging = $this->messaging();
+        if ($messaging === null) {
+            Log::warning('PushNotificationService: FCM indisponível (sendToUser)');
+
+            return;
+        }
+
+        $tokens = DeviceToken::query()
+            ->where('user_id', $user->id)
+            ->pluck('token')
+            ->all();
+
+        if (empty($tokens)) {
+            Log::info("PushNotificationService: sem tokens FCM para user_id {$user->id}");
+
+            return;
+        }
+
+        $notification = Notification::create($payload['title'], $payload['body']);
+        $data = $this->normalizeDataForFcm($payload['data'] ?? []);
+
+        foreach ($tokens as $token) {
+            try {
+                $message = CloudMessage::withTarget('token', $token)
+                    ->withNotification($notification)
+                    ->withData($data);
+                $messaging->send($message);
+            } catch (Throwable $e) {
+                Log::warning('FCM sendToUser: '.$e->getMessage(), ['user_id' => $user->id, 'token' => substr($token, 0, 20)]);
+            }
+        }
+    }
+
+    /**
      * Envia push notification para todos os dispositivos de um colaborador.
      *
      * @param  Employee  $employee
@@ -71,34 +127,37 @@ class PushNotificationService
      */
     public function sendToEmployee(Employee $employee, array $payload): void
     {
-        $messaging = $this->messaging();
-        if ($messaging === null) {
+        $user = User::query()->find($employee->user_id);
+        if ($user === null) {
+            Log::warning("PushNotificationService: employee {$employee->id} sem utilizador válido (user_id {$employee->user_id})");
+
             return;
         }
 
-        $userId = $employee->user_id;
-        $tokens = DeviceToken::query()
-            ->where('user_id', $userId)
-            ->pluck('token')
-            ->all();
+        $this->sendToUser($user, $payload);
+    }
 
-        if (empty($tokens)) {
-            Log::info("PushNotificationService: sem tokens para employee {$employee->id}");
-            return;
-        }
-
-        $notification = Notification::create($payload['title'], $payload['body']);
-
-        foreach ($tokens as $token) {
-            try {
-                $message = CloudMessage::withTarget('token', $token)
-                    ->withNotification($notification)
-                    ->withData($payload['data'] ?? []);
-                $messaging->send($message);
-            } catch (Throwable $e) {
-                Log::warning('FCM sendToEmployee: ' . $e->getMessage(), ['token' => substr($token, 0, 20)]);
+    /**
+     * O payload `data` da FCM HTTP v1 exige valores em string.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, string>
+     */
+    private function normalizeDataForFcm(array $data): array
+    {
+        $out = [];
+        foreach ($data as $key => $value) {
+            $k = (string) $key;
+            if ($value === null) {
+                $out[$k] = '';
+            } elseif (is_scalar($value)) {
+                $out[$k] = (string) $value;
+            } else {
+                $out[$k] = json_encode($value, JSON_THROW_ON_ERROR);
             }
         }
+
+        return $out;
     }
 
     /**
@@ -113,6 +172,8 @@ class PushNotificationService
         }
         $messaging = $this->messaging();
         if ($messaging === null) {
+            Log::warning('PushNotificationService: FCM indisponível (fraude)');
+
             return;
         }
 
@@ -146,14 +207,23 @@ class PushNotificationService
             ->pluck('token')
             ->all();
 
-        foreach ($tokens as $token) {
-            try {
-                $message = CloudMessage::withTarget('token', $token)
-                    ->withNotification($notification)
-                    ->withData(['type' => 'fraud_alert', 'company_id' => (string) $companyId]);
-                $messaging->send($message);
-            } catch (Throwable $e) {
-                Log::warning('FCM fraud alert: ' . $e->getMessage());
+        if (empty($tokens)) {
+            Log::info('PushNotificationService: sem tokens FCM para alerta de fraude');
+        } else {
+            $fraudData = $this->normalizeDataForFcm([
+                'type' => 'fraud_alert',
+                'company_id' => (string) $companyId,
+            ]);
+
+            foreach ($tokens as $token) {
+                try {
+                    $message = CloudMessage::withTarget('token', $token)
+                        ->withNotification($notification)
+                        ->withData($fraudData);
+                    $messaging->send($message);
+                } catch (Throwable $e) {
+                    Log::warning('FCM fraud alert: '.$e->getMessage());
+                }
             }
         }
 
@@ -167,7 +237,9 @@ class PushNotificationService
     {
         try {
             return app(Messaging::class);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('PushNotificationService: não foi possível inicializar FCM', ['message' => $e->getMessage()]);
+
             return null;
         }
     }

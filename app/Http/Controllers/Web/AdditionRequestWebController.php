@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\TimeRecordAddition;
+use App\Models\User;
 use App\Services\AuditService;
+use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class AdditionRequestWebController extends Controller
 {
+    public function __construct(private readonly PushNotificationService $push) {}
+
     public function index(Request $request): View
     {
         $this->authorize('approve-edit-requests');
@@ -35,28 +39,28 @@ class AdditionRequestWebController extends Controller
         }
 
         $addition->approve($request->user(), $data['notes'] ?? null);
+        $addition = $addition->fresh(['employee']);
+
+        // Mesmo fluxo que correções de ponto: push antes do audit e para quem pediu no app (requested_by).
+        $requester = User::query()->find($addition->requested_by);
+        $this->push->sendToUser($requester, [
+            'title' => 'Adição de ponto aprovada',
+            'body'  => 'Seu ponto de '.ucfirst($addition->type).' em '.$addition->datetime_local?->format('d/m/Y H:i').' foi adicionado.',
+            'data'  => [
+                'type' => 'point_addition_approved',
+                'addition_id' => (string) $addition->id,
+            ],
+        ]);
 
         AuditService::log(
             $request->user(),
             'time_record_addition.approve',
             'Adição de ponto aprovada',
-            $addition->fresh(),
+            $addition,
             ['notes' => $data['notes'] ?? null],
             $addition->employee?->company_id,
             $request
         );
-
-        // Notificar colaborador
-        if ($addition->employee) {
-            app(\App\Services\PushNotificationService::class)->sendToEmployee(
-                $addition->employee,
-                [
-                    'title' => 'Adição de ponto aprovada',
-                    'body'  => 'Seu ponto de ' . ucfirst($addition->type) . ' em ' . $addition->datetime_local?->format('d/m/Y H:i') . ' foi adicionado.',
-                    'data'  => ['type' => 'point_addition_approved'],
-                ]
-            );
-        }
 
         return back()->with('success', 'Ponto adicionado e aprovado.');
     }
@@ -72,27 +76,27 @@ class AdditionRequestWebController extends Controller
         }
 
         $addition->reject($request->user(), $data['notes']);
+        $addition = $addition->fresh(['employee']);
+
+        $requester = User::query()->find($addition->requested_by);
+        $this->push->sendToUser($requester, [
+            'title' => 'Adição de ponto rejeitada',
+            'body'  => 'Sua solicitação de ponto foi rejeitada. Motivo: '.mb_substr($data['notes'], 0, 100),
+            'data'  => [
+                'type' => 'point_addition_rejected',
+                'addition_id' => (string) $addition->id,
+            ],
+        ]);
 
         AuditService::log(
             $request->user(),
             'time_record_addition.reject',
-            'Adição de ponto rejeitada: ' . $data['notes'],
-            $addition->fresh(),
+            'Adição de ponto rejeitada: '.$data['notes'],
+            $addition,
             null,
             $addition->employee?->company_id,
             $request
         );
-
-        if ($addition->employee) {
-            app(\App\Services\PushNotificationService::class)->sendToEmployee(
-                $addition->employee,
-                [
-                    'title' => 'Adição de ponto rejeitada',
-                    'body'  => 'Sua solicitação de ponto foi rejeitada. Motivo: ' . mb_substr($data['notes'], 0, 100),
-                    'data'  => ['type' => 'point_addition_rejected'],
-                ]
-            );
-        }
 
         return back()->with('success', 'Solicitação rejeitada.');
     }
