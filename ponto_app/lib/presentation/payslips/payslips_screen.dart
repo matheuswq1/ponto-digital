@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../data/datasources/payslip_datasource.dart';
 import '../../data/models/payslip_model.dart';
 
@@ -52,7 +53,7 @@ class PayslipsScreen extends ConsumerWidget {
         ],
       ),
       body: payslipsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => _PayslipsSkeleton(),
         error: (e, _) => _ErrorView(onRetry: () => ref.invalidate(payslipsProvider(year))),
         data: (payslips) => payslips.isEmpty
             ? _EmptyView(year: year)
@@ -308,6 +309,38 @@ class _ErrorView extends StatelessWidget {
             label: const Text('Tentar novamente'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PayslipsSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: 8,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            SkeletonShimmer(width: 44, height: 44, borderRadius: 12),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonShimmer(width: double.infinity, height: 13, borderRadius: 6),
+                  const SizedBox(height: 6),
+                  SkeletonShimmer(width: 100, height: 11, borderRadius: 5),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            SkeletonShimmer(width: 36, height: 36, borderRadius: 10),
+          ],
+        ),
       ),
     );
   }

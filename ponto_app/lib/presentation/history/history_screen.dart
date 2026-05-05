@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'history_provider.dart';
 import '../../data/models/time_record_model.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/skeleton.dart';
 
 class HistoryScreen extends ConsumerWidget {
   const HistoryScreen({super.key});
@@ -29,7 +30,7 @@ class HistoryScreen extends ConsumerWidget {
 
   Widget _buildBody(BuildContext context, WidgetRef ref, HistoryState state) {
     if (state.isLoading && state.records.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return _HistorySkeleton();
     }
 
     if (state.error != null && state.records.isEmpty) {
@@ -445,6 +446,27 @@ class _Tag extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(label, style: TextStyle(color: color, fontSize: 10)),
+    );
+  }
+}
+
+class _HistorySkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      itemCount: 12,
+      itemBuilder: (_, i) => Column(
+        children: [
+          if (i == 0 || i == 4 || i == 8)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              child: SkeletonShimmer(width: 120, height: 12, borderRadius: 6),
+            ),
+          const SkeletonListTile(),
+          const Divider(height: 1, indent: 74),
+        ],
+      ),
     );
   }
 }

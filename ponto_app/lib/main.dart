@@ -9,6 +9,7 @@ import 'core/services/notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/settings/theme_mode_provider.dart';
+import 'presentation/home/notifications_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +48,17 @@ class PontoApp extends ConsumerWidget {
 
     // Registar o router no NotificationService para deep links
     NotificationService.setRouter(router);
+
+    // Alimentar o histórico in-app de notificações quando FCM chegar
+    NotificationService.setInAppCallback((title, body, icon) {
+      ref.read(notificationsProvider.notifier).add(AppNotification(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: title,
+        body: body,
+        createdAt: DateTime.now(),
+        icon: icon,
+      ));
+    });
 
     return MaterialApp.router(
       title: 'RM Colaboradores',

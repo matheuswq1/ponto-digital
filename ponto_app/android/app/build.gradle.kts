@@ -34,8 +34,8 @@ android {
         applicationId = "com.pontodigital.ponto_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // local_auth (biometria) requer API 23+; câmera e geolocator também.
-        minSdk = flutter.minSdkVersion  // local_auth, camera, geolocator e network_info_plus requerem API 23+
+        // CameraX (camera 0.11+) exige min 23; alinhar com camera_android_camerax.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -48,8 +48,10 @@ android {
             // Minificação + regras ProGuard para evitar crash por R8
             isMinifyEnabled = true
             isShrinkResources = true
+            // proguard-android-optimize.txt aplica otimizações agressivas que costumam
+            // quebrar CameraX/Guava na pré-visualização em release. Usar o ficheiro base.
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
+                getDefaultProguardFile("proguard-android.txt"),
                 "proguard-rules.pro"
             )
         }

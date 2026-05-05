@@ -15,7 +15,7 @@ class PayslipDatasource {
     final params = <String, dynamic>{};
     if (year != null) params['year'] = year;
 
-    final response = await _api.get('/payslips', queryParameters: params);
+    final response = await _api.get('/payslips', params: params);
     final data = response.data['data'] as List<dynamic>;
     return data.map((e) => PayslipModel.fromJson(e as Map<String, dynamic>)).toList();
   }

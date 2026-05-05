@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/skeleton.dart';
 
 // ─── Model ──────────────────────────────────────────────────────────────────
 
@@ -83,7 +84,7 @@ class CommunicationsScreen extends ConsumerWidget {
         ],
       ),
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => _CommunicationsSkeleton(),
         error: (_, __) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -367,6 +368,43 @@ class _EmptyView extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CommunicationsSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, __) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SkeletonShimmer(width: 32, height: 32, borderRadius: 10),
+                const SizedBox(width: 10),
+                Expanded(child: SkeletonShimmer(width: double.infinity, height: 13, borderRadius: 6)),
+                const SizedBox(width: 8),
+                SkeletonShimmer(width: 60, height: 11, borderRadius: 5),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SkeletonShimmer(width: double.infinity, height: 11, borderRadius: 5),
+            const SizedBox(height: 5),
+            SkeletonShimmer(width: 200, height: 11, borderRadius: 5),
+          ],
+        ),
       ),
     );
   }

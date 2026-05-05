@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../auth/auth_provider.dart';
 import '../point/register_point_provider.dart';
 import 'today_provider.dart';
+import 'notifications_provider.dart';
 import '../../data/models/time_record_model.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/widgets/skeleton.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -17,10 +20,12 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  int _selectedNavIndex = 0;
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Só refresca pontos se não tiver dados (o provider já carrega no construtor)
       final today = ref.read(todayProvider);
@@ -33,12 +38,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Quando o app volta do background, força refresh para pegar mudanças do servidor
+      ref.read(authProvider.notifier).forceRefreshProfile();
+      ref.read(todayProvider.notifier).refresh();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final todayState = ref.watch(todayProvider);
     final pendingCount = ref.watch(pendingOfflineCountProvider);
     final user = authState.user;
     final appPunchDisabled = user?.employee?.appPunchDisabled ?? false;
+    final profileLoading = authState.isRefreshingProfile || authState.isLoading;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -67,15 +88,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Registro de ponto — bloqueado pelo departamento ou disponível
-                  if (appPunchDisabled)
+                  // Registro de ponto — skeleton enquanto perfil recarrega
+                  if (profileLoading)
+                    const SkeletonPunchButton()
+                  else if (appPunchDisabled)
                     _buildTotemOnlyCard()
                   else ...[
-                    if (todayState.data != null && !todayState.data!.isComplete)
-                      _buildPunchButton(context, ref, todayState.data!),
-
-                    if (todayState.data?.isComplete == true)
-                      _buildCompletedCard(),
+                    if (todayState.isLoading && todayState.data == null)
+                      const SkeletonPunchButton()
+                    else if (todayState.data != null &&
+                        !todayState.data!.isComplete)
+                      _buildPunchButton(context, ref, todayState.data!)
+                    else if (todayState.data?.isComplete == true)
+                      _buildCompletedCard()
+                    else ...[
+                      // Falha ao carregar /dia ou estado vazio — ainda permite bater ponto
+                      if (todayState.error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            todayState.error!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.error,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      _buildPunchFallbackButton(context, ref),
+                    ],
                   ],
 
                   const SizedBox(height: 20),
@@ -101,12 +142,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildAppBar(BuildContext context, WidgetRef ref, String name) {
+    final unread = ref.watch(unreadNotificationsCountProvider);
     return SliverAppBar(
       expandedHeight: 140,
       floating: false,
       pinned: true,
       backgroundColor: AppColors.primary,
       actions: [
+        // Sino de notificações com badge
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+              tooltip: 'Notificações',
+              onPressed: () => _showNotificationsSheet(context, ref),
+            ),
+            if (unread > 0)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      unread > 9 ? '9+' : '$unread',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
         IconButton(
           icon: const Icon(Icons.person_outline, color: Colors.white),
           tooltip: 'Perfil',
@@ -153,6 +226,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showNotificationsSheet(BuildContext context, WidgetRef ref) {
+    ref.read(notificationsProvider.notifier).markAllRead();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NotificationsSheet(ref: ref),
     );
   }
 
@@ -310,7 +393,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final color = _typeColor(nextType);
 
     return GestureDetector(
-      onTap: () => context.goNamed('register-point', extra: nextType),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.push('/home/register-point', extra: nextType),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
@@ -345,6 +429,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.85),
                     fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Resumo do dia indisponível — mantém «Bater ponto» com tipo [entrada] por defeito.
+  Widget _buildPunchFallbackButton(BuildContext context, WidgetRef ref) {
+    const nextType = 'entrada';
+    final label = AppConstants.pointTypeLabels[nextType] ?? nextType;
+    final color = _typeColor(nextType);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.push('/home/register-point', extra: nextType),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.touch_app, color: Colors.white, size: 28),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bater Ponto',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '$label · resumo do dia indisponível',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -391,98 +528,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildTotemOnlyCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             const Color(0xFF6366F1).withValues(alpha: 0.08),
-            const Color(0xFF8B5CF6).withValues(alpha: 0.08),
+            const Color(0xFF8B5CF6).withValues(alpha: 0.06),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+          color: const Color(0xFF6366F1).withValues(alpha: 0.25),
           width: 1.5,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.tablet_android,
-                  color: Color(0xFF6366F1),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ponto pelo totem',
-                      style: TextStyle(
-                        color: Color(0xFF4338CA),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Registro via app desativado',
-                      style: TextStyle(
-                        color: Color(0xFF6366F1),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Divider(color: Color(0xFFE0E7FF), height: 1),
-          const SizedBox(height: 14),
-          const Text(
-            'O seu departamento está configurado para registrar o ponto exclusivamente pelo totem. '
-            'Dirija-se ao totem da empresa para registrar a entrada ou saída.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
+              color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
+            child: const Icon(Icons.tablet_android, color: Color(0xFF6366F1), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline, color: Color(0xFF6366F1), size: 16),
-                SizedBox(width: 8),
-                Text(
-                  'Consultas e solicitações permanecem disponíveis',
+                const Text(
+                  'Ponto exclusivo pelo totem',
                   style: TextStyle(
                     color: Color(0xFF4338CA),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Dirija-se ao totem para registrar entrada ou saída.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    height: 1.4,
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'Consultas\ndisponíveis',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF4338CA),
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
             ),
           ),
         ],
@@ -637,29 +749,111 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildBottomNav(BuildContext context) {
+    final unread = ref.watch(unreadNotificationsCountProvider);
+
+    final items = [
+      _BottomNavItemData(icon: Icons.home_rounded, label: 'Início', color: AppColors.primary),
+      _BottomNavItemData(icon: Icons.history_rounded, label: 'Histórico', color: const Color(0xFF3B82F6)),
+      _BottomNavItemData(icon: Icons.account_balance_wallet_rounded, label: 'Banco Horas', color: const Color(0xFF10B981)),
+      _BottomNavItemData(icon: Icons.notifications_outlined, label: 'Avisos', color: const Color(0xFF6366F1), badge: unread),
+    ];
+
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12)],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(icon: Icons.home_rounded, label: 'Início', onTap: () {}),
-              _NavItem(
-                icon: Icons.history_rounded,
-                label: 'Histórico',
-                onTap: () => context.goNamed('history'),
-              ),
-              _NavItem(
-                icon: Icons.bar_chart_rounded,
-                label: 'Banco Horas',
-                onTap: () => context.goNamed('balance'),
-              ),
-            ],
+            children: List.generate(items.length, (i) {
+              final item = items[i];
+              final isSelected = _selectedNavIndex == i;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _selectedNavIndex = i);
+                    switch (i) {
+                      case 1: context.goNamed('history');
+                      case 2: context.goNamed('balance');
+                      case 3: _showNotificationsSheet(context, ref);
+                      default: break;
+                    }
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected ? item.color.withValues(alpha: 0.1) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: isSelected ? item.color.withValues(alpha: 0.15) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                item.icon,
+                                size: 24,
+                                color: isSelected ? item.color : AppColors.textSecondary,
+                              ),
+                            ),
+                            if (item.badge > 0)
+                              Positioned(
+                                top: -2,
+                                right: -4,
+                                child: Container(
+                                  width: 15,
+                                  height: 15,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 1.5),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      item.badge > 9 ? '9+' : '${item.badge}',
+                                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                            color: isSelected ? item.color : AppColors.textSecondary,
+                          ),
+                          child: Text(item.label),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
         ),
       ),
@@ -822,27 +1016,154 @@ class _RecordTile extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
+class _BottomNavItemData {
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final Color color;
+  final int badge;
 
-  const _NavItem({required this.icon, required this.label, required this.onTap});
+  const _BottomNavItemData({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.badge = 0,
+  });
+}
+
+/// Bottom sheet de notificações recentes
+class _NotificationsSheet extends ConsumerWidget {
+  final WidgetRef ref;
+  const _NotificationsSheet({required this.ref});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: AppColors.primary, size: 26),
-          const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-        ],
+  Widget build(BuildContext context, WidgetRef watchRef) {
+    final notifications = watchRef.watch(notificationsProvider);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.85,
+      expand: false,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  const Text(
+                    'Notificações',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (notifications.isNotEmpty)
+                    TextButton(
+                      onPressed: () => watchRef.read(notificationsProvider.notifier).clear(),
+                      child: const Text('Limpar', style: TextStyle(fontSize: 12)),
+                    ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: notifications.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.notifications_none, size: 48, color: AppColors.textSecondary),
+                          SizedBox(height: 12),
+                          Text(
+                            'Nenhuma notificação',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: controller,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: notifications.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, indent: 64),
+                      itemBuilder: (_, i) {
+                        final n = notifications[i];
+                        final iconData = switch (n.icon) {
+                          'ponto' => Icons.fingerprint,
+                          'edit' => Icons.edit_note,
+                          'add' => Icons.add_circle_outline,
+                          'warning' => Icons.warning_amber_rounded,
+                          _ => Icons.notifications_outlined,
+                        };
+                        final iconColor = switch (n.icon) {
+                          'ponto' => AppColors.primary,
+                          'edit' => const Color(0xFF3B82F6),
+                          'add' => const Color(0xFF10B981),
+                          'warning' => AppColors.warning,
+                          _ => const Color(0xFF6366F1),
+                        };
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                          leading: Container(
+                            width: 40, height: 40,
+                            decoration: BoxDecoration(
+                              color: iconColor.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(iconData, color: iconColor, size: 20),
+                          ),
+                          title: Text(
+                            n.title,
+                            style: TextStyle(
+                              fontWeight: n.read ? FontWeight.w500 : FontWeight.bold,
+                              fontSize: 13,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(n.body, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              const SizedBox(height: 2),
+                              Text(
+                                _formatTime(n.createdAt),
+                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Agora';
+    if (diff.inMinutes < 60) return 'Há ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Há ${diff.inHours}h';
+    return DateFormat('dd/MM HH:mm').format(dt);
   }
 }
 

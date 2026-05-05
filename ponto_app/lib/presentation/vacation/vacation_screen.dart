@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/skeleton.dart';
 
 // ─── Model ──────────────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ class VacationScreen extends ConsumerWidget {
         label: const Text('Solicitar férias', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
       ),
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => _VacationSkeleton(),
         error: (_, __) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -527,6 +528,45 @@ class _EmptyView extends StatelessWidget {
               onPressed: onNew,
               icon: const Icon(Icons.add_rounded, size: 18),
               label: const Text('Solicitar férias'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VacationSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: 5,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, __) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SkeletonShimmer(width: 90, height: 13, borderRadius: 6),
+                const Spacer(),
+                SkeletonShimmer(width: 60, height: 22, borderRadius: 11),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                SkeletonShimmer(width: 130, height: 11, borderRadius: 5),
+                const SizedBox(width: 12),
+                SkeletonShimmer(width: 80, height: 11, borderRadius: 5),
+              ],
             ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
 import '../../core/utils/safe_camera_dispose.dart';
+import '../../core/utils/image_compress.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,42 +31,54 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   List<CameraDescription>? _cameras;
   bool _cameraReady = false;
   bool _useFrontCamera = true;
-  bool _verifyingFace = false; // true durante a chamada /face/verify
-  bool _capturing = false;     // true durante takePicture — feedback imediato
+  bool _verifyingFace = false;  // true durante a chamada /face/verify
+  bool _capturing = false;      // true durante takePicture — feedback imediato
+  bool _compressing = false;    // true durante compressão da imagem em isolate
 
   @override
   void initState() {
     super.initState();
+    // Reset imediato — libera a tela antes de qualquer chamada assíncrona
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(registerPointProvider.notifier).reset();
     });
+    // Refresh do perfil em background (não bloqueia a câmera)
+    // O listener em build() reage se appPunchDisabled mudar para true
+    ref.read(authProvider.notifier).forceRefreshProfile();
     _initCamera();
   }
 
   Future<void> _initCamera() async {
-    final cameraPermission = await Permission.camera.request();
-    if (!cameraPermission.isGranted) {
-      setState(() => _cameraReady = false);
-      return;
+    try {
+      final cameraPermission = await Permission.camera.request();
+      if (!cameraPermission.isGranted) {
+        if (mounted) setState(() => _cameraReady = false);
+        return;
+      }
+
+      _cameras = await availableCameras();
+      if (_cameras == null || _cameras!.isEmpty) return;
+
+      final camera = _cameras!.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => _cameras!.first,
+      );
+
+      _cameraController = CameraController(
+        camera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      await _cameraController!.initialize();
+      if (mounted) setState(() => _cameraReady = true);
+    } catch (e) {
+      // Em builds de release, o CameraX pode lançar exceção se o ProGuard
+      // remover classes internas. A câmera fica indisponível mas o ponto
+      // ainda pode ser registado sem foto (se a empresa permitir).
+      if (mounted) setState(() => _cameraReady = false);
     }
-
-    _cameras = await availableCameras();
-    if (_cameras == null || _cameras!.isEmpty) return;
-
-    final camera = _cameras!.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.front,
-      orElse: () => _cameras!.first,
-    );
-
-    _cameraController = CameraController(
-      camera,
-      ResolutionPreset.medium,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-
-    await _cameraController!.initialize();
-    if (mounted) setState(() => _cameraReady = true);
   }
 
   @override
@@ -78,7 +91,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
   /// Captura foto (se câmera disponível) e regista o ponto de uma só vez.
   Future<void> _captureAndRegister() async {
-    if (ref.read(registerPointProvider).isLoading || _verifyingFace || _capturing) return;
+    if (ref.read(registerPointProvider).isLoading || _verifyingFace || _capturing || _compressing) return;
 
     // ── Verificar Wi-Fi ANTES de tirar a foto ───────────────────────────────
     // Evita capturar selfie e depois bloquear — UX mais limpa
@@ -140,6 +153,15 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
     }
 
     if (mounted) setState(() => _capturing = false);
+
+    // Comprime a imagem em isolate antes do upload — reduz tamanho drasticamente
+    // (de ~2MB para ~100KB) acelerando tanto a verificação facial quanto o registro
+    if (photo != null && mounted) {
+      setState(() => _compressing = true);
+      photo = await compressForUpload(photo, maxDim: 640, quality: 72);
+      if (mounted) setState(() => _compressing = false);
+    }
+
     await _confirmRegister(photo: photo);
   }
 
@@ -226,6 +248,12 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
     if (!mounted) return;
 
+    // Erro de rede / timeout — não confundir com rosto não cadastrado
+    if (faceResult.networkError) {
+      _showNetworkErrorDialog(faceResult.message);
+      return;
+    }
+
     if (!faceResult.faceEnrolled) {
       _showEnrollRequiredDialog();
       return;
@@ -305,6 +333,37 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
           userLatitude: userLat,
           userLongitude: userLon,
         ),
+      ),
+    );
+  }
+
+  void _showNetworkErrorDialog(String? message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.wifi_off_rounded, color: AppColors.error),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Sem conexão',
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message ?? 'Não foi possível verificar a identidade. Verifique sua internet e tente novamente.',
+          style: const TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tentar novamente'),
+          ),
+        ],
       ),
     );
   }
@@ -427,10 +486,28 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+
+    // Reage quando o perfil termina de carregar e revela appPunchDisabled=true
+    ref.listen<AuthState>(authProvider, (prev, next) {
+      if (!next.isRefreshingProfile &&
+          (next.user?.employee?.appPunchDisabled ?? false) &&
+          mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registro pelo app desativado. Use o totem.'),
+            backgroundColor: Color(0xFF6366F1),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        context.go('/home');
+      }
+    });
+
     final appPunchDisabled = authState.user?.employee?.appPunchDisabled ?? false;
 
-    // Guard: se o departamento exige somente totem, não permite acesso a esta tela
-    if (appPunchDisabled) {
+    // Guard para caso o usuário já tenha appPunchDisabled no dado local
+    // (só age se o perfil não estiver sendo carregado — evita pop prematuro)
+    if (appPunchDisabled && !authState.isRefreshingProfile) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go('/home');
       });
@@ -539,8 +616,8 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                       ),
                     ),
 
-                  // Loading overlay — verificação facial OU envio do ponto
-                  if (_verifyingFace || state.isLoading)
+                  // Loading overlay — compressão, verificação facial ou envio do ponto
+                  if (_compressing || _verifyingFace || state.isLoading)
                     Container(
                       color: const Color(0xFF0A0F1E),
                       child: Center(
@@ -550,16 +627,20 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                             const CircularProgressIndicator(color: Colors.white),
                             const SizedBox(height: 20),
                             Text(
-                              _verifyingFace
-                                  ? 'Verificando identidade...'
-                                  : _loadingMessage(state.status),
+                              _compressing
+                                  ? 'Preparando imagem...'
+                                  : _verifyingFace
+                                      ? 'Verificando identidade...'
+                                      : _loadingMessage(state.status),
                               style: const TextStyle(color: Colors.white, fontSize: 16),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              _verifyingFace
-                                  ? 'Aguarde um momento'
-                                  : '',
+                              _compressing
+                                  ? 'Otimizando para envio'
+                                  : _verifyingFace
+                                      ? 'Aguarde um momento'
+                                      : '',
                               style: const TextStyle(color: Colors.white38, fontSize: 13),
                             ),
                           ],
@@ -602,7 +683,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                     ),
 
                   // Flip câmera (oculto durante verificação/carregamento)
-                  if (_cameraReady && !_verifyingFace && !state.isLoading)
+                  if (_cameraReady && !_verifyingFace && !_compressing && !state.isLoading)
                     Positioned(
                       top: 12,
                       right: 12,
@@ -679,17 +760,17 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
                   // Botão circular — feedback imediato ao toque
                   GestureDetector(
-                    onTap: (state.isLoading || _verifyingFace || _capturing) ? null : _captureAndRegister,
+                    onTap: (state.isLoading || _verifyingFace || _capturing || _compressing) ? null : _captureAndRegister,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 120),
                       width: _capturing ? 72 : 80,
                       height: _capturing ? 72 : 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: (state.isLoading || _verifyingFace || _capturing)
+                        color: (state.isLoading || _verifyingFace || _capturing || _compressing)
                             ? typeColor.withValues(alpha: 0.45)
                             : typeColor,
-                        boxShadow: (state.isLoading || _verifyingFace || _capturing)
+                        boxShadow: (state.isLoading || _verifyingFace || _capturing || _compressing)
                             ? []
                             : [
                                 BoxShadow(
@@ -699,7 +780,7 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                                 ),
                               ],
                       ),
-                      child: (state.isLoading || _verifyingFace || _capturing)
+                      child: (state.isLoading || _verifyingFace || _capturing || _compressing)
                           ? const Padding(
                               padding: EdgeInsets.all(22),
                               child: CircularProgressIndicator(
@@ -713,11 +794,13 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
                   Text(
                     _capturing
                         ? 'Capturando foto...'
-                        : _verifyingFace
-                            ? 'Verificando identidade...'
-                            : state.isLoading
-                                ? _loadingMessage(state.status)
-                                : 'Toque para registrar',
+                        : _compressing
+                            ? 'Preparando imagem...'
+                            : _verifyingFace
+                                ? 'Verificando identidade...'
+                                : state.isLoading
+                                    ? _loadingMessage(state.status)
+                                    : 'Toque para registrar',
                     style: const TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ],
@@ -761,20 +844,25 @@ class _RegisterPointScreenState extends ConsumerState<RegisterPointScreen> {
 
   Future<void> _flipCamera() async {
     if (_cameras == null || _cameras!.length < 2) return;
-    _useFrontCamera = !_useFrontCamera;
-    final direction =
-        _useFrontCamera ? CameraLensDirection.front : CameraLensDirection.back;
-    final camera = _cameras!.firstWhere(
-      (c) => c.lensDirection == direction,
-      orElse: () => _cameras!.first,
-    );
-    final old = _cameraController;
-    _cameraController = null;
-    await safeDisposeCamera(old);
-    _cameraController =
-        CameraController(camera, ResolutionPreset.medium, enableAudio: false);
-    await _cameraController!.initialize();
-    if (mounted) setState(() {});
+    try {
+      _useFrontCamera = !_useFrontCamera;
+      final direction =
+          _useFrontCamera ? CameraLensDirection.front : CameraLensDirection.back;
+      final camera = _cameras!.firstWhere(
+        (c) => c.lensDirection == direction,
+        orElse: () => _cameras!.first,
+      );
+      final old = _cameraController;
+      _cameraController = null;
+      setState(() => _cameraReady = false);
+      await safeDisposeCamera(old);
+      _cameraController =
+          CameraController(camera, ResolutionPreset.medium, enableAudio: false);
+      await _cameraController!.initialize();
+      if (mounted) setState(() => _cameraReady = true);
+    } catch (_) {
+      if (mounted) setState(() => _cameraReady = false);
+    }
   }
 
   String _loadingMessage(RegisterPointStatus status) {

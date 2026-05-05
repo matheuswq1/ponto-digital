@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,11 +24,20 @@ import '../../data/models/time_record_model.dart';
 import '../../data/models/hour_bank_request_model.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  /// Não usar [ref.watch(authProvider)] aqui: cada mudança de auth (ex.: fim de
+  /// [refreshProfile]) recriava o [GoRouter], cancelando navegações pendentes —
+  /// o «Bater ponto» parecia não responder.
+  final authRefreshTick = ValueNotifier<int>(0);
+  ref.listen<AuthState>(authProvider, (_, __) {
+    authRefreshTick.value++;
+  });
+  ref.onDispose(authRefreshTick.dispose);
 
   return GoRouter(
     initialLocation: '/login',
+    refreshListenable: authRefreshTick,
     redirect: (context, state) {
+      final authState = ref.read(authProvider);
       final isLoading = authState.status == AuthStatus.initial ||
           authState.status == AuthStatus.loading;
       final loc = state.matchedLocation;

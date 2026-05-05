@@ -21,21 +21,26 @@ class AuthState {
   final AuthStatus status;
   final UserModel? user;
   final String? errorMessage;
+  /// true enquanto [forceRefreshProfile] ou [refreshProfile] está em andamento.
+  final bool isRefreshingProfile;
 
   const AuthState({
     this.status = AuthStatus.initial,
     this.user,
     this.errorMessage,
+    this.isRefreshingProfile = false,
   });
 
   AuthState copyWith({
     AuthStatus? status,
     UserModel? user,
     String? errorMessage,
+    bool? isRefreshingProfile,
   }) => AuthState(
         status: status ?? this.status,
         user: user ?? this.user,
         errorMessage: errorMessage,
+        isRefreshingProfile: isRefreshingProfile ?? this.isRefreshingProfile,
       );
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
@@ -74,6 +79,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return;
       }
       state = state.copyWith(status: AuthStatus.authenticated, user: user);
+      // Sessão restaurada de forma silenciosa — registar token FCM no backend
+      // para garantir que as push notifications chegam mesmo sem re-login.
+      syncFcmToken(_ref);
     } catch (_) {
       state = state.copyWith(status: AuthStatus.unauthenticated);
     }
@@ -82,6 +90,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   void completeBiometricUnlock() {
     if (state.user == null) return;
     state = state.copyWith(status: AuthStatus.authenticated, user: state.user);
+    // Após desbloqueio biométrico, garantir que o token FCM está registado.
+    syncFcmToken(_ref);
   }
 
   Future<Map<String, dynamic>> loginFull(
@@ -130,10 +140,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
         now.difference(_lastProfileRefresh!).inMinutes < 5) {
       return; // Ainda dentro da janela de throttle
     }
-    _lastProfileRefresh = now;
+    await _doRefreshProfile();
+  }
+
+  /// Força um refresh imediato do perfil, ignorando o throttle.
+  /// Usar quando configurações críticas podem ter mudado (ex: appPunchDisabled).
+  Future<void> forceRefreshProfile() async {
+    _lastProfileRefresh = null;
+    await _doRefreshProfile();
+  }
+
+  Future<void> _doRefreshProfile() async {
+    _lastProfileRefresh = DateTime.now();
+    state = state.copyWith(isRefreshingProfile: true);
     try {
       final user = await _datasource.getMe();
-      // Só notifica listeners se os dados mudaram efectivamente
       final current = state.user;
       final changed = current == null ||
           current.name != user.name ||
@@ -141,14 +162,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
           current.role != user.role ||
           current.active != user.active ||
           current.employee?.faceEnrolled != user.employee?.faceEnrolled ||
+          current.employee?.appPunchDisabled != user.employee?.appPunchDisabled ||
           current.employee?.company?.requirePhoto != user.employee?.company?.requirePhoto ||
           current.employee?.company?.requireGeolocation != user.employee?.company?.requireGeolocation;
       if (changed) {
-        state = state.copyWith(user: user);
+        state = state.copyWith(user: user, isRefreshingProfile: false);
         await _datasource.persistUser(user);
+      } else {
+        state = state.copyWith(isRefreshingProfile: false);
       }
     } catch (_) {
-      // Silencioso — dados locais mantidos
+      state = state.copyWith(isRefreshingProfile: false);
     }
   }
 

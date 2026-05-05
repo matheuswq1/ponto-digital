@@ -26,11 +26,22 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await NotificationService._showLocal(message);
 }
 
+/// Callback chamado quando uma mensagem FCM chega em foreground.
+/// Permite que a camada de UI armazene a notificação no histórico in-app.
+typedef InAppNotificationCallback = void Function(String title, String body, String? icon);
+
 class NotificationService {
   NotificationService._();
 
   /// Registar o router para permitir deep links.
   static void setRouter(GoRouter router) => _router = router;
+
+  /// Registar callback para notificações in-app (histórico no sino).
+  static InAppNotificationCallback? onInAppNotification;
+
+  static void setInAppCallback(InAppNotificationCallback cb) {
+    onInAppNotification = cb;
+  }
 
   static Future<void> init() async {
     // Configuração de notificações locais
@@ -94,6 +105,20 @@ class NotificationService {
     final notification = message.notification;
     if (notification == null) return;
 
+    // Alimenta o histórico in-app de notificações
+    final iconType = switch (message.data['type'] as String?) {
+      'time_record_edit.approve' || 'edit_request_approved' => 'edit',
+      'time_record_edit.reject' || 'edit_request_rejected' => 'edit',
+      'point_addition_approved' || 'point_addition_rejected' => 'add',
+      'hour_bank_approved' || 'hour_bank_rejected' => 'ponto',
+      _ => 'info',
+    };
+    onInAppNotification?.call(
+      notification.title ?? 'Notificação',
+      notification.body ?? '',
+      iconType,
+    );
+
     final androidDetails = AndroidNotificationDetails(
       _alertChannel.id,
       _alertChannel.name,
@@ -136,6 +161,9 @@ class NotificationService {
       case 'time_record_edit.reject':
       case 'edit_request_approved':
       case 'edit_request_rejected':
+        router.go('/home/edit-requests');
+      case 'point_addition_approved':
+      case 'point_addition_rejected':
         router.go('/home/edit-requests');
       default:
         router.go('/home');

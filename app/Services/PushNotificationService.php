@@ -41,6 +41,11 @@ class PushNotificationService
         }
 
         $notification = Notification::create($title, $body);
+        $dataPayload = [
+            'type'    => $outcome === 'aprovado' ? 'edit_request_approved' : 'edit_request_rejected',
+            'edit_id' => (string) $edit->id,
+        ];
+
         $tokens = DeviceToken::query()
             ->where('user_id', $user->id)
             ->pluck('token')
@@ -48,7 +53,9 @@ class PushNotificationService
 
         foreach ($tokens as $token) {
             try {
-                $message = CloudMessage::withTarget('token', $token)->withNotification($notification);
+                $message = CloudMessage::withTarget('token', $token)
+                    ->withNotification($notification)
+                    ->withData($dataPayload);
                 $messaging->send($message);
             } catch (Throwable $e) {
                 Log::warning('FCM: '.$e->getMessage());

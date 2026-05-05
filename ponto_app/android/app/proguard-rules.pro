@@ -1,5 +1,8 @@
 # Flutter + Firebase + Riverpod - regras para evitar crash no release build
 
+# Atributos usados por CameraX / reflexão / Kotlin
+-keepattributes Signature,*Annotation*,InnerClasses,EnclosingMethod
+
 # Flutter
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
@@ -15,9 +18,47 @@
 -keep class com.google.firebase.messaging.** { *; }
 -keep class io.flutter.plugins.firebase.messaging.** { *; }
 
-# Camera
+# Camera plugin (Flutter camera 0.10+ / 0.11+ com CameraX)
+-keep class io.flutter.plugins.camera.** { *; }
 -keep class io.flutter.plugins.camerax.** { *; }
+-keepclassmembers class io.flutter.plugins.camera.** { *; }
+-keepclassmembers class io.flutter.plugins.camerax.** { *; }
+-dontwarn io.flutter.plugins.camera.**
 -dontwarn io.flutter.plugins.camerax.**
+
+# Guava — dependência explícita do camera_android_camerax (CameraX); o R8 remove demasiado e quebra o preview em release
+-keep class com.google.common.** { *; }
+-dontwarn com.google.common.**
+-keep class com.google.thirdparty.publicsuffix.** { *; }
+
+# CameraX — necessário para preview e captura de imagem
+-keep class androidx.camera.** { *; }
+-keep interface androidx.camera.** { *; }
+-keepclassmembers class androidx.camera.** { *; }
+-keepclassmembers interface androidx.camera.** { *; }
+-dontwarn androidx.camera.**
+
+# CameraX: evita remoção de classes usadas via reflexão
+-keepclassmembers class * extends androidx.camera.core.UseCase {
+    public <init>(...);
+    public <init>();
+}
+-keepclassmembers class * implements androidx.camera.core.ImageAnalysis$Analyzer {
+    public void analyze(androidx.camera.core.ImageProxy);
+}
+
+# Lifecycle (necessário para CameraX)
+-keep class androidx.lifecycle.** { *; }
+-keep interface androidx.lifecycle.** { *; }
+-dontwarn androidx.lifecycle.**
+
+# Concurrent / Executor (usado internamente pelo CameraX)
+-keep class androidx.concurrent.** { *; }
+-dontwarn androidx.concurrent.**
+
+# Permission Handler (solicitar permissão de câmera em runtime)
+-keep class com.baseflow.permissionhandler.** { *; }
+-dontwarn com.baseflow.permissionhandler.**
 
 # Geolocator
 -keep class com.baseflow.geolocator.** { *; }
