@@ -22,7 +22,7 @@ class ReportWebController extends Controller
     // Folha de pagamento consolidada
     // ────────────────────────────────────────────────────────────────────────────
 
-    public function folhaPagamento(Request $request): View|\Symfony\Component\HttpFoundation\StreamedResponse
+    public function folhaPagamento(Request $request): View|\Symfony\Component\HttpFoundation\Response
     {
         $this->authorize('manage-employees');
 
@@ -189,7 +189,7 @@ class ReportWebController extends Controller
     // Relatório de presença / ausência por período
     // ────────────────────────────────────────────────────────────────────────────
 
-    public function presenca(Request $request): View|\Symfony\Component\HttpFoundation\StreamedResponse
+    public function presenca(Request $request): View|\Symfony\Component\HttpFoundation\Response
     {
         $this->authorize('manage-employees');
 
@@ -419,7 +419,7 @@ class ReportWebController extends Controller
     // Espelho de ponto — detalhe dia a dia por colaborador
     // ────────────────────────────────────────────────────────────────────────────
 
-    public function espelhoPonto(Request $request): \Illuminate\View\View|\Symfony\Component\HttpFoundation\BinaryFileResponse|\Symfony\Component\HttpFoundation\StreamedResponse
+    public function espelhoPonto(Request $request): \Illuminate\View\View|\Symfony\Component\HttpFoundation\Response
     {
         $this->authorize('manage-employees');
 
