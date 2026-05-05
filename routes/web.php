@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\AdditionRequestWebController;
+use App\Http\Controllers\Web\AdminPushWebController;
 use App\Http\Controllers\Web\CommunicationWebController;
 use App\Http\Controllers\Web\PayslipWebController;
 use App\Http\Controllers\Web\VacationRequestWebController;
@@ -120,6 +121,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/comunicados/{communication}/editar', [CommunicationWebController::class, 'edit'])->name('communications.edit');
         Route::match(['PUT','POST'], '/comunicados/{communication}/atualizar', [CommunicationWebController::class, 'update'])->name('communications.update');
         Route::delete('/comunicados/{communication}', [CommunicationWebController::class, 'destroy'])->name('communications.destroy');
+
+        // Notificações push (painel)
+        Route::get('/notificacoes-push', [AdminPushWebController::class, 'create'])->name('admin-push.create');
+        Route::get('/notificacoes-push/meta', [AdminPushWebController::class, 'meta'])->name('admin-push.meta');
+        Route::post('/notificacoes-push', [AdminPushWebController::class, 'store'])->name('admin-push.store');
 
         // Férias
         Route::get('/ferias', [VacationRequestWebController::class, 'index'])->name('vacation-requests.index');

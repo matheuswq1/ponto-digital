@@ -138,6 +138,58 @@ class PushNotificationService
     }
 
     /**
+     * Envia uma notificação para vários utilizadores (tokens únicos).
+     *
+     * @param  array<int>  $userIds
+     * @param  array<string, mixed>  $data  Tipagem livre; valores são normalizados para string na FCM.
+     */
+    public function sendToUserIds(array $userIds, string $title, string $body, array $data = []): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $userIds), fn ($id) => $id > 0)));
+        if ($ids === []) {
+            Log::info('PushNotificationService: sendToUserIds sem utilizadores válidos');
+
+            return;
+        }
+
+        $messaging = $this->messaging();
+        if ($messaging === null) {
+            Log::warning('PushNotificationService: FCM indisponível (sendToUserIds)');
+
+            return;
+        }
+
+        $tokens = DeviceToken::query()
+            ->whereIn('user_id', $ids)
+            ->pluck('token')
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($tokens === []) {
+            Log::info('PushNotificationService: sem tokens FCM para os utilizadores solicitados', ['count_users' => count($ids)]);
+
+            return;
+        }
+
+        $notification = Notification::create($title, $body);
+        $payload = $this->normalizeDataForFcm(array_merge([
+            'type' => 'admin_broadcast',
+        ], $data));
+
+        foreach ($tokens as $token) {
+            try {
+                $message = CloudMessage::withTarget('token', $token)
+                    ->withNotification($notification)
+                    ->withData($payload);
+                $messaging->send($message);
+            } catch (Throwable $e) {
+                Log::warning('FCM sendToUserIds: '.$e->getMessage(), ['token' => substr((string) $token, 0, 20)]);
+            }
+        }
+    }
+
+    /**
      * O payload `data` da FCM HTTP v1 exige valores em string.
      *
      * @param  array<string, mixed>  $data
