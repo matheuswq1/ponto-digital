@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\WorkToleranceResolver;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class WorkDay extends Model
 {
     use HasFactory;
+
+    /**
+     * Atributos derivados do snapshot para BI / APIs (não são colunas).
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'tt_engine',
+        'tt_mode',
+    ];
 
     /** Versão do esquema do JSON em tolerance_snapshot (migrações futuras sem invalidar histórico). */
     public const TOLERANCE_SNAPSHOT_SCHEMA_VERSION = 1;
@@ -64,6 +75,18 @@ class WorkDay extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /** Motor de tolerância aplicado (espelho de tolerance_snapshot.engine). */
+    protected function ttEngine(): Attribute
+    {
+        return Attribute::get(fn (): ?string => data_get($this->tolerance_snapshot, 'engine'));
+    }
+
+    /** Modo de tolerância aplicado (espelho de tolerance_snapshot.mode). */
+    protected function ttMode(): Attribute
+    {
+        return Attribute::get(fn (): ?string => data_get($this->tolerance_snapshot, 'mode'));
     }
 
     public function getTotalHoursAttribute(): float

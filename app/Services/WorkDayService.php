@@ -2,20 +2,39 @@
 
 namespace App\Services;
 
+use App\DTO\WorkToleranceContext;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\HourBankTransaction;
-use App\Models\TimeRecord;
 use App\Models\TimeRecordEdit;
 use App\Models\WorkDay;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class WorkDayService
 {
-    public function calculateAndSave(Employee $employee, string $date): WorkDay
-    {
+    public function __construct(
+        private readonly WorkToleranceResolver $toleranceResolver,
+    ) {}
+
+    /**
+     * @param  bool  $preserveClosedToleranceSnapshot  Se true e o dia já estava fechado com snapshot válido,
+     *                                                 mantém o JSON de auditoria (evita drift em replays); o saldo
+     *                                                 (`extra_minutes`) continua a ser recalculado. Use false após
+     *                                                 correções de ponto, backfills ou recálculos mensais.
+     */
+    public function calculateAndSave(
+        Employee $employee,
+        string $date,
+        bool $preserveClosedToleranceSnapshot = false,
+    ): WorkDay {
         // Garantir que departamento e escala individual estão carregados
-        $employee->loadMissing(['workSchedule', 'dept']);
+        $employee->loadMissing(['workSchedule', 'dept', 'company']);
+
+        $existing = WorkDay::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $date)
+            ->first();
 
         // Os datetimes estão guardados no fuso local (não UTC) — usar whereDate directamente
         $records = $employee->timeRecords()
@@ -25,10 +44,35 @@ class WorkDayService
 
         $data = $this->calculate($employee, $records, $date);
 
-        $workDay = WorkDay::updateOrCreate(
-            ['employee_id' => $employee->id, 'date' => $date],
-            $data
-        );
+        $this->logToleranceMismatchRuntime($employee->id, $date, $data);
+
+        $shouldFreezeSnapshot = $preserveClosedToleranceSnapshot
+            && $existing
+            && $existing->is_closed
+            && $existing->hasValidToleranceSnapshot()
+            && ($data['is_closed'] ?? false);
+
+        if ($shouldFreezeSnapshot) {
+            $data['tolerance_snapshot'] = $existing->tolerance_snapshot;
+            $this->logFrozenSnapshotDrift($employee->id, $date, $data);
+        }
+
+        $workDay = WorkDay::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $date)
+            ->first();
+
+        if (! $workDay) {
+            $workDay = new WorkDay([
+                'employee_id' => $employee->id,
+                'date' => Carbon::parse($date)->format('Y-m-d'),
+            ]);
+        }
+
+        $workDay->fill($data);
+        $workDay->save();
+
+        $workDay = $workDay->fresh();
 
         if ($workDay->is_closed) {
             $this->syncHourBankTransaction($employee, $workDay);
@@ -58,7 +102,7 @@ class WorkDayService
             $edit->new_datetime?->toDateString(),
         ])->filter()->unique()->values();
         foreach ($dates as $date) {
-            $this->calculateAndSave($employee, $date);
+            $this->calculateAndSave($employee, $date, false);
         }
     }
 
@@ -79,8 +123,8 @@ class WorkDayService
 
         $type = $extra > 0 ? 'extra' : 'deficit';
         $description = $extra > 0
-            ? 'Hora extra em ' . $workDay->date->format('d/m/Y')
-            : 'Saída antecipada em ' . $workDay->date->format('d/m/Y');
+            ? 'Hora extra em '.$workDay->date->format('d/m/Y')
+            : 'Saída antecipada em '.$workDay->date->format('d/m/Y');
 
         HourBankTransaction::updateOrCreate(
             [
@@ -88,9 +132,9 @@ class WorkDayService
                 'work_day_id' => $workDay->id,
             ],
             [
-                'type'           => $type,
-                'minutes'        => $extra,
-                'description'    => $description,
+                'type' => $type,
+                'minutes' => $extra,
+                'description' => $description,
                 'reference_date' => $workDay->date,
             ]
         );
@@ -109,11 +153,18 @@ class WorkDayService
 
     public function calculate(Employee $employee, $records, string $date): array
     {
-        $schedule  = $employee->workSchedule;
-        $dept      = $employee->dept;
-        $deptRef   = ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
+        $employee->loadMissing(['workSchedule', 'dept', 'company']);
+
+        $schedule = $employee->workSchedule;
+        $dept = $employee->dept;
+        $deptRef = ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
+
+        $tz = WorkToleranceResolver::effectiveTimezone($employee->company);
+        $calendarCarbon = Carbon::parse($date.' 12:00:00', $tz);
+        $ctx = $this->toleranceResolver->resolve($employee, $calendarCarbon);
+
         // Dia da semana (0=Dom … 6=Sáb)
-        $dayOfWeek = (int) Carbon::parse($date)->format('w');
+        $dayOfWeek = (int) Carbon::parse($date, $tz)->format('w');
 
         // Dias de trabalho configurados (departamento ou escala individual)
         $configuredWorkDays = $deptRef
@@ -124,23 +175,23 @@ class WorkDayService
         $isConfiguredWorkDay = in_array($dayOfWeek, $configuredWorkDays);
 
         // Feriado e dia especial
-        $isHoliday  = Holiday::isHoliday($date, $employee->company_id);
-        $isSunday   = ($dayOfWeek === 0);
+        $isHoliday = Holiday::isHoliday($date, $employee->company_id);
+        $isSunday = ($dayOfWeek === 0);
         $isSaturday = ($dayOfWeek === 6);
 
         // Separar entradas e saídas — datetimes já em horário local
         $firstEntry = $records->firstWhere('type', 'entrada');
-        $lastExit   = $records->filter(fn ($r) => $r->type === 'saida')->last();
+        $lastExit = $records->filter(fn ($r) => $r->type === 'saida')->last();
 
         $entryTime = $firstEntry?->datetime?->format('H:i:s');
-        $exitTime  = $lastExit?->datetime?->format('H:i:s');
+        $exitTime = $lastExit?->datetime?->format('H:i:s');
 
         // Tempo trabalhado: soma de todos os pares entrada→saída consecutivos.
         // O intervalo de almoço é deduzido naturalmente (saída/retorno de almoço).
-        $totalMinutes   = 0;
+        $totalMinutes = 0;
         $totalIntervals = 0;
-        $openEntryAt    = null;
-        $firstExitAt    = null;
+        $openEntryAt = null;
+        $firstExitAt = null;
 
         foreach ($records as $record) {
             if ($record->type === 'entrada') {
@@ -151,8 +202,8 @@ class WorkDayService
                 $openEntryAt = $record->datetime;
             } elseif ($record->type === 'saida' && $openEntryAt !== null) {
                 $totalMinutes += (int) abs($record->datetime->diffInRealMinutes($openEntryAt));
-                $firstExitAt  = $record->datetime;
-                $openEntryAt  = null;
+                $firstExitAt = $record->datetime;
+                $openEntryAt = null;
             }
         }
 
@@ -165,39 +216,145 @@ class WorkDayService
                 : ($schedule?->getExpectedMinutes() ?? $employee->dailyExpectedMinutes());
         }
 
-        // Tolerância
-        $tolerance = (int) ($deptRef?->tolerance_minutes ?? $schedule?->tolerance_minutes ?? 5);
+        $totalStored = max(0, $totalMinutes);
+        $diff = $totalMinutes - $expectedMinutes;
 
-        // Cálculo de extra/déficit
-        $diff         = $totalMinutes - $expectedMinutes;
+        $isClosed = $lastExit !== null;
         $extraMinutes = 0;
+        $toleranceSnapshot = [];
 
-        if ($lastExit !== null) {
-            if ($isHoliday || $isSunday) {
-                // Feriado ou domingo: tudo trabalhado é extra 100%
-                $extraMinutes = $totalMinutes;
-            } elseif (! $isConfiguredWorkDay || $isSaturday) {
-                // Sábado ou dia fora da jornada configurada: tudo trabalhado é extra
-                $extraMinutes = $totalMinutes;
-            } elseif ($diff > $tolerance) {
-                $extraMinutes = $diff;   // horas a mais → crédito
-            } elseif ($diff < -$tolerance) {
-                $extraMinutes = $diff;   // horas a menos → débito
-            }
-            // Dentro da tolerância em dia útil normal: extra = 0
+        if (! $isClosed) {
+            $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
+                'calculation_path' => 'open_day',
+                'total_minutes' => $totalStored,
+                'total_minutes_raw' => $totalMinutes,
+                'expected_minutes' => $expectedMinutes,
+                'raw_diff_minutes' => $diff,
+                'extra_minutes_final' => 0,
+                'day_closed' => false,
+            ]);
+        } elseif ($isHoliday || $isSunday) {
+            $extraMinutes = $totalMinutes;
+            $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
+                'calculation_path' => 'holiday_or_sunday_full',
+                'total_minutes' => $totalStored,
+                'total_minutes_raw' => $totalMinutes,
+                'expected_minutes' => $expectedMinutes,
+                'raw_diff_minutes' => $diff,
+                'extra_minutes_final' => $extraMinutes,
+                'day_closed' => true,
+            ]);
+        } elseif (! $isConfiguredWorkDay || $isSaturday) {
+            $extraMinutes = $totalMinutes;
+            $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
+                'calculation_path' => 'saturday_or_off_schedule_full',
+                'total_minutes' => $totalStored,
+                'total_minutes_raw' => $totalMinutes,
+                'expected_minutes' => $expectedMinutes,
+                'raw_diff_minutes' => $diff,
+                'extra_minutes_final' => $extraMinutes,
+                'day_closed' => true,
+            ]);
+        } else {
+            $extraMinutes = $this->toleranceResolver->applyToleranceToDiff(
+                $diff,
+                $ctx->toleranceMinutes,
+                $ctx->toleranceMode
+            );
+            $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
+                'calculation_path' => 'weekday_tolerance',
+                'total_minutes' => $totalStored,
+                'total_minutes_raw' => $totalMinutes,
+                'expected_minutes' => $expectedMinutes,
+                'raw_diff_minutes' => $diff,
+                'extra_minutes_final' => $extraMinutes,
+                'day_closed' => true,
+            ]);
         }
 
         return [
-            'entry_time'       => $entryTime,
-            'lunch_start'      => null,
-            'lunch_end'        => null,
-            'exit_time'        => $exitTime,
-            'total_minutes'    => max(0, $totalMinutes),
+            'entry_time' => $entryTime,
+            'lunch_start' => null,
+            'lunch_end' => null,
+            'exit_time' => $exitTime,
+            'total_minutes' => $totalStored,
             'expected_minutes' => $expectedMinutes,
-            'extra_minutes'    => $extraMinutes,
-            'lunch_minutes'    => $totalIntervals,
-            'is_closed'        => $lastExit !== null,
+            'extra_minutes' => $extraMinutes,
+            'lunch_minutes' => $totalIntervals,
+            'is_closed' => $isClosed,
+            'tolerance_snapshot' => $toleranceSnapshot,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $pathFields  calculation_path, totals, extra_minutes_final, day_closed, …
+     * @return array<string, mixed>
+     */
+    private function mergeToleranceSnapshot(WorkToleranceContext $ctx, array $pathFields): array
+    {
+        return array_merge([
+            'version' => WorkDay::TOLERANCE_SNAPSHOT_SCHEMA_VERSION,
+            'engine' => WorkDay::TOLERANCE_ENGINE_ID,
+            'mode' => $ctx->toleranceMode,
+            'minutes' => $ctx->toleranceMinutes,
+            'source' => $ctx->modeResolvedFrom,
+            'mode_label_pt' => $this->toleranceModeLabelPt($ctx->toleranceMode),
+            'source_label_pt' => $this->toleranceSourceLabelPt($ctx->modeResolvedFrom),
+            'timezone' => $ctx->timezone,
+            'calendar_date' => $ctx->calendarDate,
+        ], $pathFields);
+    }
+
+    private function toleranceSourceLabelPt(string $source): string
+    {
+        return match ($source) {
+            WorkToleranceContext::SOURCE_DEPARTMENT => 'Departamento (gabarito)',
+            WorkToleranceContext::SOURCE_WORK_SCHEDULE => 'Escala individual',
+            WorkToleranceContext::SOURCE_COMPANY => 'Empresa',
+            default => 'Padrão do sistema',
+        };
+    }
+
+    private function toleranceModeLabelPt(string $mode): string
+    {
+        return match ($mode) {
+            WorkToleranceResolver::MODE_DAILY_DISCOUNT => 'Desconto no saldo diário',
+            default => 'Faixa neutra (dead band)',
+        };
+    }
+
+    /** Coerência entre coluna `extra_minutes` e snapshot recém-calculado (antes de congelar JSON). */
+    private function logToleranceMismatchRuntime(int $employeeId, string $date, array $data): void
+    {
+        $snap = $data['tolerance_snapshot'] ?? [];
+        if (! is_array($snap) || ! array_key_exists('extra_minutes_final', $snap)) {
+            return;
+        }
+        if ((int) $data['extra_minutes'] !== (int) $snap['extra_minutes_final']) {
+            Log::warning('tolerance_mismatch_runtime', [
+                'employee_id' => $employeeId,
+                'date' => $date,
+                'extra_minutes' => $data['extra_minutes'],
+                'snapshot_extra_minutes_final' => $snap['extra_minutes_final'],
+            ]);
+        }
+    }
+
+    /** Snapshot congelado diverge do saldo recalculado (esperado se regras ou pontos mudaram). */
+    private function logFrozenSnapshotDrift(int $employeeId, string $date, array $data): void
+    {
+        $frozen = data_get($data['tolerance_snapshot'], 'extra_minutes_final');
+        if ($frozen === null) {
+            return;
+        }
+        if ((int) $data['extra_minutes'] !== (int) $frozen) {
+            Log::warning('tolerance_frozen_snapshot_drift', [
+                'employee_id' => $employeeId,
+                'date' => $date,
+                'computed_extra_minutes' => $data['extra_minutes'],
+                'frozen_snapshot_extra_minutes_final' => $frozen,
+            ]);
+        }
     }
 
     public function getMonthSummary(Employee $employee, int $year, int $month): array
@@ -253,6 +410,7 @@ class WorkDayService
         $abs = abs($minutes);
         $hours = intdiv($abs, 60);
         $mins = $abs % 60;
+
         return sprintf('%s%02d:%02d', $sign, $hours, $mins);
     }
 }

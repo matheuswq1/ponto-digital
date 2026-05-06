@@ -15,6 +15,7 @@ class ProcessWorkDay implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $backoff = 60;
 
     public function __construct(
@@ -24,7 +25,8 @@ class ProcessWorkDay implements ShouldQueue
 
     public function handle(WorkDayService $workDayService): void
     {
-        $workDayService->calculateAndSave($this->employee, $this->date);
+        // Preserva JSON de auditoria em dias já fechados (replays do job); saldo recalcula-se sempre.
+        $workDayService->calculateAndSave($this->employee, $this->date, true);
     }
 
     public function tags(): array
