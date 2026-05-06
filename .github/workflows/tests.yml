@@ -1,5 +1,6 @@
 name: Tests
 
+# Snapshots Spatie: executar apenas `php artisan test` — nunca UPDATE_SNAPSHOTS/--update-snapshots aqui.
 on:
   push:
     branches: [main, master, develop]
