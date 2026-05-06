@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
-use App\Services\AuditService;
 use App\Models\User;
+use App\Services\AuditService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class CompanyWebController extends Controller
@@ -118,8 +119,8 @@ class CompanyWebController extends Controller
         $this->authorize('manage-companies');
 
         $company->loadCount('activeEmployees');
-        $gestores  = $company->users()->where('role', 'gestor')->orderBy('name')->get();
-        $totems    = $company->users()->where('role', 'totem')->orderBy('name')->get();
+        $gestores = $company->users()->where('role', 'gestor')->orderBy('name')->get();
+        $totems = $company->users()->where('role', 'totem')->orderBy('name')->get();
         $locations = $company->locations()->orderBy('id')->get();
         $activeTab = $request->get('tab', 'dados');
         $googleMapsKey = config('services.google_maps.key', '');
@@ -129,7 +130,7 @@ class CompanyWebController extends Controller
         ));
     }
 
-    public function edit(Company $company): \Illuminate\Http\RedirectResponse
+    public function edit(Company $company): RedirectResponse
     {
         // Redireciona para show (página unificada)
         return redirect()->route('painel.companies.show', $company);
@@ -160,14 +161,16 @@ class CompanyWebController extends Controller
             'work_end' => 'nullable|date_format:H:i',
             'lunch_duration' => 'nullable|integer|min:0|max:120',
             'max_daily_records' => 'nullable|integer|min:2|max:20',
+            'tolerance_mode' => 'required|string|in:daily_dead_band,daily_discount',
+            'timezone' => ['nullable', 'string', 'max:64', Rule::in(array_merge([''], timezone_identifiers_list()))],
             // Anti-fraude
-            'block_mock_location'         => 'nullable|boolean',
-            'block_velocity_jump'         => 'nullable|boolean',
+            'block_mock_location' => 'nullable|boolean',
+            'block_velocity_jump' => 'nullable|boolean',
             'velocity_jump_threshold_kmh' => 'nullable|integer|min:10|max:2000',
-            'require_wifi'                => 'nullable|boolean',
-            'allowed_wifi_ssids_raw'      => 'nullable|string|max:2000',
-            'block_unknown_ip_city'       => 'nullable|boolean',
-            'fraud_action'                => 'nullable|in:warn,block',
+            'require_wifi' => 'nullable|boolean',
+            'allowed_wifi_ssids_raw' => 'nullable|string|max:2000',
+            'block_unknown_ip_city' => 'nullable|boolean',
+            'fraud_action' => 'nullable|in:warn,block',
         ]);
 
         // Converter textarea SSIDs em array
@@ -199,14 +202,16 @@ class CompanyWebController extends Controller
             'work_end' => $request->work_end,
             'lunch_duration' => $request->lunch_duration,
             'max_daily_records' => $request->integer('max_daily_records') ?: 10,
+            'tolerance_mode' => $request->input('tolerance_mode', 'daily_dead_band'),
+            'timezone' => $request->filled('timezone') ? $request->timezone : null,
             // Anti-fraude
-            'block_mock_location'         => $request->boolean('block_mock_location'),
-            'block_velocity_jump'         => $request->boolean('block_velocity_jump'),
+            'block_mock_location' => $request->boolean('block_mock_location'),
+            'block_velocity_jump' => $request->boolean('block_velocity_jump'),
             'velocity_jump_threshold_kmh' => $request->integer('velocity_jump_threshold_kmh') ?: 300,
-            'require_wifi'                => $request->boolean('require_wifi'),
-            'allowed_wifi_ssids'          => $ssids,
-            'block_unknown_ip_city'       => $request->boolean('block_unknown_ip_city'),
-            'fraud_action'                => $request->input('fraud_action', 'warn'),
+            'require_wifi' => $request->boolean('require_wifi'),
+            'allowed_wifi_ssids' => $ssids,
+            'block_unknown_ip_city' => $request->boolean('block_unknown_ip_city'),
+            'fraud_action' => $request->input('fraud_action', 'warn'),
         ]);
 
         AuditService::log(
@@ -231,14 +236,14 @@ class CompanyWebController extends Controller
         abort_if($gestor->company_id !== $company->id, 403);
 
         $request->validate([
-            'name'  => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $gestor->id,
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,'.$gestor->id,
         ], [
             'email.unique' => 'Este e-mail já está em uso.',
         ]);
 
         $gestor->update([
-            'name'  => $request->name,
+            'name' => $request->name,
             'email' => $request->email,
         ]);
 
@@ -278,8 +283,8 @@ class CompanyWebController extends Controller
         $this->authorize('manage-companies');
 
         $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
             'password' => 'nullable|string|min:8',
         ], [
             'email.unique' => 'Este e-mail já está em uso.',
@@ -289,11 +294,11 @@ class CompanyWebController extends Controller
         $plain = $autoPassword ? Str::password(12, symbols: true) : $request->password;
 
         User::create([
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'password'   => Hash::make($plain),
-            'role'       => 'gestor',
-            'active'     => true,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($plain),
+            'role' => 'gestor',
+            'active' => true,
             'company_id' => $company->id,
         ]);
 
@@ -315,8 +320,8 @@ class CompanyWebController extends Controller
         $this->authorize('manage-companies');
 
         $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
             'password' => 'nullable|string|min:8',
         ], [
             'email.unique' => 'Este e-mail já está em uso.',
@@ -326,11 +331,11 @@ class CompanyWebController extends Controller
         $plain = $autoPassword ? Str::password(14, symbols: false) : $request->password;
 
         User::create([
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'password'   => Hash::make($plain),
-            'role'       => 'totem',
-            'active'     => true,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($plain),
+            'role' => 'totem',
+            'active' => true,
             'company_id' => $company->id,
         ]);
 

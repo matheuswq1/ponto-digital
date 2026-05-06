@@ -366,11 +366,15 @@
             var exit  = document.querySelector('[name="ws_exit_time"]');
             var lunch = document.querySelector('[name="ws_lunch_minutes"]');
             var tol   = document.querySelector('[name="ws_tolerance"]');
+            var tolMode = document.querySelector('[name="ws_tolerance_mode"]');
 
             if (entry && data.entry_time) entry.value = data.entry_time;
             if (exit  && data.exit_time)  exit.value  = data.exit_time;
             if (lunch) lunch.value = data.lunch_minutes || '';
             if (tol)   tol.value  = data.tolerance || 5;
+            if (tolMode && Object.prototype.hasOwnProperty.call(data, 'tolerance_mode')) {
+                tolMode.value = data.tolerance_mode === null || data.tolerance_mode === undefined ? '' : data.tolerance_mode;
+            }
 
             /* Dias de trabalho */
             document.querySelectorAll('[name="ws_work_days[]"]').forEach(function (cb) {

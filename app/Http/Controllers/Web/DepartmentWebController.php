@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Department;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DepartmentWebController extends Controller
@@ -25,9 +28,9 @@ class DepartmentWebController extends Controller
     {
         $this->authorize('manage-employees');
 
-        $search    = $request->get('q');
+        $search = $request->get('q');
         $companyId = $request->get('company_id');
-        $status    = $request->get('status', 'active');
+        $status = $request->get('status', 'active');
 
         $departments = $this->companyScopeQuery()
             ->when($status === 'inactive', fn ($q) => $q->where('active', false))
@@ -65,17 +68,18 @@ class DepartmentWebController extends Controller
         $this->authorize('manage-employees');
 
         $rules = [
-            'name'                 => 'required|string|max:120',
-            'entry_time'           => 'nullable|date_format:H:i',
-            'exit_time'            => 'nullable|date_format:H:i',
-            'lunch_minutes'        => 'nullable|integer|min:0|max:300',
-            'lunch_by_day'         => 'nullable|array',
-            'lunch_by_day.*'       => 'nullable|integer|min:0|max:300',
-            'tolerance_minutes'    => 'nullable|integer|min:0|max:120',
-            'work_days'            => 'nullable|array',
-            'work_days.*'          => 'integer|between:0,6',
-            'active'               => 'nullable|boolean',
-            'app_punch_disabled'   => 'nullable|boolean',
+            'name' => 'required|string|max:120',
+            'entry_time' => 'nullable|date_format:H:i',
+            'exit_time' => 'nullable|date_format:H:i',
+            'lunch_minutes' => 'nullable|integer|min:0|max:300',
+            'lunch_by_day' => 'nullable|array',
+            'lunch_by_day.*' => 'nullable|integer|min:0|max:300',
+            'tolerance_minutes' => 'nullable|integer|min:0|max:120',
+            'tolerance_mode' => ['nullable', 'string', Rule::in(['', 'daily_dead_band', 'daily_discount'])],
+            'work_days' => 'nullable|array',
+            'work_days.*' => 'integer|between:0,6',
+            'active' => 'nullable|boolean',
+            'app_punch_disabled' => 'nullable|boolean',
         ];
         if (auth()->user()->isAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
@@ -96,17 +100,21 @@ class DepartmentWebController extends Controller
 
         $lunchResolved = $this->resolveLunchFromRequest($request, (int) ($validated['lunch_minutes'] ?? 60));
 
+        $tolMode = $validated['tolerance_mode'] ?? '';
+        $tolMode = $tolMode !== '' ? $tolMode : null;
+
         Department::create([
-            'company_id'             => $companyId,
-            'name'                   => $validated['name'],
-            'entry_time'             => $validated['entry_time'] ?? null,
-            'exit_time'              => $validated['exit_time'] ?? null,
-            'lunch_minutes'          => $lunchResolved['lunch_minutes'],
-            'lunch_minutes_by_day'   => $lunchResolved['lunch_minutes_by_day'],
-            'tolerance_minutes'      => $validated['tolerance_minutes'] ?? 10,
-            'work_days'              => $workDays,
-            'active'                 => $request->boolean('active', true),
-            'app_punch_disabled'     => $request->boolean('app_punch_disabled', false),
+            'company_id' => $companyId,
+            'name' => $validated['name'],
+            'entry_time' => $validated['entry_time'] ?? null,
+            'exit_time' => $validated['exit_time'] ?? null,
+            'lunch_minutes' => $lunchResolved['lunch_minutes'],
+            'lunch_minutes_by_day' => $lunchResolved['lunch_minutes_by_day'],
+            'tolerance_minutes' => $validated['tolerance_minutes'] ?? 10,
+            'tolerance_mode' => $tolMode,
+            'work_days' => $workDays,
+            'active' => $request->boolean('active', true),
+            'app_punch_disabled' => $request->boolean('app_punch_disabled', false),
         ]);
 
         return redirect()->route('painel.departments.index')
@@ -131,17 +139,18 @@ class DepartmentWebController extends Controller
         $this->ensureCanAccessDepartment($department);
 
         $rules = [
-            'name'                 => 'required|string|max:120',
-            'entry_time'           => 'nullable|date_format:H:i',
-            'exit_time'            => 'nullable|date_format:H:i',
-            'lunch_minutes'        => 'nullable|integer|min:0|max:300',
-            'lunch_by_day'         => 'nullable|array',
-            'lunch_by_day.*'       => 'nullable|integer|min:0|max:300',
-            'tolerance_minutes'    => 'nullable|integer|min:0|max:120',
-            'work_days'            => 'nullable|array',
-            'work_days.*'          => 'integer|between:0,6',
-            'active'               => 'nullable|boolean',
-            'app_punch_disabled'   => 'nullable|boolean',
+            'name' => 'required|string|max:120',
+            'entry_time' => 'nullable|date_format:H:i',
+            'exit_time' => 'nullable|date_format:H:i',
+            'lunch_minutes' => 'nullable|integer|min:0|max:300',
+            'lunch_by_day' => 'nullable|array',
+            'lunch_by_day.*' => 'nullable|integer|min:0|max:300',
+            'tolerance_minutes' => 'nullable|integer|min:0|max:120',
+            'tolerance_mode' => ['nullable', 'string', Rule::in(['', 'daily_dead_band', 'daily_discount'])],
+            'work_days' => 'nullable|array',
+            'work_days.*' => 'integer|between:0,6',
+            'active' => 'nullable|boolean',
+            'app_punch_disabled' => 'nullable|boolean',
         ];
         if (auth()->user()->isAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
@@ -162,40 +171,45 @@ class DepartmentWebController extends Controller
 
         $lunchResolved = $this->resolveLunchFromRequest($request, (int) ($validated['lunch_minutes'] ?? 60));
 
+        $tolMode = $validated['tolerance_mode'] ?? '';
+        $tolMode = $tolMode !== '' ? $tolMode : null;
+
         $department->update([
-            'company_id'             => $companyId,
-            'name'                   => $validated['name'],
-            'entry_time'             => $validated['entry_time'] ?? null,
-            'exit_time'              => $validated['exit_time'] ?? null,
-            'lunch_minutes'          => $lunchResolved['lunch_minutes'],
-            'lunch_minutes_by_day'   => $lunchResolved['lunch_minutes_by_day'],
-            'tolerance_minutes'      => $validated['tolerance_minutes'] ?? 10,
-            'work_days'              => $workDays,
-            'active'                 => $request->boolean('active', true),
-            'app_punch_disabled'     => $request->boolean('app_punch_disabled', false),
+            'company_id' => $companyId,
+            'name' => $validated['name'],
+            'entry_time' => $validated['entry_time'] ?? null,
+            'exit_time' => $validated['exit_time'] ?? null,
+            'lunch_minutes' => $lunchResolved['lunch_minutes'],
+            'lunch_minutes_by_day' => $lunchResolved['lunch_minutes_by_day'],
+            'tolerance_minutes' => $validated['tolerance_minutes'] ?? 10,
+            'tolerance_mode' => $tolMode,
+            'work_days' => $workDays,
+            'active' => $request->boolean('active', true),
+            'app_punch_disabled' => $request->boolean('app_punch_disabled', false),
         ]);
 
         return redirect()->route('painel.departments.index')
             ->with('success', 'Departamento atualizado com sucesso.');
     }
 
-    public function dadosEscala(Department $department): \Illuminate\Http\JsonResponse
+    public function dadosEscala(Department $department): JsonResponse
     {
         $this->authorize('manage-employees');
         $this->ensureCanAccessDepartment($department);
 
-        $workDays = is_array($department->work_days) ? $department->work_days : [1,2,3,4,5];
+        $workDays = is_array($department->work_days) ? $department->work_days : [1, 2, 3, 4, 5];
 
         return response()->json([
-            'entry_time'     => $department->entry_time
-                ? \Carbon\Carbon::parse($department->entry_time)->format('H:i')
+            'entry_time' => $department->entry_time
+                ? Carbon::parse($department->entry_time)->format('H:i')
                 : null,
-            'exit_time'      => $department->exit_time
-                ? \Carbon\Carbon::parse($department->exit_time)->format('H:i')
+            'exit_time' => $department->exit_time
+                ? Carbon::parse($department->exit_time)->format('H:i')
                 : null,
-            'lunch_minutes'  => $department->lunch_minutes,
-            'tolerance'      => $department->tolerance_minutes ?? 5,
-            'work_days'      => array_values(array_map('intval', $workDays)),
+            'lunch_minutes' => $department->lunch_minutes,
+            'tolerance' => $department->tolerance_minutes ?? 5,
+            'tolerance_mode' => $department->tolerance_mode,
+            'work_days' => array_values(array_map('intval', $workDays)),
         ]);
     }
 
@@ -212,10 +226,10 @@ class DepartmentWebController extends Controller
     private function resolveLunchFromRequest(Request $request, int $defaultLunch): array
     {
         $defaultLunch = max(0, min(300, $defaultLunch));
-        $raw          = $request->input('lunch_by_day', []);
+        $raw = $request->input('lunch_by_day', []);
         if (! is_array($raw) || $raw === []) {
             return [
-                'lunch_minutes'        => $defaultLunch,
+                'lunch_minutes' => $defaultLunch,
                 'lunch_minutes_by_day' => null,
             ];
         }
@@ -232,13 +246,13 @@ class DepartmentWebController extends Controller
         if (count($unique) === 1) {
             // Todos os dias iguais → usa o campo "Intervalo padrão" como fonte da verdade
             return [
-                'lunch_minutes'        => $defaultLunch,
+                'lunch_minutes' => $defaultLunch,
                 'lunch_minutes_by_day' => null,
             ];
         }
 
         return [
-            'lunch_minutes'        => $defaultLunch,
+            'lunch_minutes' => $defaultLunch,
             'lunch_minutes_by_day' => $vals,
         ];
     }
