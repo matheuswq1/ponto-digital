@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\NormalizesRequestTimeFields;
 use App\Models\Company;
 use App\Models\Department;
 use Carbon\Carbon;
@@ -14,6 +15,8 @@ use Illuminate\View\View;
 
 class DepartmentWebController extends Controller
 {
+    use NormalizesRequestTimeFields;
+
     private function companyScopeQuery()
     {
         $q = Department::query()->with('company')->withCount('employees');
@@ -85,6 +88,8 @@ class DepartmentWebController extends Controller
             $rules['company_id'] = 'required|exists:companies,id';
         }
 
+        $this->normalizeRequestTimeFields($request, ['entry_time', 'exit_time']);
+
         $validated = $request->validate($rules);
 
         $companyId = auth()->user()->isAdmin()
@@ -155,6 +160,8 @@ class DepartmentWebController extends Controller
         if (auth()->user()->isAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
         }
+
+        $this->normalizeRequestTimeFields($request, ['entry_time', 'exit_time']);
 
         $validated = $request->validate($rules);
 

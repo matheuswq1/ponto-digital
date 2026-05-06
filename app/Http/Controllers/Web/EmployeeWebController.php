@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\NormalizesRequestTimeFields;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Employee;
@@ -23,6 +24,8 @@ use Illuminate\View\View;
 
 class EmployeeWebController extends Controller
 {
+    use NormalizesRequestTimeFields;
+
     public function index(Request $request): View
     {
         $this->authorize('manage-employees');
@@ -151,6 +154,8 @@ class EmployeeWebController extends Controller
 
         $isPending = $employee->user?->access_pending;
 
+        $this->normalizeRequestTimeFields($request, ['ws_entry_time', 'ws_exit_time']);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,'.$employee->user_id,
@@ -173,6 +178,9 @@ class EmployeeWebController extends Controller
             'ws_tolerance_mode' => ['nullable', 'string', Rule::in(['', 'daily_dead_band', 'daily_discount', 'clt_event_based'])],
             'ws_work_days' => 'nullable|array',
             'ws_work_days.*' => 'integer|min:0|max:6',
+        ], [
+            'ws_entry_time.date_format' => 'Informe o horário de entrada como HH:MM (ex.: 08:00).',
+            'ws_exit_time.date_format' => 'Informe o horário de saída como HH:MM (ex.: 17:00).',
         ]);
 
         DB::transaction(function () use ($request, $employee, $isPending) {

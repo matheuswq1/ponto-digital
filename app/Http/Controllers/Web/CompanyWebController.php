@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Concerns\NormalizesRequestTimeFields;
 use App\Models\Company;
 use App\Models\User;
 use App\Services\AuditService;
@@ -16,6 +17,8 @@ use Illuminate\View\View;
 
 class CompanyWebController extends Controller
 {
+    use NormalizesRequestTimeFields;
+
     public function index(Request $request): View
     {
         $this->authorize('manage-companies');
@@ -139,6 +142,8 @@ class CompanyWebController extends Controller
     public function update(Request $request, Company $company): RedirectResponse
     {
         $this->authorize('manage-companies');
+
+        $this->normalizeRequestTimeFields($request, ['work_start', 'work_end']);
 
         $request->validate([
             'name' => 'required|string|max:255',
