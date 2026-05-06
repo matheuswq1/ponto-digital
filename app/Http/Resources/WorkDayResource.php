@@ -35,6 +35,7 @@ class WorkDayResource extends JsonResource
             'observations' => $this->observations,
             'is_closed' => $this->is_closed,
             'balance_type' => $this->extra_minutes > 0 ? 'positivo' : ($this->extra_minutes < 0 ? 'negativo' : 'neutro'),
+            'tolerance_meta' => $this->toleranceMetaForApi(),
         ];
     }
 }

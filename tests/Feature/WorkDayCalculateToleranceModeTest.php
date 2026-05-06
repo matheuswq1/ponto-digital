@@ -10,6 +10,7 @@ use App\Models\WorkDay;
 use App\Models\WorkSchedule;
 use App\Services\WorkDayService;
 use App\Services\WorkToleranceResolver;
+use App\Support\CltSkipReason;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -78,6 +79,98 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         $this->assertSame(WorkToleranceResolver::MODE_DAILY_DEAD_BAND, $wd->tt_mode);
     }
 
+    public function test_weekday_clt_event_based_exceeds_daily_cap_counts_eleven(): void
+    {
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED);
+        $this->seedFourPunchesCltExample($employee, ['08:04:00', '12:03:00', '13:04:00', '17:00:00']);
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame(11, $workDay->extra_minutes);
+        $this->assertTrue($workDay->tt_clt_applied);
+        $this->assertTrue((bool) data_get($workDay->tolerance_snapshot, 'clt_applied'));
+        $this->assertFalse((bool) data_get($workDay->tolerance_snapshot, 'clt_skipped'));
+        $this->assertSame('clt_primary', $workDay->tolerance_snapshot['integration_mode']);
+        $this->assertSame(11, (int) data_get($workDay->tolerance_snapshot, 'clt_result_minutes'));
+        $this->assertSame(0, (int) data_get($workDay->tolerance_snapshot, 'outside_event_minutes'));
+        $this->assertSame('weekday_clt_event_based', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertSame('v2_clt_event_based', $workDay->tolerance_snapshot['engine']);
+        $this->assertSame('exceeded_daily_cap_all_count', data_get($workDay->tolerance_snapshot, 'clt.rule_applied'));
+        $this->assertSame(WorkToleranceResolver::MODE_CLT_EVENT_BASED, $workDay->tolerance_snapshot['mode']);
+        $this->assertSame('high', $workDay->tolerance_snapshot['calculation_confidence']);
+        $this->assertSame('high', $workDay->tt_calculation_confidence);
+    }
+
+    public function test_weekday_clt_fallback_when_only_two_punches(): void
+    {
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED);
+        $this->seedRecords0800To1615($employee);
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame('weekday_tolerance', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertTrue((bool) data_get($workDay->tolerance_snapshot, 'clt_skipped'));
+        $this->assertFalse((bool) data_get($workDay->tolerance_snapshot, 'clt_applied'));
+        $this->assertFalse($workDay->tt_clt_applied);
+        $this->assertSame(CltSkipReason::WRONG_RECORD_COUNT, $workDay->tolerance_snapshot['clt_skip_reason']);
+        $this->assertSame(
+            'Quantidade de batidas diferente do gabarito esperado.',
+            data_get($workDay->tolerance_snapshot, 'clt_skip_detail.reason_label_pt')
+        );
+        $this->assertSame(CltSkipReason::CATEGORY_STRUCTURAL, data_get($workDay->tolerance_snapshot, 'clt_skip_category'));
+        $this->assertSame(CltSkipReason::CATEGORY_STRUCTURAL, data_get($workDay->tolerance_snapshot, 'clt_skip_detail.skip_category'));
+        $this->assertSame('low', $workDay->tolerance_snapshot['calculation_confidence']);
+        $this->assertSame('low', $workDay->tt_calculation_confidence);
+        $this->assertSame(15, $workDay->extra_minutes);
+    }
+
+    /** Gabarito CLT com 2 batidas (sem almoço na escala): entrada + saída. */
+    public function test_weekday_clt_two_events_within_daily_cap_bank_zero(): void
+    {
+        $employee = $this->employeeWithTwoEventCltSchedule();
+        TimeRecord::factory()->for($employee)->entrada()->forDate(self::WEEKDAY, '08:04:00')->create();
+        TimeRecord::factory()->for($employee)->saida()->forDate(self::WEEKDAY, '17:04:00')->create();
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame(0, $workDay->extra_minutes);
+        $this->assertTrue((bool) data_get($workDay->tolerance_snapshot, 'clt_applied'));
+        $this->assertSame('weekday_clt_event_based', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertSame('2_events', data_get($workDay->tolerance_snapshot, 'clt.event_model'));
+        $this->assertSame(2, (int) data_get($workDay->tolerance_snapshot, 'expected_events'));
+        $this->assertSame(2, (int) data_get($workDay->tolerance_snapshot, 'actual_events'));
+        $this->assertSame('high', $workDay->tolerance_snapshot['calculation_confidence']);
+    }
+
+    /** Um evento fora dos 5 min conta integralmente no banco (mesma matemática que 4 batidas). */
+    public function test_weekday_clt_two_events_one_mark_outside_tolerance(): void
+    {
+        $employee = $this->employeeWithTwoEventCltSchedule();
+        TimeRecord::factory()->for($employee)->entrada()->forDate(self::WEEKDAY, '08:06:00')->create();
+        TimeRecord::factory()->for($employee)->saida()->forDate(self::WEEKDAY, '17:00:00')->create();
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame(6, $workDay->extra_minutes);
+        $this->assertSame(6, (int) data_get($workDay->tolerance_snapshot, 'outside_event_minutes'));
+        $this->assertSame('2_events', data_get($workDay->tolerance_snapshot, 'clt.event_model'));
+    }
+
+    public function test_weekday_clt_two_events_four_punches_fallback_wrong_count(): void
+    {
+        $employee = $this->employeeWithTwoEventCltSchedule();
+        $this->seedFourPunchesCltExample($employee, ['08:00:00', '12:00:00', '13:00:00', '17:00:00']);
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame('weekday_tolerance', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertTrue((bool) data_get($workDay->tolerance_snapshot, 'clt_skipped'));
+        $this->assertSame(CltSkipReason::WRONG_RECORD_COUNT, $workDay->tolerance_snapshot['clt_skip_reason']);
+        $this->assertSame(2, (int) data_get($workDay->tolerance_snapshot, 'expected_events'));
+        $this->assertSame(4, (int) data_get($workDay->tolerance_snapshot, 'actual_events'));
+        $this->assertSame('low', $workDay->tolerance_snapshot['calculation_confidence']);
+    }
+
     private function employeeWithSchedule(string $companyToleranceMode): Employee
     {
         $company = Company::factory()->create([
@@ -107,6 +200,14 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         return $employee->fresh(['workSchedule', 'dept', 'company']);
     }
 
+    private function employeeWithTwoEventCltSchedule(): Employee
+    {
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED);
+        $employee->workSchedule->update(['lunch_minutes' => 0]);
+
+        return $employee->fresh(['workSchedule', 'dept', 'company']);
+    }
+
     private function seedRecords0800To1615(Employee $employee): void
     {
         TimeRecord::factory()
@@ -120,5 +221,14 @@ class WorkDayCalculateToleranceModeTest extends TestCase
             ->saida()
             ->forDate(self::WEEKDAY, '16:15:00')
             ->create();
+    }
+
+    /** Gabarito 08 / 12 / 13 / 17 — entrada, saída almoço, retorno, saída. */
+    private function seedFourPunchesCltExample(Employee $employee, array $times): void
+    {
+        TimeRecord::factory()->for($employee)->entrada()->forDate(self::WEEKDAY, $times[0])->create();
+        TimeRecord::factory()->for($employee)->saida()->forDate(self::WEEKDAY, $times[1])->create();
+        TimeRecord::factory()->for($employee)->entrada()->forDate(self::WEEKDAY, $times[2])->create();
+        TimeRecord::factory()->for($employee)->saida()->forDate(self::WEEKDAY, $times[3])->create();
     }
 }

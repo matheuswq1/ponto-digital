@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\WorkToleranceResolver;
+use App\Support\CltSkipReason;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,8 @@ class WorkDay extends Model
     protected $appends = [
         'tt_engine',
         'tt_mode',
+        'tt_clt_applied',
+        'tt_calculation_confidence',
     ];
 
     /** Versão do esquema do JSON em tolerance_snapshot (migrações futuras sem invalidar histórico). */
@@ -27,6 +30,12 @@ class WorkDay extends Model
 
     /** Identificador do motor que gerou o snapshot (troca de algoritmo / comparação / rollback lógico). */
     public const TOLERANCE_ENGINE_ID = 'v1';
+
+    /** Motor tolerance_snapshot quando calculation_path = weekday_clt_event_based. */
+    public const TOLERANCE_ENGINE_CLT_EVENT_BASED = 'v2_clt_event_based';
+
+    /** Versão do bloco `tolerance_meta` na API — incrementar só com mudança compatível ou novo contrato documentado. */
+    public const TOLERANCE_META_API_VERSION = 1;
 
     /**
      * Contrato estável para apps (`tt_kind`): não remover valores; só acrescentar novos no futuro.
@@ -83,10 +92,78 @@ class WorkDay extends Model
         return Attribute::get(fn (): ?string => data_get($this->tolerance_snapshot, 'engine'));
     }
 
+    /** Modo CLT por batida aplicado neste dia (`true` só quando pareamento + gabarito OK). */
+    protected function ttCltApplied(): Attribute
+    {
+        return Attribute::get(fn (): bool => (bool) data_get($this->tolerance_snapshot, 'clt_applied'));
+    }
+
     /** Modo de tolerância aplicado (espelho de tolerance_snapshot.mode). */
     protected function ttMode(): Attribute
     {
         return Attribute::get(fn (): ?string => data_get($this->tolerance_snapshot, 'mode'));
+    }
+
+    /**
+     * Confiança interpretativa do resultado (`high` CLT aplicado, `low` fallback CLT ou dia aberto, `medium` demais).
+     *
+     * @see self::toleranceConfidenceFromSnapshot()
+     */
+    protected function ttCalculationConfidence(): Attribute
+    {
+        return Attribute::get(fn (): string => self::toleranceConfidenceFromSnapshot(
+            is_array($this->tolerance_snapshot) ? $this->tolerance_snapshot : []
+        ));
+    }
+
+    /**
+     * Heurística única para snapshot persistido e para accessors — mantém BI e API alinhados.
+     *
+     * @param  array<string, mixed>  $snapshot
+     */
+    public static function toleranceConfidenceFromSnapshot(array $snapshot): string
+    {
+        $path = (string) ($snapshot['calculation_path'] ?? '');
+        if ($path === 'open_day') {
+            return 'low';
+        }
+        if (($snapshot['clt_skipped'] ?? false) === true) {
+            $cat = (string) ($snapshot['clt_skip_category'] ?? '');
+
+            return $cat === CltSkipReason::CATEGORY_RULE ? 'medium' : 'low';
+        }
+        if ($path === 'weekday_clt_event_based' && ($snapshot['clt_applied'] ?? false)) {
+            return 'high';
+        }
+
+        return 'medium';
+    }
+
+    /**
+     * Contrato estável de leitura para apps (`tolerance_meta` na API) — derivado apenas do snapshot persistido.
+     *
+     * @return array<string, mixed>
+     */
+    public function toleranceMetaForApi(): array
+    {
+        $s = is_array($this->tolerance_snapshot) ? $this->tolerance_snapshot : [];
+
+        return [
+            'meta_version' => self::TOLERANCE_META_API_VERSION,
+            'is_complete' => $this->hasValidToleranceSnapshot(),
+            'engine' => data_get($s, 'engine'),
+            'mode' => data_get($s, 'mode'),
+            'calculation_path' => data_get($s, 'calculation_path'),
+            'calculation_confidence' => data_get($s, 'calculation_confidence'),
+            'expected_events' => data_get($s, 'expected_events'),
+            'actual_events' => data_get($s, 'actual_events'),
+            'clt_applied' => data_get($s, 'clt_applied'),
+            'clt_skipped' => data_get($s, 'clt_skipped'),
+            'clt_skip_reason' => data_get($s, 'clt_skip_reason'),
+            'clt_skip_category' => data_get($s, 'clt_skip_category'),
+            'integration_mode' => data_get($s, 'integration_mode'),
+            'calculation_base_pt' => data_get($s, 'calculation_base_pt'),
+        ];
     }
 
     public function getTotalHoursAttribute(): float
@@ -165,6 +242,35 @@ class WorkDay extends Model
             $modePt = (string) ($s['mode_label_pt'] ?? '');
             $lines[] = 'Tolerância aplicada: '.$tol.' min'.($modePt !== '' ? ' ('.$modePt.')' : '');
             $lines[] = 'Resultado no banco: '.self::formatSignedMinutesPt((int) ($s['extra_minutes_final'] ?? $this->extra_minutes));
+            if (! empty($s['clt_skipped'])) {
+                $code = (string) ($s['clt_skip_reason'] ?? '');
+                $detail = is_array($s['clt_skip_detail'] ?? null) ? $s['clt_skip_detail'] : [];
+                $label = (string) ($detail['reason_label_pt'] ?? $code);
+                $lines[] = 'ATENÇÃO: modo CLT por batida não foi aplicado — '.$label;
+                $cat = (string) ($s['clt_skip_category'] ?? '');
+                if ($cat !== '') {
+                    $lines[] = 'Categoria do skip: '.$cat.' (rule = cadastro/jornada · structural = registros do dia).';
+                }
+                $lines[] = 'Usado cálculo por saldo diário (faixa/desconto). Consulte clt_skip_reason no snapshot.';
+            }
+        } elseif ($path === 'weekday_clt_event_based') {
+            $clt = $s['clt'] ?? [];
+            $lines[] = 'Modo: CLT por marcação (5 / 10) · Base: eventos de ponto.';
+            if (isset($s['integration_mode'])) {
+                $lines[] = 'Integração: '.(string) $s['integration_mode'].' — resultado no banco pode diferir de trabalhado − esperado.';
+            }
+            if (isset($s['clt_result_minutes'], $s['outside_event_minutes'])) {
+                $lines[] = 'Bloco ≤5 min/dia (após teto): '.self::formatSignedMinutesPt((int) $s['clt_result_minutes'])
+                    .' · Fora de ±5 min/marcação: '.self::formatSignedMinutesPt((int) $s['outside_event_minutes']);
+            }
+            $lines[] = 'Regra CLT (detalhe): '.(string) ($clt['rule_applied'] ?? '');
+            if (! empty($clt['snapshot_hint_pt'])) {
+                $lines[] = (string) $clt['snapshot_hint_pt'];
+            }
+            if (isset($s['raw_diff_minutes'])) {
+                $lines[] = 'Referência trabalhado − esperado: '.self::formatSignedMinutesPt((int) $s['raw_diff_minutes']);
+            }
+            $lines[] = 'Resultado no banco: '.self::formatSignedMinutesPt((int) ($s['extra_minutes_final'] ?? $this->extra_minutes));
         } elseif ($path === 'holiday_or_sunday_full' || $path === 'saturday_or_off_schedule_full') {
             $lines[] = 'Regra: todo o tempo trabalhado integra o saldo do dia (sem tolerância diária neste cenário).';
             $lines[] = 'Resultado no banco: '.self::formatSignedMinutesPt((int) ($s['extra_minutes_final'] ?? $this->extra_minutes));
@@ -173,6 +279,10 @@ class WorkDay extends Model
             if (isset($s['raw_diff_minutes'])) {
                 $lines[] = 'Desvio trabalhado − esperado (referência): '.self::formatSignedMinutesPt((int) $s['raw_diff_minutes']);
             }
+        }
+
+        if (isset($s['calculation_confidence'])) {
+            $lines[] = 'Confiança do cálculo (heurística): '.(string) $s['calculation_confidence'];
         }
 
         $src = (string) ($s['source_label_pt'] ?? '');

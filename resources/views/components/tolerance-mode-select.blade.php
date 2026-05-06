@@ -12,6 +12,7 @@
     @endif
     <option value="daily_dead_band" @selected(old($name, $value) === 'daily_dead_band')>Faixa neutra (dead band)</option>
     <option value="daily_discount" @selected(old($name, $value) === 'daily_discount')>Desconto no saldo diário</option>
+    <option value="clt_event_based" @selected(old($name, $value) === 'clt_event_based')>CLT por batida (5+10)</option>
 </select>
 @if($hint)
     <p class="text-[11px] text-slate-400 mt-1">{{ $hint }}</p>

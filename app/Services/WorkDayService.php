@@ -3,11 +3,14 @@
 namespace App\Services;
 
 use App\DTO\WorkToleranceContext;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\HourBankTransaction;
 use App\Models\TimeRecordEdit;
 use App\Models\WorkDay;
+use App\Models\WorkSchedule;
+use App\Support\CltSkipReason;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -15,6 +18,7 @@ class WorkDayService
 {
     public function __construct(
         private readonly WorkToleranceResolver $toleranceResolver,
+        private readonly CltEventToleranceCalculator $cltEventToleranceCalculator,
     ) {}
 
     /**
@@ -73,6 +77,8 @@ class WorkDayService
         $workDay->save();
 
         $workDay = $workDay->fresh();
+
+        $this->logWorkdayToleranceTelemetry($workDay);
 
         if ($workDay->is_closed) {
             $this->syncHourBankTransaction($employee, $workDay);
@@ -256,20 +262,81 @@ class WorkDayService
                 'day_closed' => true,
             ]);
         } else {
-            $extraMinutes = $this->toleranceResolver->applyToleranceToDiff(
-                $diff,
-                $ctx->toleranceMinutes,
-                $ctx->toleranceMode
-            );
-            $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
-                'calculation_path' => 'weekday_tolerance',
-                'total_minutes' => $totalStored,
-                'total_minutes_raw' => $totalMinutes,
-                'expected_minutes' => $expectedMinutes,
-                'raw_diff_minutes' => $diff,
-                'extra_minutes_final' => $extraMinutes,
-                'day_closed' => true,
-            ]);
+            $extraMinutes = 0;
+            $toleranceSnapshot = [];
+            $template = null;
+            $cltSkipReason = null;
+
+            if ($ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_BASED) {
+                $template = $this->buildCltEventTemplate($deptRef, $schedule, $dayOfWeek);
+                if ($template === null) {
+                    $cltSkipReason = CltSkipReason::MISSING_GABARITO;
+                } else {
+                    $pair = $this->resolveCltPairing($records, $template);
+                    if ($pair['times'] !== null) {
+                        $cltPack = $this->cltEventToleranceCalculator->compute($date, $tz, $template, $pair['times']);
+                        $extraMinutes = $cltPack['bank_minutes'];
+                        $cltBlock = $cltPack['clt'];
+                        $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
+                            'engine' => WorkDay::TOLERANCE_ENGINE_CLT_EVENT_BASED,
+                            'calculation_path' => 'weekday_clt_event_based',
+                            'integration_mode' => 'clt_primary',
+                            'calculation_base_pt' => 'Eventos de ponto (batida × horário previsto)',
+                            'total_minutes' => $totalStored,
+                            'total_minutes_raw' => $totalMinutes,
+                            'expected_minutes' => $expectedMinutes,
+                            'raw_diff_minutes' => $diff,
+                            'extra_minutes_final' => $extraMinutes,
+                            'expected_events' => count($template),
+                            'actual_events' => $records->count(),
+                            'clt_result_minutes' => $cltBlock['result_minutes_from_clt_small_bucket'],
+                            'outside_event_minutes' => $cltBlock['outside_event_tolerance_sum'],
+                            'clt_applied' => true,
+                            'clt_skipped' => false,
+                            'clt_skip_reason' => null,
+                            'day_closed' => true,
+                            'clt' => $cltBlock,
+                        ]);
+                    } else {
+                        $cltSkipReason = CltSkipReason::normalize((string) ($pair['skip_reason'] ?? CltSkipReason::UNKNOWN));
+                    }
+                }
+            }
+
+            if ($toleranceSnapshot === []) {
+                $extraMinutes = $this->toleranceResolver->applyToleranceToDiff(
+                    $diff,
+                    $ctx->toleranceMinutes,
+                    $ctx->toleranceMode
+                );
+                $pathPayload = [
+                    'calculation_path' => 'weekday_tolerance',
+                    'total_minutes' => $totalStored,
+                    'total_minutes_raw' => $totalMinutes,
+                    'expected_minutes' => $expectedMinutes,
+                    'raw_diff_minutes' => $diff,
+                    'extra_minutes_final' => $extraMinutes,
+                    'day_closed' => true,
+                ];
+                if ($ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_BASED) {
+                    $reason = CltSkipReason::normalize((string) ($cltSkipReason ?? CltSkipReason::UNKNOWN));
+                    $pathPayload['integration_mode'] = 'diff_fallback_after_clt_skip';
+                    $pathPayload['calculation_base_pt'] = 'Saldo diário (trabalhado − esperado) com tolerância por faixa/desconto — CLT por batida não aplicado.';
+                    $pathPayload['clt_applied'] = false;
+                    $pathPayload['clt_skipped'] = true;
+                    $pathPayload['clt_skip_reason'] = $reason;
+                    $pathPayload['clt_skip_category'] = CltSkipReason::category($reason);
+                    $pathPayload['expected_events'] = $template !== null ? count($template) : null;
+                    $pathPayload['actual_events'] = $records->count();
+                    $pathPayload['clt_skip_detail'] = [
+                        'reason_label_pt' => CltSkipReason::labelPt($reason),
+                        'skip_category' => CltSkipReason::category($reason),
+                        'expected_slots' => $template !== null ? count($template) : null,
+                        'records_count' => $records->count(),
+                    ];
+                }
+                $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, $pathPayload);
+            }
         }
 
         return [
@@ -292,7 +359,7 @@ class WorkDayService
      */
     private function mergeToleranceSnapshot(WorkToleranceContext $ctx, array $pathFields): array
     {
-        return array_merge([
+        $merged = array_merge([
             'version' => WorkDay::TOLERANCE_SNAPSHOT_SCHEMA_VERSION,
             'engine' => WorkDay::TOLERANCE_ENGINE_ID,
             'mode' => $ctx->toleranceMode,
@@ -303,6 +370,10 @@ class WorkDayService
             'timezone' => $ctx->timezone,
             'calendar_date' => $ctx->calendarDate,
         ], $pathFields);
+
+        $merged['calculation_confidence'] = WorkDay::toleranceConfidenceFromSnapshot($merged);
+
+        return $merged;
     }
 
     private function toleranceSourceLabelPt(string $source): string
@@ -319,8 +390,137 @@ class WorkDayService
     {
         return match ($mode) {
             WorkToleranceResolver::MODE_DAILY_DISCOUNT => 'Desconto no saldo diário',
+            WorkToleranceResolver::MODE_CLT_EVENT_BASED => 'CLT por batida (5+10)',
             default => 'Faixa neutra (dead band)',
         };
+    }
+
+    /**
+     * Gabarito CLT: 2 batidas (sem intervalo de almoço) ou 4 batidas (com almoço).
+     *
+     * @return list<array{type: string, time: string}>|null
+     */
+    private function buildCltEventTemplate(?Department $deptRef, ?WorkSchedule $schedule, int $dayOfWeek): ?array
+    {
+        if ($deptRef !== null && $deptRef->entry_time && $deptRef->exit_time) {
+            $lunch = $deptRef->getLunchMinutesForDay($dayOfWeek);
+            if ($lunch <= 0) {
+                return $this->twoSlotCltTemplate((string) $deptRef->entry_time, (string) $deptRef->exit_time);
+            }
+            $g = $deptRef->getGabaritoTimesForDay($dayOfWeek);
+            if (! is_array($g) || ! isset($g['e1'], $g['s1'], $g['e2'], $g['s2'])) {
+                return null;
+            }
+
+            return $this->fourSlotCltTemplate($g);
+        }
+        if ($schedule !== null && $schedule->entry_time && $schedule->exit_time) {
+            $lunch = (int) ($schedule->lunch_minutes ?? 0);
+            if ($lunch <= 0) {
+                return $this->twoSlotCltTemplate((string) $schedule->entry_time, (string) $schedule->exit_time);
+            }
+            $g = $schedule->getGabaritoTimes();
+            if (! is_array($g) || ! isset($g['e1'], $g['s1'], $g['e2'], $g['s2'])) {
+                return null;
+            }
+
+            return $this->fourSlotCltTemplate($g);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array{e1: string, s1: string, e2: string, s2: string}  $g
+     * @return list<array{type: string, time: string}>
+     */
+    private function fourSlotCltTemplate(array $g): array
+    {
+        return [
+            ['type' => 'entrada', 'time' => (string) $g['e1']],
+            ['type' => 'saida', 'time' => (string) $g['s1']],
+            ['type' => 'entrada', 'time' => (string) $g['e2']],
+            ['type' => 'saida', 'time' => (string) $g['s2']],
+        ];
+    }
+
+    /**
+     * @return list<array{type: string, time: string}>
+     */
+    private function twoSlotCltTemplate(string $entryTime, string $exitTime): array
+    {
+        return [
+            ['type' => 'entrada', 'time' => $this->normalizeClockForCltTemplate($entryTime)],
+            ['type' => 'saida', 'time' => $this->normalizeClockForCltTemplate($exitTime)],
+        ];
+    }
+
+    private function normalizeClockForCltTemplate(string $clock): string
+    {
+        return Carbon::parse(trim($clock))->format('H:i');
+    }
+
+    /**
+     * Pareamento por ordem temporal + tipo (robustez maior = futuro: proximidade por tipo).
+     *
+     * @param  iterable<mixed>  $records
+     * @param  list<array{type: string, time: string}>  $template
+     * @return array{times: list<Carbon>|null, skip_reason: string|null}
+     */
+    private function resolveCltPairing(iterable $records, array $template): array
+    {
+        $n = count($template);
+        if (! in_array($n, [2, 4], true)) {
+            return ['times' => null, 'skip_reason' => CltSkipReason::UNKNOWN];
+        }
+
+        $sorted = collect($records)->sortBy(fn ($r) => $r->datetime->timestamp)->values();
+        if ($sorted->count() !== $n) {
+            return ['times' => null, 'skip_reason' => CltSkipReason::WRONG_RECORD_COUNT];
+        }
+
+        $out = [];
+        foreach ($template as $i => $slot) {
+            $r = $sorted[$i];
+            if ($r->type !== $slot['type']) {
+                return ['times' => null, 'skip_reason' => CltSkipReason::TYPE_SEQUENCE_MISMATCH];
+            }
+            $out[] = $r->datetime;
+        }
+
+        return ['times' => $out, 'skip_reason' => null];
+    }
+
+    /**
+     * Observabilidade em produção (diff vs CLT, fallback, confiança) — após persistir o {@see WorkDay}.
+     */
+    private function logWorkdayToleranceTelemetry(WorkDay $workDay): void
+    {
+        $snap = $workDay->tolerance_snapshot ?? [];
+        if (! is_array($snap)) {
+            return;
+        }
+
+        $mode = (string) ($snap['mode'] ?? '');
+        $engineType = $mode === WorkToleranceResolver::MODE_CLT_EVENT_BASED ? 'clt' : 'diff';
+
+        Log::info('workday_tolerance', [
+            'work_day_id' => $workDay->id,
+            'employee_id' => $workDay->employee_id,
+            'date' => $workDay->date?->toDateString(),
+            'meta_version' => WorkDay::TOLERANCE_META_API_VERSION,
+            'engine_type' => $engineType,
+            'tolerance_mode' => $mode !== '' ? $mode : null,
+            'calculation_path' => $snap['calculation_path'] ?? null,
+            'clt_applied' => $snap['clt_applied'] ?? null,
+            'clt_skipped' => $snap['clt_skipped'] ?? null,
+            'clt_skip_reason' => $snap['clt_skip_reason'] ?? null,
+            'clt_skip_category' => $snap['clt_skip_category'] ?? null,
+            'expected_events' => $snap['expected_events'] ?? null,
+            'actual_events' => $snap['actual_events'] ?? null,
+            'calculation_confidence' => $snap['calculation_confidence'] ?? null,
+            'extra_minutes' => $workDay->extra_minutes,
+        ]);
     }
 
     /** Coerência entre coluna `extra_minutes` e snapshot recém-calculado (antes de congelar JSON). */
