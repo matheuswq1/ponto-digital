@@ -20,6 +20,8 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_URL" value="http://localhost"/>
+        <!-- Alinha CI / local ao snapshot JSON (meta.timezone); sem isto o GitHub Actions usa UTC -->
+        <env name="APP_TIMEZONE" value="America/Sao_Paulo"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
