@@ -1,0 +1,44 @@
+{
+    "data": {
+        "within": 0,
+        "applied_discount": 0,
+        "outside_dead_band": 0,
+        "total_days": 0,
+        "pct_within": 0,
+        "pct_applied_discount": 0,
+        "pct_outside_dead_band": 0,
+        "avg_abs_deviation_minutes": 0,
+        "avg_signed_deviation_minutes": 0
+    },
+    "meta": {
+        "rows_without_snapshot": 0,
+        "ignored_legacy_days": 0,
+        "excluded_open_days": 0,
+        "excluded_by_auditable_only": 0,
+        "non_classified_days": 0,
+        "considered_days": 0,
+        "valid_work_day_rows": 0,
+        "start_date": "2026-06-02",
+        "end_date": "2026-06-02",
+        "timezone": "America/Sao_Paulo",
+        "timezone_source": "app_default",
+        "date_interpretation": "company_timezone",
+        "auditable_only": false,
+        "total_rows_in_period": 0,
+        "coverage_pct": 0,
+        "iterable_contains_non_workday": false,
+        "reconciliation_complete": true,
+        "reconciliation": {
+            "total_rows_in_period": 0,
+            "valid_work_day_rows": 0,
+            "rows_without_snapshot": 0,
+            "ignored_legacy_days": 0,
+            "excluded_open_days": 0,
+            "non_classified_days": 0,
+            "considered_days": 0,
+            "excluded_by_auditable_only": 0,
+            "sum_of_buckets": 0,
+            "identity_holds": true
+        }
+    }
+}
