@@ -71,17 +71,24 @@ class NotificationService {
     );
 
     // Criar canal Android
-    await _localNotifications
+    final androidPlugin = _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_alertChannel);
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(_alertChannel);
 
-    // Permissão FCM
+    // Android 13+: pedido explícito POST_NOTIFICATIONS (além do manifest).
+    // Sem isto + permissão no manifest, o utilizador pode nunca ver o diálogo.
+    if (Platform.isAndroid) {
+      await androidPlugin?.requestNotificationsPermission();
+    }
+
+    // iOS e comportamento FCM (Android também usa isto quando aplicável).
     final messaging = FirebaseMessaging.instance;
     final settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
+      provisional: false,
     );
     if (kDebugMode) {
       debugPrint('FCM permission: ${settings.authorizationStatus}');

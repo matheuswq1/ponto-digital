@@ -160,6 +160,15 @@
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">
                 <p class="text-xs text-slate-400 mt-1">Limite de batidas de ponto por funcionário por dia (padrão: 10)</p>
             </div>
+            <div class="sm:col-span-3">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Modo de tolerância (banco de horas)</label>
+                <x-tolerance-mode-select name="tolerance_mode" :value="$company->tolerance_mode ?? 'daily_dead_band'"
+                    hint="Faixa neutra: dentro de ±tolerância o saldo do dia fica zero; fora conta o desvio inteiro. Desconto: reduz o desvio pelos minutos de tolerância." />
+            </div>
+            <div class="sm:col-span-3">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Fuso horário da empresa</label>
+                <x-company-timezone-select name="timezone" :value="$company->timezone" />
+            </div>
         </div>
     </div>
 

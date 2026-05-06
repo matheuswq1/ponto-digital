@@ -315,6 +315,15 @@
                         <input type="number" name="max_daily_records" value="{{ old('max_daily_records', $company->max_daily_records ?? 10) }}" min="2" max="20"
                                class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">
                     </div>
+                    <div class="sm:col-span-4">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Modo de tolerância (banco de horas)</label>
+                        <x-tolerance-mode-select name="tolerance_mode" :value="$company->tolerance_mode ?? 'daily_dead_band'"
+                            hint="Faixa neutra: dentro de ±tolerância o saldo do dia fica zero; fora conta o desvio inteiro. Desconto: reduz o desvio pelos minutos de tolerância." />
+                    </div>
+                    <div class="sm:col-span-4">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Fuso horário da empresa</label>
+                        <x-company-timezone-select name="timezone" :value="$company->timezone" />
+                    </div>
                 </div>
             </div>
 

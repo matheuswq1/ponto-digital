@@ -17,6 +17,7 @@ class Department extends Model
         'lunch_minutes',
         'lunch_minutes_by_day',
         'tolerance_minutes',
+        'tolerance_mode',
         'work_days',
         'active',
         'app_punch_disabled',
@@ -25,12 +26,12 @@ class Department extends Model
     protected function casts(): array
     {
         return [
-            'work_days'              => 'array',
-            'active'                 => 'boolean',
-            'app_punch_disabled'     => 'boolean',
-            'lunch_minutes'          => 'integer',
-            'tolerance_minutes'      => 'integer',
-            'lunch_minutes_by_day'   => 'array',
+            'work_days' => 'array',
+            'active' => 'boolean',
+            'app_punch_disabled' => 'boolean',
+            'lunch_minutes' => 'integer',
+            'tolerance_minutes' => 'integer',
+            'lunch_minutes_by_day' => 'array',
         ];
     }
 
@@ -83,7 +84,7 @@ class Department extends Model
             return 0;
         }
         $entry = strtotime($this->entry_time);
-        $exit  = strtotime($this->exit_time);
+        $exit = strtotime($this->exit_time);
         if ($entry === false || $exit === false) {
             return 0;
         }
@@ -129,7 +130,7 @@ class Department extends Model
         if ($x->lessThanOrEqualTo($e)) {
             return null;
         }
-        $lunch   = $this->getLunchMinutesForDay($dayOfWeek);
+        $lunch = $this->getLunchMinutesForDay($dayOfWeek);
         $workMin = (int) $e->diffInMinutes($x) - $lunch;
         if ($workMin < 0) {
             return null;

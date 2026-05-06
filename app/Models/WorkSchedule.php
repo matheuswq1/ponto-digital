@@ -18,6 +18,7 @@ class WorkSchedule extends Model
         'exit_time',
         'lunch_minutes',
         'tolerance_minutes',
+        'tolerance_mode',
         'work_days',
         'active',
         'notify_late',
@@ -28,13 +29,13 @@ class WorkSchedule extends Model
     protected function casts(): array
     {
         return [
-            'work_days'         => 'array',
-            'active'            => 'boolean',
+            'work_days' => 'array',
+            'active' => 'boolean',
             'tolerance_minutes' => 'integer',
-            'lunch_minutes'     => 'integer',
-            'notify_late'       => 'boolean',
-            'notify_absence'    => 'boolean',
-            'notify_overtime'   => 'boolean',
+            'lunch_minutes' => 'integer',
+            'notify_late' => 'boolean',
+            'notify_absence' => 'boolean',
+            'notify_overtime' => 'boolean',
         ];
     }
 
@@ -49,7 +50,7 @@ class WorkSchedule extends Model
             return 0;
         }
         $entry = strtotime($this->entry_time);
-        $exit  = strtotime($this->exit_time);
+        $exit = strtotime($this->exit_time);
         if ($entry === false || $exit === false) {
             return 0;
         }
@@ -83,7 +84,7 @@ class WorkSchedule extends Model
         if ($x->lessThanOrEqualTo($e)) {
             return null;
         }
-        $lunch   = (int) ($this->lunch_minutes ?? 0);
+        $lunch = (int) ($this->lunch_minutes ?? 0);
         $workMin = (int) $e->diffInMinutes($x) - $lunch;
         if ($workMin < 0) {
             return null;

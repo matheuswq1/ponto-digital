@@ -3,16 +3,17 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CommunicationController;
 use App\Http\Controllers\Api\CompanyController;
-use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\DeviceTokenController;
+use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\HourBankController;
 use App\Http\Controllers\Api\PayslipController;
-use App\Http\Controllers\Api\VacationRequestController;
-use App\Http\Controllers\Api\TimeRecordController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TimeRecordAdditionController;
+use App\Http\Controllers\Api\TimeRecordController;
 use App\Http\Controllers\Api\TimeRecordEditController;
 use App\Http\Controllers\Api\TotemController;
+use App\Http\Controllers\Api\VacationRequestController;
 use App\Http\Controllers\Api\WorkDayController;
 use Illuminate\Support\Facades\Route;
 
@@ -107,6 +108,9 @@ Route::prefix('v1')->group(function () {
                 ->name('api.work-days.recalculate');
         });
 
+        Route::get('/reports/tolerance-summary', [ReportController::class, 'toleranceSummary'])
+            ->name('api.reports.tolerance-summary');
+
         // Funcionários (admin/gestor)
         Route::middleware('can:manage-employees')->group(function () {
             Route::get('/employees', [EmployeeController::class, 'index'])->name('api.employees.index');
@@ -118,10 +122,10 @@ Route::prefix('v1')->group(function () {
 
         // Totem — dispositivo fixo de identificação facial
         Route::prefix('totem')->middleware('totem')->group(function () {
-            Route::post('/identify',      [TotemController::class, 'identify'])->name('api.totem.identify');
-            Route::post('/register-point',[TotemController::class, 'registerPoint'])->name('api.totem.register-point');
-            Route::post('/validate-pin',  [TotemController::class, 'validatePin'])->name('api.totem.validate-pin');
-            Route::post('/enroll-face',   [TotemController::class, 'enrollFace'])->name('api.totem.enroll-face');
+            Route::post('/identify', [TotemController::class, 'identify'])->name('api.totem.identify');
+            Route::post('/register-point', [TotemController::class, 'registerPoint'])->name('api.totem.register-point');
+            Route::post('/validate-pin', [TotemController::class, 'validatePin'])->name('api.totem.validate-pin');
+            Route::post('/enroll-face', [TotemController::class, 'enrollFace'])->name('api.totem.enroll-face');
         });
 
         // Empresas (somente admin)

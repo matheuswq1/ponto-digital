@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+
 // FraudAttempt é usado na relação abaixo
 
 class Company extends Model
@@ -40,24 +41,26 @@ class Company extends Model
         'work_end',
         'lunch_duration',
         'max_daily_records',
+        'tolerance_mode',
+        'timezone',
         'notification_contact',
     ];
 
     protected function casts(): array
     {
         return [
-            'active'                     => 'boolean',
-            'require_photo'              => 'boolean',
-            'require_geolocation'        => 'boolean',
-            'block_mock_location'        => 'boolean',
-            'block_velocity_jump'        => 'boolean',
-            'velocity_jump_threshold_kmh'=> 'integer',
-            'require_wifi'               => 'boolean',
-            'allowed_wifi_ssids'         => 'array',
-            'block_unknown_ip_city'      => 'boolean',
-            'latitude'                   => 'decimal:7',
-            'longitude'                  => 'decimal:7',
-            'max_daily_records'          => 'integer',
+            'active' => 'boolean',
+            'require_photo' => 'boolean',
+            'require_geolocation' => 'boolean',
+            'block_mock_location' => 'boolean',
+            'block_velocity_jump' => 'boolean',
+            'velocity_jump_threshold_kmh' => 'integer',
+            'require_wifi' => 'boolean',
+            'allowed_wifi_ssids' => 'array',
+            'block_unknown_ip_city' => 'boolean',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
+            'max_daily_records' => 'integer',
         ];
     }
 

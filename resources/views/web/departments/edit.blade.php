@@ -51,6 +51,11 @@
                 <input type="number" name="tolerance_minutes" value="{{ old('tolerance_minutes', $department->tolerance_minutes) }}" min="0" max="120"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2">
             </div>
+            <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Modo de tolerância (opcional)</label>
+                <x-tolerance-mode-select name="tolerance_mode" :value="$department->tolerance_mode" :inherit="true" inherit-label="Herdar da empresa"
+                    hint="Com gabarito no departamento, pode sobrescrever o modo da empresa; vazio = cascata (empresa)." />
+            </div>
         </div>
 
         @include('web.departments._lunch_by_day', ['department' => $department, 'defaultLunch' => old('lunch_minutes', $department->lunch_minutes)])

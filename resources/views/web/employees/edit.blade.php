@@ -143,6 +143,21 @@
         </div>
         <p class="text-xs text-slate-400 mb-4">Defina o horário esperado para gerar alertas de atraso, ausência e hora extra. Tolerância padrão: 5 min.</p>
 
+        @isset($resolvedWorkTolerance)
+        <div class="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2.5 text-xs text-indigo-900">
+            <span class="font-semibold text-indigo-950">Modo de tolerância aplicado ao cálculo:</span>
+            <span class="block mt-0.5 text-indigo-800/95">{{ $resolvedWorkTolerance->appliedModeDescriptionPt() }}</span>
+            <span class="block mt-1 text-[11px] text-indigo-700/90">
+                Entrada esperada (alertas): {{ $resolvedWorkTolerance->entryTime ? \Carbon\Carbon::parse($resolvedWorkTolerance->entryTime)->format('H:i') : '—' }}
+                · Tolerância: {{ $resolvedWorkTolerance->toleranceMinutes }} min
+            </span>
+            <span class="block mt-0.5 text-[11px] text-indigo-700/90">
+                {{ $resolvedWorkTolerance->timezoneHintPt() }}
+                · Dia civil (referência): {{ $resolvedWorkTolerance->calendarDate }}
+            </span>
+        </div>
+        @endisset
+
         @php $ws = $employee->workSchedule; @endphp
 
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
@@ -169,11 +184,18 @@
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Tolerância (minutos)</label>
-                <input type="number" name="ws_tolerance" min="0" max="60"
-                       value="{{ old('ws_tolerance', $ws?->tolerance_minutes ?? 5) }}"
-                       class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Tolerância (minutos)</label>
+                    <input type="number" name="ws_tolerance" min="0" max="60"
+                           value="{{ old('ws_tolerance', $ws?->tolerance_minutes ?? 5) }}"
+                           class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Modo de tolerância (opcional)</label>
+                    <x-tolerance-mode-select name="ws_tolerance_mode" :value="$ws?->tolerance_mode" :inherit="true" inherit-label="Herdar (empresa / departamento)"
+                        hint="Vazio usa departamento (com gabarito), senão empresa." />
+                </div>
             </div>
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-2">Dias de trabalho</label>
