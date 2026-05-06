@@ -2,41 +2,24 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\ToleranceSummaryContract;
 use App\Models\Employee;
 use App\Models\WorkDay;
 use App\Services\WorkDayService;
 use App\Services\WorkToleranceResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Mockery;
+use Spatie\Snapshots\MatchesSnapshots;
 use Tests\TestCase;
 
 class ToleranceSummaryContractTest extends TestCase
 {
+    use MatchesSnapshots;
     use RefreshDatabase;
 
-    /**
-     * Contrato público: ordem das chaves em meta.reconciliation (json_encode em PHP preserva ordem de inserção).
-     *
-     * @return list<string>
-     */
-    private static function expectedReconciliationKeyOrder(): array
-    {
-        return [
-            'total_rows_in_period',
-            'valid_work_day_rows',
-            'rows_without_snapshot',
-            'ignored_legacy_days',
-            'excluded_open_days',
-            'non_classified_days',
-            'considered_days',
-            'excluded_by_auditable_only',
-            'sum_of_buckets',
-            'identity_holds',
-        ];
-    }
-
-    public function test_tolerance_summary_reconciliation_contract_stable_order_and_identity(): void
+    private function jsonToleranceSummaryHappyPath(): TestResponse
     {
         $employee = Employee::factory()->create();
         Sanctum::actingAs($employee->user);
@@ -56,16 +39,21 @@ class ToleranceSummaryContractTest extends TestCase
             ],
         ]);
 
-        $response = $this->getJson('/api/v1/reports/tolerance-summary?'.http_build_query([
+        return $this->getJson('/api/v1/reports/tolerance-summary?'.http_build_query([
             'start_date' => '2026-06-02',
             'end_date' => '2026-06-02',
         ]));
+    }
+
+    public function test_tolerance_summary_reconciliation_contract_stable_order_and_identity(): void
+    {
+        $response = $this->jsonToleranceSummaryHappyPath();
 
         $response->assertOk()
             ->assertHeader('X-API-Version', '1');
 
         $rec = $response->json('meta.reconciliation');
-        $this->assertSame(self::expectedReconciliationKeyOrder(), array_keys($rec));
+        $this->assertSame(ToleranceSummaryContract::RECONCILIATION_KEYS, array_keys($rec));
 
         $bucketSum = $rec['rows_without_snapshot']
             + $rec['ignored_legacy_days']
@@ -80,6 +68,17 @@ class ToleranceSummaryContractTest extends TestCase
 
         $meta = $response->json('meta');
         $this->assertArrayNotHasKey('reconciliation_mismatch', $meta);
+    }
+
+    /**
+     * Snapshot JSON do payload completo (Spatie); regressões de estrutura/nomes saltam aqui.
+     * Actualizar com: UPDATE_SNAPSHOTS=true composer test --filter=tolerance_summary_json_snapshot
+     */
+    public function test_tolerance_summary_json_snapshot_happy_path(): void
+    {
+        $response = $this->jsonToleranceSummaryHappyPath();
+        $response->assertOk();
+        $this->assertMatchesJsonSnapshot($response->json(), 'tolerance_summary_happy_path');
     }
 
     /**

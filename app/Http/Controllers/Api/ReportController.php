@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\ToleranceSummaryContract;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\WorkDay;
@@ -26,8 +27,7 @@ class ReportController extends Controller
      * `meta.date_interpretation`: períodos são contextualizados no fuso da empresa quando configurado;
      * datas explícitas `start_date`/`end_date` seguem o calendário local ao período consultado (coluna `work_days.date`).
      *
-     * `meta.reconciliation`: autoexplicativo para BI — totais, rubricas na ordem de decisão (1→5),
-     * `sum_of_buckets`, `identity_holds` (= soma das rubricas === `valid_work_day_rows`).
+     * `meta.reconciliation`: ordem e chaves estáveis — {@see ToleranceSummaryContract::RECONCILIATION_KEYS}.
      *
      * `meta.iterable_contains_non_workday`: true quando existem elementos que não são {@see WorkDay} no período.
      *
@@ -142,7 +142,7 @@ class ReportController extends Controller
 
         $identityHolds = $reconciliationSum === $validWd;
 
-        $reconciliation = [
+        $reconciliation = ToleranceSummaryContract::orderedReconciliation([
             'total_rows_in_period' => $totalRows,
             'valid_work_day_rows' => $validWd,
             'rows_without_snapshot' => $block['meta']['rows_without_snapshot'],
@@ -153,7 +153,7 @@ class ReportController extends Controller
             'excluded_by_auditable_only' => $block['meta']['excluded_by_auditable_only'],
             'sum_of_buckets' => $reconciliationSum,
             'identity_holds' => $identityHolds,
-        ];
+        ]);
 
         $meta = array_merge($block['meta'], [
             'start_date' => $startDateStr,

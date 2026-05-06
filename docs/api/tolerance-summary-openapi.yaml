@@ -1,0 +1,109 @@
+openapi: 3.0.3
+info:
+  title: Ponto Digital — fragmento API tolerance-summary
+  description: >
+    Mantém `required` e ordem lógica de `meta.reconciliation` alinhados com
+    `App\Contracts\ToleranceSummaryContract::RECONCILIATION_KEYS`.
+    Mesclar este fragmento num OpenAPI completo do projeto (ex.: via bundler).
+  version: "1.0.0"
+
+paths:
+  /api/v1/reports/tolerance-summary:
+    get:
+      summary: Resumo de distribuição de tolerância (snapshot weekday)
+      description: >
+        Período obrigatório — `year`+`month` OU `start_date`+`end_date`.
+        Cabeçalho de versão estável — `X-API-Version: 1`.
+      parameters:
+        - name: year
+          in: query
+          schema: { type: integer, minimum: 2020, maximum: 2100 }
+        - name: month
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 12 }
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+        - name: employee_id
+          in: query
+          schema: { type: integer }
+        - name: auditable_only
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-API-Version:
+              schema: { type: string, example: "1" }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ToleranceSummaryData"
+                  meta:
+                    type: object
+                    properties:
+                      reconciliation:
+                        $ref: "#/components/schemas/ToleranceSummaryReconciliation"
+
+components:
+  schemas:
+    ToleranceSummaryReconciliation:
+      type: object
+      description: >
+        Ordem das propriedades na resposta JSON segue a lista em
+        `ToleranceSummaryContract::RECONCILIATION_KEYS` (PHP preserva ordem de inserção).
+      required:
+        - total_rows_in_period
+        - valid_work_day_rows
+        - rows_without_snapshot
+        - ignored_legacy_days
+        - excluded_open_days
+        - non_classified_days
+        - considered_days
+        - excluded_by_auditable_only
+        - sum_of_buckets
+        - identity_holds
+      properties:
+        total_rows_in_period:
+          type: integer
+          minimum: 0
+        valid_work_day_rows:
+          type: integer
+          minimum: 0
+        rows_without_snapshot:
+          type: integer
+          minimum: 0
+        ignored_legacy_days:
+          type: integer
+          minimum: 0
+        excluded_open_days:
+          type: integer
+          minimum: 0
+        non_classified_days:
+          type: integer
+          minimum: 0
+        considered_days:
+          type: integer
+          minimum: 0
+        excluded_by_auditable_only:
+          type: integer
+          minimum: 0
+          description: Alias espelhando excluded_open_days (retrocompat).
+        sum_of_buckets:
+          type: integer
+          description: Soma das cinco rubricas de partição (sem o alias).
+        identity_holds:
+          type: boolean
+          description: true quando sum_of_buckets === valid_work_day_rows (partição interna sobre linhas WorkDay).
+
+    ToleranceSummaryData:
+      type: object
+      description: Agregados UX (within / applied_discount / outside_dead_band / percentuais / médias).
+      additionalProperties: true

@@ -424,4 +424,32 @@ class WorkDayToleranceUxTest extends TestCase
         $this->assertSame(1, $block['meta']['valid_work_day_rows']);
         $this->assertSame(1, $block['meta']['considered_days']);
     }
+
+    /**
+     * Motor/versão futuros no snapshot ainda reconhecidos por {@see WorkDay::hasValidToleranceSnapshot()}
+     * devem continuar a fluir na agregação enquanto o formato weekday for compatível.
+     */
+    public function test_aggregate_accepts_future_snapshot_version_and_engine_when_weekday_shape_compatible(): void
+    {
+        $wd = WorkDay::make([
+            'is_closed' => true,
+            'tolerance_snapshot' => [
+                'version' => 2,
+                'engine' => 'v2',
+                'mode' => WorkToleranceResolver::MODE_DAILY_DEAD_BAND,
+                'calculation_path' => 'weekday_tolerance',
+                'raw_diff_minutes' => 4,
+                'minutes' => 10,
+            ],
+        ]);
+
+        $this->assertTrue($wd->hasValidToleranceSnapshot());
+
+        $block = WorkDay::aggregateToleranceUxSummary([$wd], false);
+
+        $this->assertSame(1, $block['meta']['considered_days']);
+        $this->assertSame(1, $block['summary']['total_days']);
+        $this->assertSame(1, $block['summary']['within']);
+        $this->assertSame(1, $block['meta']['valid_work_day_rows']);
+    }
 }

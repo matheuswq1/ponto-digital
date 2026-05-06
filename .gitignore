@@ -37,3 +37,7 @@ face_service/__pycache__/
 # Deploy secrets (nunca versionar)
 deploy/.env
 deploy/secret.txt
+
+# Snapshots Spatie (versionar no Git).
+# Se uma regra futura ignorar `tests/`, mantenha esta exceção para não perder regressões de JSON.
+!tests/Feature/__snapshots__/
