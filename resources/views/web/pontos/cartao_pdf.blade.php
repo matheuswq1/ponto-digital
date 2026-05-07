@@ -217,7 +217,7 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
                       : ($i % 2 === 0 ? '' : 'even')));
         @endphp
         <tr class="{{ $rowClass }}">
-            <td class="td-date" @if(!empty($day['work_day']?->tolerance_snapshot)) title="{{ e($day['work_day']->toleranceSnapshotSummaryOneLinePt()) }}" @endif>
+            <td class="td-date" @if(!empty($day['work_day']?->tolerance_snapshot)) title="{{ e($day['work_day']->toleranceCartaoHintPt()) }}" @endif>
                 {{ $day['date']->format('d/m/Y') }}
                 @if($day['banco_ok']) <span class="banco-ok">&#10003;</span>@endif
                 @php $pdfTolBadge = $day['work_day']?->toleranceUxBadgePt(); @endphp

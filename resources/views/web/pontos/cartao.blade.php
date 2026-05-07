@@ -485,9 +485,6 @@ function exportarPDF() {
             <tr class="{{ $rowClass }}">
                 <td class="td-date">
                     {{ $day['date']->format('d/m/Y') }}
-                    @if($day['work_day']?->tolerance_snapshot)
-                        <span style="display:inline-block;color:#6366f1;cursor:help;margin-left:2px;font-size:10px;vertical-align:middle;" title="{{ e($day['work_day']->toleranceSnapshotSummaryOneLinePt()) }}">ⓘ</span>
-                    @endif
                     @if($day['banco_ok'])
                         <span class="banco-ok" title="Banco de horas processado">✓</span>
                     @elseif(!$day['folga'] && $day['worked_min'] > 0)
@@ -502,11 +499,6 @@ function exportarPDF() {
                         @if($tolMismatch)
                             <div style="font-size:9px;line-height:1.35;color:#9a3412;margin-top:4px;padding:4px 6px;background:#fff7ed;border-radius:4px;border:1px solid #fed7aa;max-width:14rem;">{{ $tolMismatch }}</div>
                         @endif
-                        <div style="font-size:9px;line-height:1.35;color:#475569;margin-top:4px;border-left:2px solid #c7d2fe;padding-left:6px;max-width:14rem;">
-                            @foreach($day['work_day']->toleranceImpactLinesPt() as $ln)
-                                <div>{{ $ln }}</div>
-                            @endforeach
-                        </div>
                     @endif
                 </td>
                 <td class="td-dia">{{ $diasSemana[$dw] }}</td>

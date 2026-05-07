@@ -413,6 +413,22 @@ class WorkDay extends Model
         return implode(' · ', $this->toleranceImpactLinesPt());
     }
 
+    /**
+     * Texto curto para cartão de ponto / PDF (hover na data): só saldo final após tolerância.
+     * Detalhe de auditoria permanece em `toleranceImpactLinesPt()` e no snapshot JSON.
+     */
+    public function toleranceCartaoHintPt(): string
+    {
+        $s = $this->tolerance_snapshot;
+        if (! is_array($s) || $s === []) {
+            return '';
+        }
+
+        $final = self::formatSignedMinutesPt((int) ($s['extra_minutes_final'] ?? $this->extra_minutes));
+
+        return 'Saldo no banco (após tolerância): '.$final;
+    }
+
     /** Snapshot com schema mínimo; `version` é coercível a inteiro (ex.: JSON como string) para comparações futuras v2+. */
     public function hasValidToleranceSnapshot(): bool
     {
