@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Holiday;
-use App\Models\TimeRecordEdit;
 use App\Models\TimeRecord;
+use App\Models\TimeRecordEdit;
 use App\Services\AuditService;
 use App\Services\WorkDayService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TimeRecordWebController extends Controller
 {
@@ -24,21 +25,20 @@ class TimeRecordWebController extends Controller
     {
         $this->authorize('manage-employees');
 
-        $dateFrom    = $request->get('date_from', today()->toDateString());
-        $dateTo      = $request->get('date_to', today()->toDateString());
-        $search      = $request->get('q');
-        $employeeId  = $request->get('employee_id');
+        $dateFrom = $request->get('date_from', today()->toDateString());
+        $dateTo = $request->get('date_to', today()->toDateString());
+        $search = $request->get('q');
+        $employeeId = $request->get('employee_id');
 
         $tz = config('app.timezone', 'America/Sao_Paulo');
         $from = Carbon::createFromFormat('Y-m-d', $dateFrom)->startOfDay();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
+        $to = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
 
         $records = TimeRecord::with('employee.user')
             ->whereBetween('datetime', [$from, $to])
-            ->when($search, fn($q) => $q->whereHas('employee.user', fn($u) =>
-                $u->where('name', 'like', "%{$search}%")
+            ->when($search, fn ($q) => $q->whereHas('employee.user', fn ($u) => $u->where('name', 'like', "%{$search}%")
             ))
-            ->when($employeeId, fn($q) => $q->where('employee_id', $employeeId))
+            ->when($employeeId, fn ($q) => $q->where('employee_id', $employeeId))
             ->orderByDesc('datetime')
             ->paginate(30)
             ->withQueryString();
@@ -56,10 +56,10 @@ class TimeRecordWebController extends Controller
 
         $request->validate([
             'current_password' => ['required', 'current_password'],
-            'confirm_excluir'  => ['required', 'in:EXCLUIR'],
+            'confirm_excluir' => ['required', 'in:EXCLUIR'],
         ], [
             'current_password.current_password' => 'A palavra-passe atual não confere.',
-            'confirm_excluir.in'                => 'Digite exatamente EXCLUIR (em maiúsculas) para confirmar.',
+            'confirm_excluir.in' => 'Digite exatamente EXCLUIR (em maiúsculas) para confirmar.',
         ]);
 
         $employee = $timeRecord->employee;
@@ -71,8 +71,8 @@ class TimeRecordWebController extends Controller
         $date = $timeRecord->datetime->toDateString();
 
         $snapshot = [
-            'employee_id'    => $timeRecord->employee_id,
-            'type'           => $timeRecord->type,
+            'employee_id' => $timeRecord->employee_id,
+            'type' => $timeRecord->type,
             'datetime_local' => $timeRecord->datetime_local?->format('d/m/Y H:i'),
         ];
 
@@ -99,42 +99,41 @@ class TimeRecordWebController extends Controller
     {
         $this->authorize('manage-employees');
 
-        $dateFrom   = $request->get('date_from', today()->startOfMonth()->toDateString());
-        $dateTo     = $request->get('date_to', today()->toDateString());
+        $dateFrom = $request->get('date_from', today()->startOfMonth()->toDateString());
+        $dateTo = $request->get('date_to', today()->toDateString());
         $employeeId = $request->get('employee_id');
-        $search     = $request->get('q');
+        $search = $request->get('q');
 
-        $tz   = config('app.timezone', 'America/Sao_Paulo');
+        $tz = config('app.timezone', 'America/Sao_Paulo');
         $from = Carbon::createFromFormat('Y-m-d', $dateFrom)->startOfDay();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
+        $to = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
 
         $records = TimeRecord::with('employee.user')
             ->whereBetween('datetime', [$from, $to])
-            ->when($search, fn($q) => $q->whereHas('employee.user', fn($u) =>
-                $u->where('name', 'like', "%{$search}%")
+            ->when($search, fn ($q) => $q->whereHas('employee.user', fn ($u) => $u->where('name', 'like', "%{$search}%")
             ))
-            ->when($employeeId, fn($q) => $q->where('employee_id', $employeeId))
+            ->when($employeeId, fn ($q) => $q->where('employee_id', $employeeId))
             ->orderBy('datetime')
             ->get();
 
-        $filename = 'pontos_' . $dateFrom . '_a_' . $dateTo;
+        $filename = 'pontos_'.$dateFrom.'_a_'.$dateTo;
         if ($employeeId) {
             $emp = Employee::with('user')->find($employeeId);
             if ($emp) {
-                $slug   = Str::slug($emp->user?->name ?? 'colaborador-' . $emp->id, '_');
-                $filename = 'pontos_' . $slug . '_' . $dateFrom . '_a_' . $dateTo;
+                $slug = Str::slug($emp->user?->name ?? 'colaborador-'.$emp->id, '_');
+                $filename = 'pontos_'.$slug.'_'.$dateFrom.'_a_'.$dateTo;
             }
         }
         $filename .= '.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
         $callback = function () use ($records) {
             $handle = fopen('php://output', 'w');
-            fputs($handle, "\xEF\xBB\xBF");
+            fwrite($handle, "\xEF\xBB\xBF");
             fputcsv($handle, [
                 'ID', 'Colaborador', 'E-mail', 'Tipo', 'Data/Hora',
                 'Latitude', 'Longitude', 'Offline', 'Foto',
@@ -167,7 +166,7 @@ class TimeRecordWebController extends Controller
             ->setOption('isHtml5ParserEnabled', true)
             ->setOption('isRemoteEnabled', false);
 
-        $slug     = count($cards) === 1
+        $slug = count($cards) === 1
             ? Str::slug($cards[0]['employee']->user?->name ?? 'colaborador', '_').'_'
             : '';
         $filename = "espelho_ponto_{$slug}{$dateFrom}_a_{$dateTo}.pdf";
@@ -177,29 +176,31 @@ class TimeRecordWebController extends Controller
 
     private function exportCartaoCSV(array $cards, string $dateFrom, string $dateTo)
     {
-        $tz       = config('app.timezone', 'America/Sao_Paulo');
-        $diasSem  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        $diasSem = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
         $filename = "cartao_ponto_{$dateFrom}_a_{$dateTo}.csv";
 
         $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $fmtMin = fn(int $m): string => $m === 0 ? '' : sprintf('%02d:%02d', intdiv($m,60), $m%60);
+        $fmtMin = fn (int $m): string => $m === 0 ? '' : sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
 
         $callback = function () use ($cards, $diasSem, $fmtMin) {
             $h = fopen('php://output', 'w');
-            fputs($h, "\xEF\xBB\xBF");
-            fputcsv($h, ['Colaborador','Departamento','Empresa','Data','Dia','ENT1','SAI1','ENT2','SAI2','ENT3','SAI3','Trabalhado','Faltas','EX50%','EX100%','EXF01','Extras','Feriado','Banco OK'], ';');
+            fwrite($h, "\xEF\xBB\xBF");
+            fputcsv($h, ['Colaborador', 'Departamento', 'Empresa', 'Data', 'Dia', 'ENT1', 'SAI1', 'ENT2', 'SAI2', 'ENT3', 'SAI3', 'Trabalhado', 'Faltas', 'EX50%', 'EX100%', 'EXF01', 'Extras', 'Feriado', 'Banco OK'], ';');
             foreach ($cards as $card) {
-                $emp  = $card['employee'];
+                $emp = $card['employee'];
                 $nome = $emp->user?->name ?? '—';
                 $dept = $emp->dept?->name ?? '—';
                 $emp_company = $emp->company?->name ?? '—';
                 foreach ($card['days'] as $day) {
-                    if ($day['folga'] && $day['worked_min'] === 0) continue;
-                    $dw  = (int) $day['date']->format('w');
+                    if ($day['folga'] && $day['worked_min'] === 0) {
+                        continue;
+                    }
+                    $dw = (int) $day['date']->format('w');
                     $bat = $day['batidas'];
                     fputcsv($h, [
                         $nome, $dept, $emp_company,
@@ -225,20 +226,20 @@ class TimeRecordWebController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function cartaoPonto(Request $request): View|\Symfony\Component\HttpFoundation\StreamedResponse
+    public function cartaoPonto(Request $request): View|StreamedResponse
     {
         $this->authorize('manage-employees');
 
-        $tz         = config('app.timezone', 'America/Sao_Paulo');
-        $dateFrom   = $request->get('date_from', today()->startOfMonth()->toDateString());
-        $dateTo     = $request->get('date_to',   today()->endOfMonth()->toDateString());
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        $dateFrom = $request->get('date_from', today()->startOfMonth()->toDateString());
+        $dateTo = $request->get('date_to', today()->endOfMonth()->toDateString());
         $employeeId = $request->get('employee_id');
-        $searchQ    = $request->get('q');
+        $searchQ = $request->get('q');
 
         if (! $employeeId && $searchQ) {
             $matchIds = Employee::query()
                 ->where('active', true)
-                ->whereHas('user', fn($u) => $u->where('name', 'like', "%{$searchQ}%"))
+                ->whereHas('user', fn ($u) => $u->where('name', 'like', "%{$searchQ}%"))
                 ->pluck('id');
             if ($matchIds->count() === 1) {
                 $employeeId = (string) $matchIds->first();
@@ -246,15 +247,15 @@ class TimeRecordWebController extends Controller
         }
 
         $from = Carbon::createFromFormat('Y-m-d', $dateFrom)->startOfDay();
-        $to   = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
+        $to = Carbon::createFromFormat('Y-m-d', $dateTo)->endOfDay();
 
         $employeesQuery = Employee::with(['user', 'company', 'workSchedule', 'dept'])
             ->where('active', true)
-            ->when($employeeId, fn($q) => $q->where('id', $employeeId))
+            ->when($employeeId, fn ($q) => $q->where('id', $employeeId))
             ->orderBy('id');
 
         $allEmployees = Employee::with('user')->where('active', true)->orderBy('id')->get();
-        $employees    = $employeesQuery->get();
+        $employees = $employeesQuery->get();
 
         // Para cada colaborador, montar os dias do período com as batidas
         $cards = [];
@@ -264,12 +265,15 @@ class TimeRecordWebController extends Controller
                 ->orderBy('datetime')
                 ->get();
 
-            // WorkDays processados (banco de horas) — índice por data
-            $workDaysProcessed = $emp->workDays()
+            // WorkDays no período — modelo completo por data (cartão: tooltip tolerância / badge UX)
+            $workDaysByDateStr = $emp->workDays()
                 ->whereBetween('date', [$dateFrom, $dateTo])
-                ->where('is_closed', true)
-                ->get(['date', 'extra_minutes'])
-                ->mapWithKeys(fn($wd) => [\Carbon\Carbon::parse($wd->date)->toDateString() => $wd->extra_minutes])
+                ->get()
+                ->keyBy(fn ($wd) => Carbon::parse($wd->date)->toDateString());
+
+            $workDaysProcessed = $workDaysByDateStr
+                ->filter(fn ($wd) => $wd->is_closed)
+                ->mapWithKeys(fn ($wd) => [Carbon::parse($wd->date)->toDateString() => $wd->extra_minutes])
                 ->toArray();
 
             // Agrupar batidas por dia (horário local)
@@ -279,45 +283,45 @@ class TimeRecordWebController extends Controller
                 $byDay[$day][] = $rec;
             }
 
-            $ws   = $emp->workSchedule;
+            $ws = $emp->workSchedule;
             $dept = $emp->dept;
             $deptRef = $dept && $dept->entry_time && $dept->exit_time ? $dept : null;
             $workDays = $deptRef
                 ? $deptRef->workDaysList()
                 : ($ws?->work_days ?? [1, 2, 3, 4, 5]);
 
-            $days   = [];
-            $totalWorkedMin   = 0;
-            $totalExtraMin    = 0;
-            $totalExtra50Min  = 0;
+            $days = [];
+            $totalWorkedMin = 0;
+            $totalExtraMin = 0;
+            $totalExtra50Min = 0;
             $totalExtra100Min = 0;
             $totalExtraNocMin = 0;
-            $totalFaltaMin    = 0;
+            $totalFaltaMin = 0;
 
             // Pré-calcular feriados do período para evitar N queries
-            $companyId  = $emp->company_id;
+            $companyId = $emp->company_id;
             $holidaySet = array_flip(Holiday::datesInPeriod($dateFrom, $dateTo, $companyId));
 
             $period = CarbonPeriod::create($dateFrom, $dateTo);
             foreach ($period as $date) {
-                $dateStr   = $date->toDateString();
+                $dateStr = $date->toDateString();
                 $dayOfWeek = (int) $date->format('w'); // 0=Dom, 6=Sab
                 $isWorkDay = in_array($dayOfWeek, $workDays);
-                $recs      = $byDay[$dateStr] ?? [];
-                $isSunday  = ($dayOfWeek === 0);
-                $isSaturday= ($dayOfWeek === 6);
+                $recs = $byDay[$dateStr] ?? [];
+                $isSunday = ($dayOfWeek === 0);
+                $isSaturday = ($dayOfWeek === 6);
                 $isHoliday = isset($holidaySet[$dateStr]);
 
                 // Separar entradas e saídas em ordem
-                $entries = array_values(array_filter($recs, fn($r) => $r->type === 'entrada'));
-                $exits   = array_values(array_filter($recs, fn($r) => $r->type === 'saida'));
+                $entries = array_values(array_filter($recs, fn ($r) => $r->type === 'entrada'));
+                $exits = array_values(array_filter($recs, fn ($r) => $r->type === 'saida'));
 
                 // Montar até 3 pares ENT/SAI
                 $batidas = [];
                 for ($i = 0; $i < 3; $i++) {
                     $batidas[] = [
                         'ent' => isset($entries[$i]) ? $entries[$i]->datetime->setTimezone($tz)->format('H:i') : '',
-                        'sai' => isset($exits[$i])   ? $exits[$i]->datetime->setTimezone($tz)->format('H:i')   : '',
+                        'sai' => isset($exits[$i]) ? $exits[$i]->datetime->setTimezone($tz)->format('H:i') : '',
                     ];
                 }
 
@@ -339,29 +343,36 @@ class TimeRecordWebController extends Controller
                 // Tolerância: usa departamento, depois escala individual, default 5 min
                 $tolerance = (int) ($deptRef?->tolerance_minutes ?? $ws?->tolerance_minutes ?? 5);
 
-                $extraMin     = 0;
-                $extra50Min   = 0;  // sábado não-feriado
-                $extra100Min  = 0;  // domingo ou feriado
-                $extraNocMin  = 0;  // adicional noturno (EXF01) 22h–05h
-                $faltaMin     = 0;
+                $extraMin = 0;
+                $extra50Min = 0;  // sábado não-feriado
+                $extra100Min = 0;  // domingo ou feriado
+                $extraNocMin = 0;  // adicional noturno (EXF01) 22h–05h
+                $faltaMin = 0;
 
                 if (count($recs) > 0) {
-                    if ($isWorkDay && !$isHoliday) {
+                    if ($isWorkDay && ! $isHoliday) {
                         // Dia de trabalho normal: só conta extra/falta se ultrapassar tolerância
                         $diff = $workedMin - $expectedMin;
                         if ($diff > $tolerance) {
                             $extraMin = $diff;
-                            if ($isSunday)       $extra100Min = $diff;
-                            elseif ($isSaturday) $extra50Min  = $diff;
+                            if ($isSunday) {
+                                $extra100Min = $diff;
+                            } elseif ($isSaturday) {
+                                $extra50Min = $diff;
+                            }
                             // seg-sex útil: vai só em extraMin
                         }
-                        if ($diff < -$tolerance) $faltaMin = abs($diff);
+                        if ($diff < -$tolerance) {
+                            $faltaMin = abs($diff);
+                        }
                     } else {
                         // Folga, domingo, feriado ou sábado de folga trabalhado → tudo extra
                         if ($isSunday || $isHoliday) {
-                            $extra100Min = $workedMin; $extraMin = $workedMin;
+                            $extra100Min = $workedMin;
+                            $extraMin = $workedMin;
                         } elseif ($isSaturday) {
-                            $extra50Min  = $workedMin; $extraMin = $workedMin;
+                            $extra50Min = $workedMin;
+                            $extraMin = $workedMin;
                         } else {
                             $extraMin = $workedMin;
                         }
@@ -370,55 +381,60 @@ class TimeRecordWebController extends Controller
                     // Adicional noturno (EXF01): minutos entre 22:00–05:00
                     foreach ($entries as $idx => $ent) {
                         $sai = $exits[$idx] ?? null;
-                        if (! $sai) continue;
+                        if (! $sai) {
+                            continue;
+                        }
                         $start = $ent->datetime->setTimezone($tz);
-                        $end   = $sai->datetime->setTimezone($tz);
-                        $cur   = $start->copy();
+                        $end = $sai->datetime->setTimezone($tz);
+                        $cur = $start->copy();
                         while ($cur->lt($end)) {
                             $h = (int) $cur->format('H');
-                            if ($h >= 22 || $h < 5) $extraNocMin++;
+                            if ($h >= 22 || $h < 5) {
+                                $extraNocMin++;
+                            }
                             $cur->addMinute();
                         }
                     }
 
-                    $totalWorkedMin   += $workedMin;
-                    $totalExtraMin    += $extraMin;
-                    $totalExtra50Min  += $extra50Min;
+                    $totalWorkedMin += $workedMin;
+                    $totalExtraMin += $extraMin;
+                    $totalExtra50Min += $extra50Min;
                     $totalExtra100Min += $extra100Min;
                     $totalExtraNocMin += $extraNocMin;
-                    $totalFaltaMin    += $faltaMin;
+                    $totalFaltaMin += $faltaMin;
                 }
 
                 $days[] = [
-                    'date'          => $date->copy(),
-                    'date_str'      => $dateStr,
-                    'is_work_day'   => $isWorkDay,
-                    'is_holiday'    => $isHoliday,
-                    'batidas'       => $batidas,
-                    'worked_min'    => $workedMin,
-                    'extra_min'     => $extraMin,
-                    'extra_50_min'  => $extra50Min,
+                    'date' => $date->copy(),
+                    'date_str' => $dateStr,
+                    'is_work_day' => $isWorkDay,
+                    'is_holiday' => $isHoliday,
+                    'batidas' => $batidas,
+                    'worked_min' => $workedMin,
+                    'extra_min' => $extraMin,
+                    'extra_50_min' => $extra50Min,
                     'extra_100_min' => $extra100Min,
-                    'falta_min'     => $faltaMin,
-                    'folga'         => !$isWorkDay && !$isHoliday && count($recs) === 0,
-                    'sem_ponto'     => ($isWorkDay && !$isHoliday) && count($recs) === 0,
+                    'falta_min' => $faltaMin,
+                    'folga' => ! $isWorkDay && ! $isHoliday && count($recs) === 0,
+                    'sem_ponto' => ($isWorkDay && ! $isHoliday) && count($recs) === 0,
                     'extra_noc_min' => $extraNocMin,
-                    'banco_ok'      => array_key_exists($dateStr, $workDaysProcessed),
-                    'banco_min'     => $workDaysProcessed[$dateStr] ?? null,
+                    'banco_ok' => array_key_exists($dateStr, $workDaysProcessed),
+                    'banco_min' => $workDaysProcessed[$dateStr] ?? null,
+                    'work_day' => $workDaysByDateStr[$dateStr] ?? null,
                 ];
             }
 
             $cards[] = [
-                'employee'          => $emp,
-                'days'              => $days,
-                'total_worked'      => $totalWorkedMin,
-                'total_extra'       => $totalExtraMin,
-                'total_extra_50'    => $totalExtra50Min,
-                'total_extra_100'   => $totalExtra100Min,
-                'total_extra_noc'   => $totalExtraNocMin,
-                'total_falta'       => $totalFaltaMin,
-                'date_from'         => $dateFrom,
-                'date_to'           => $dateTo,
+                'employee' => $emp,
+                'days' => $days,
+                'total_worked' => $totalWorkedMin,
+                'total_extra' => $totalExtraMin,
+                'total_extra_50' => $totalExtra50Min,
+                'total_extra_100' => $totalExtra100Min,
+                'total_extra_noc' => $totalExtraNocMin,
+                'total_falta' => $totalFaltaMin,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
             ];
         }
 
