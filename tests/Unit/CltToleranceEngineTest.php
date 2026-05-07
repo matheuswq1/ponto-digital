@@ -70,9 +70,9 @@ class CltToleranceEngineTest extends TestCase
             $this->slot('entry', '08:00', '08:06'),
         ]);
 
-        $this->assertSame(6, $r['bank_minutes']);
+        $this->assertSame(-6, $r['bank_minutes']);
         $this->assertSame(0, $r['clt_bucket_sum']);
-        $this->assertSame(6, $r['outside_event_sum']);
+        $this->assertSame(-6, $r['outside_event_sum']);
     }
 
     public function test_mixed_outside_six_bucket_seven_bank_six(): void
@@ -118,7 +118,7 @@ class CltToleranceEngineTest extends TestCase
             $this->slot('final_out', '17:00', '17:06'),
         ]);
 
-        $this->assertSame(5, $r['clt_bucket_sum']);
+        $this->assertSame(3, $r['clt_bucket_sum']);
         $this->assertSame(6, $r['outside_event_sum']);
         $this->assertSame(0, $r['clt_bucket_result']);
         $this->assertSame(6, $r['bank_minutes']);

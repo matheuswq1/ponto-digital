@@ -66,11 +66,26 @@ class CltProgressiveCapEngineTest extends TestCase
             $this->slot('entry', '08:00', '08:07'),
         ]);
 
-        $this->assertSame(2, $r['bank_minutes']);
-        $this->assertSame(5, $r['clt_bucket_sum']);
+        $this->assertSame(-2, $r['bank_minutes']);
+        $this->assertSame(-5, $r['clt_bucket_sum']);
         $this->assertSame(0, $r['clt_bucket_result']);
         $ev = $r['events'][0];
-        $this->assertSame(2, $ev['immediate_to_bank_minutes']);
+        $this->assertSame(-2, $ev['immediate_to_bank_minutes']);
+        $this->assertSame('partial_immediate_bank', $ev['progressive_classification']);
+    }
+
+    /** Entrada 6 min antecipada: crédito +6 → +5 no bucket e +1 no saldo. */
+    public function test_entry_six_minutes_early_splits_positive_bucket_and_bank(): void
+    {
+        $engine = new CltToleranceEngine;
+        $r = $engine->calculateProgressiveDailyCap([
+            $this->slot('entry', '08:00', '07:54'),
+        ]);
+
+        $this->assertSame(1, $r['bank_minutes']);
+        $this->assertSame(5, $r['clt_bucket_sum']);
+        $ev = $r['events'][0];
+        $this->assertSame(1, $ev['immediate_to_bank_minutes']);
         $this->assertSame('partial_immediate_bank', $ev['progressive_classification']);
     }
 
@@ -81,15 +96,15 @@ class CltProgressiveCapEngineTest extends TestCase
             $this->slot('entry', '08:00', '08:10'),
         ]);
 
-        $this->assertSame(10, $r['bank_minutes']);
+        $this->assertSame(-10, $r['bank_minutes']);
         $this->assertTrue($r['clt']['tolerance_closed_end']);
         $ev = $r['events'][0];
         $this->assertSame('event_exceeds_daily_cap', $ev['tolerance_close_reason']);
         $this->assertSame(0, $ev['released_bucket_minutes']);
         $this->assertSame('event_exceeds_cap', $ev['progressive_classification']);
         $tl = $r['clt']['timeline'][0];
-        $this->assertSame(10, $tl['bank']);
-        $this->assertSame(10, $tl['bank_step_delta']);
+        $this->assertSame(-10, $tl['bank']);
+        $this->assertSame(-10, $tl['bank_step_delta']);
         $this->assertSame(0, $tl['bucket']);
     }
 

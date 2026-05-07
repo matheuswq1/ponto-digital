@@ -21,7 +21,7 @@ Transações automáticas do banco de horas usam crédito (`extra`) ou déficit 
 ## Modo único CLT (`clt_event_progressive_duration`)
 
 - Motor **bucket progressivo** (até ±5 min no bucket; 6–9 min reparte; ≥10 min ou |bucket|≥10 libera e encerra a tolerância do dia; eventos seguintes vão integralmente ao saldo).
-- **Entrada** e **saída final** comparadas ao **gabarito**.
+- **Entrada** e **saída final** comparadas ao **gabarito**. Na entrada, **delta positivo = chegou antes do previsto** (crédito); negativo = atraso. Na saída final mantém-se `actual − expected` (positivo = saiu mais tarde).
 - **Almoço**: um único evento `lunch_duration`. **Não** se compara a hora da **saída para almoço** ao gabarito; apenas **duração real do intervalo** vs **minutos configurados**, com convenção **efeito jornada**:  
   `delta = minutos_configurados − duração_real` (`delta_minutes_override`).
 - Intervalo **menor** que o previsto → delta **positivo** neste eixo (mais tempo líquido trabalhado).

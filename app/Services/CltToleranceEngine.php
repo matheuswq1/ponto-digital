@@ -376,9 +376,11 @@ final class CltToleranceEngine
 
     /**
      * Minutos assinados por evento: por defeito {@see Carbon} `actual − expected`.
+     * Na **entrada** (`semantic_type === entry`) o sinal é invertido: positivo = chegada antecipada (crédito),
+     * negativo = atraso — alinhado ao efeito no saldo que RH espera.
      * Com `delta_minutes_override`, o chamador define o sinal (ex.: efeito jornada no almoço).
      *
-     * @param  array{expected: Carbon, actual: Carbon, delta_minutes_override?: int|null}  $slot
+     * @param  array{semantic_type?: string, expected: Carbon, actual: Carbon, delta_minutes_override?: int|null}  $slot
      */
     private function slotSignedDeltaMinutes(array $slot): int
     {
@@ -389,7 +391,13 @@ final class CltToleranceEngine
         $expected = $slot['expected'];
         $actual = $slot['actual'];
 
-        return (int) round(($actual->timestamp - $expected->timestamp) / 60);
+        $base = (int) round(($actual->timestamp - $expected->timestamp) / 60);
+
+        if (($slot['semantic_type'] ?? '') === 'entry') {
+            return -$base;
+        }
+
+        return $base;
     }
 
     /**

@@ -192,8 +192,8 @@ class WorkDayCalculateToleranceModeTest extends TestCase
 
         $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
 
-        $this->assertSame(1, $workDay->extra_minutes);
-        $this->assertSame(1, (int) data_get($workDay->tolerance_snapshot, 'outside_event_minutes'));
+        $this->assertSame(-1, $workDay->extra_minutes);
+        $this->assertSame(-1, (int) data_get($workDay->tolerance_snapshot, 'outside_event_minutes'));
         $this->assertSame('2_events', data_get($workDay->tolerance_snapshot, 'clt.event_model'));
     }
 
