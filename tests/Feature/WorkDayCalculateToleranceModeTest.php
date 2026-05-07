@@ -79,23 +79,30 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         $this->assertSame(WorkToleranceResolver::MODE_DAILY_DEAD_BAND, $wd->tt_mode);
     }
 
-    public function test_weekday_clt_event_based_exceeds_daily_cap_counts_eleven(): void
+    /** Almoço como duração: entrada +4, intervalo +1 min (61 vs 60), soma no bucket ≤10 → saldo CLT 0. */
+    public function test_weekday_clt_event_based_lunch_duration_within_daily_cap_bank_zero(): void
     {
         $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED);
         $this->seedFourPunchesCltExample($employee, ['08:04:00', '12:03:00', '13:04:00', '17:00:00']);
 
         $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
 
-        $this->assertSame(11, $workDay->extra_minutes);
+        $this->assertSame(0, $workDay->extra_minutes);
         $this->assertTrue($workDay->tt_clt_applied);
         $this->assertTrue((bool) data_get($workDay->tolerance_snapshot, 'clt_applied'));
         $this->assertFalse((bool) data_get($workDay->tolerance_snapshot, 'clt_skipped'));
         $this->assertSame('clt_primary', $workDay->tolerance_snapshot['integration_mode']);
-        $this->assertSame(11, (int) data_get($workDay->tolerance_snapshot, 'clt_result_minutes'));
+        $this->assertSame(0, (int) data_get($workDay->tolerance_snapshot, 'clt_result_minutes'));
         $this->assertSame(0, (int) data_get($workDay->tolerance_snapshot, 'outside_event_minutes'));
+        $this->assertSame(5, (int) data_get($workDay->tolerance_snapshot, 'clt_bucket_sum'));
         $this->assertSame('weekday_clt_event_based', $workDay->tolerance_snapshot['calculation_path']);
         $this->assertSame('v2_clt_event_based', $workDay->tolerance_snapshot['engine']);
-        $this->assertSame('exceeded_daily_cap_all_count', data_get($workDay->tolerance_snapshot, 'clt.rule_applied'));
+        $this->assertSame('within_daily_cap', data_get($workDay->tolerance_snapshot, 'clt.rule_applied'));
+        $this->assertSame('3_events_lunch_duration', data_get($workDay->tolerance_snapshot, 'clt.event_model'));
+        $this->assertSame(
+            'actual_lunch_exit_plus_configured_duration',
+            data_get($workDay->tolerance_snapshot, 'clt.lunch_return_expected_source')
+        );
         $this->assertSame(WorkToleranceResolver::MODE_CLT_EVENT_BASED, $workDay->tolerance_snapshot['mode']);
         $this->assertSame('high', $workDay->tolerance_snapshot['calculation_confidence']);
         $this->assertSame('high', $workDay->tt_calculation_confidence);
@@ -189,7 +196,8 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         $this->assertSame(31, (int) data_get($workDay->tolerance_snapshot, 'outside_event_sum'));
     }
 
-    public function test_weekday_clt_based_same_punches_counts_return_vs_gabarito(): void
+    /** Mesmo dia com almoço modelado por duração: −5 min no intervalo → bucket −5, saldo 0. */
+    public function test_weekday_clt_based_four_punches_lunch_duration_not_double_counted(): void
     {
         $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED, 90);
         $this->seedFourPunchesCltExample($employee, ['08:00:00', '12:16:00', '13:41:00', '17:00:00']);
@@ -197,8 +205,13 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
 
         $this->assertSame('weekday_clt_event_based', $workDay->tolerance_snapshot['calculation_path']);
-        $this->assertSame('gabarito', data_get($workDay->tolerance_snapshot, 'clt.lunch_return_expected_source'));
-        $this->assertSame(57, $workDay->extra_minutes);
+        $this->assertSame(
+            'actual_lunch_exit_plus_configured_duration',
+            data_get($workDay->tolerance_snapshot, 'clt.lunch_return_expected_source')
+        );
+        $this->assertSame('3_events_lunch_duration', data_get($workDay->tolerance_snapshot, 'clt.event_model'));
+        $this->assertSame(-5, (int) data_get($workDay->tolerance_snapshot, 'clt_bucket_sum'));
+        $this->assertSame(0, $workDay->extra_minutes);
     }
 
     private function employeeWithSchedule(string $companyToleranceMode, int $lunchMinutes = 60): Employee

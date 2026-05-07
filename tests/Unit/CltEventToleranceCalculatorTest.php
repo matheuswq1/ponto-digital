@@ -42,46 +42,50 @@ class CltEventToleranceCalculatorTest extends TestCase
 
         $this->assertSame(0, $r['bank_minutes']);
         $this->assertSame('within_daily_cap', $r['clt']['rule_applied']);
-        $this->assertSame(9, $r['clt']['sum_within_event_tolerance']);
+        $this->assertSame(3, $r['clt']['sum_within_event_tolerance']);
+        $this->assertSame('3_events_lunch_duration', $r['clt']['event_model']);
         $this->assertNotNull($r['clt']['snapshot_hint_pt']);
     }
 
-    public function test_all_within_five_and_sum_over_ten_counts_full_sum(): void
+    /** Com intervalo como duração: soma no bucket +5 → dentro do teto diário 10 → banco 0. */
+    public function test_all_within_five_and_bucket_sum_five_stays_within_daily_cap(): void
     {
         $calc = $this->app->make(CltEventToleranceCalculator::class);
         $times = $this->timesFromHm(['08:04', '12:03', '13:04', '17:00']);
 
         $r = $calc->compute(self::DATE, self::TZ, $this->templateExample(), $times);
 
-        $this->assertSame(11, $r['bank_minutes']);
-        $this->assertSame('exceeded_daily_cap_all_count', $r['clt']['rule_applied']);
-        $this->assertSame(11, $r['clt']['sum_within_event_tolerance']);
-        $this->assertNull($r['clt']['snapshot_hint_pt']);
+        $this->assertSame(0, $r['bank_minutes']);
+        $this->assertSame('within_daily_cap', $r['clt']['rule_applied']);
+        $this->assertSame(5, $r['clt']['sum_within_event_tolerance']);
+        $this->assertNotNull($r['clt']['snapshot_hint_pt']);
     }
 
-    public function test_mixed_with_one_over_five_only_small_bucket_summed_and_outside_added(): void
+    /** Saída para almoço +6 min não existe mais como evento isolado; intervalo como duração deixa tudo no bucket +1 → banco 0. */
+    public function test_lunch_exit_deviation_absorbed_into_duration_event_bucket_only(): void
     {
         $calc = $this->app->make(CltEventToleranceCalculator::class);
         $times = $this->timesFromHm(['08:04', '12:06', '13:03', '17:00']);
 
         $r = $calc->compute(self::DATE, self::TZ, $this->templateExample(), $times);
 
-        $this->assertSame(7, $r['clt']['sum_within_event_tolerance']);
-        $this->assertSame(6, $r['clt']['outside_event_tolerance_sum']);
+        $this->assertSame(1, $r['clt']['sum_within_event_tolerance']);
+        $this->assertSame(0, $r['clt']['outside_event_tolerance_sum']);
         $this->assertSame('within_daily_cap', $r['clt']['rule_applied']);
-        $this->assertSame(6, $r['bank_minutes']);
+        $this->assertSame(0, $r['bank_minutes']);
         $this->assertNotNull($r['clt']['snapshot_hint_pt']);
     }
 
-    public function test_negative_small_variations_exceed_cap_counts_full(): void
+    /** Somas negativas pequenas no bucket −5 ficam dentro do teto diário → banco 0. */
+    public function test_negative_small_bucket_within_daily_cap_zeros_bank(): void
     {
         $calc = $this->app->make(CltEventToleranceCalculator::class);
         $times = $this->timesFromHm(['07:56', '11:57', '12:56', '17:00']);
 
         $r = $calc->compute(self::DATE, self::TZ, $this->templateExample(), $times);
 
-        $this->assertSame(-11, $r['clt']['sum_within_event_tolerance']);
-        $this->assertSame('exceeded_daily_cap_all_count', $r['clt']['rule_applied']);
-        $this->assertSame(-11, $r['bank_minutes']);
+        $this->assertSame(-5, $r['clt']['sum_within_event_tolerance']);
+        $this->assertSame('within_daily_cap', $r['clt']['rule_applied']);
+        $this->assertSame(0, $r['bank_minutes']);
     }
 }

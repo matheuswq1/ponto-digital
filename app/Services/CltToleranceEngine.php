@@ -89,7 +89,7 @@ final class CltToleranceEngine
                 .self::EVENT_TOLERANCE_MINUTES.' min por marcação continuam a contar integralmente.';
         }
 
-        $eventModel = count($slots) === 2 ? '2_events' : '4_events';
+        $eventModel = $this->resolveEventModel($slots);
 
         $cltNested = [
             'event_model' => $eventModel,
@@ -311,7 +311,7 @@ final class CltToleranceEngine
         $outsidePortionSigned = $immediateCarveSigned + $integralBigSigned + $postCloseSigned;
         $bucketFinalResidual = $bucket;
 
-        $eventModel = count($slots) === 2 ? '2_events' : '4_events';
+        $eventModel = $this->resolveEventModel($slots);
 
         $cltNested = [
             'engine_variant' => 'progressive_daily_cap_v1',
@@ -343,5 +343,31 @@ final class CltToleranceEngine
             'events' => $snapshotEvents,
             'clt' => $cltNested,
         ];
+    }
+
+    /**
+     * @param  list<array{semantic_type: string, expected: Carbon, actual: Carbon}>  $slots
+     */
+    private function resolveEventModel(array $slots): string
+    {
+        return match (count($slots)) {
+            2 => '2_events',
+            3 => $this->hasLunchDurationSemantic($slots) ? '3_events_lunch_duration' : '3_events',
+            default => '4_events',
+        };
+    }
+
+    /**
+     * @param  list<array{semantic_type: string, expected: Carbon, actual: Carbon}>  $slots
+     */
+    private function hasLunchDurationSemantic(array $slots): bool
+    {
+        foreach ($slots as $slot) {
+            if (($slot['semantic_type'] ?? '') === 'lunch_duration') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

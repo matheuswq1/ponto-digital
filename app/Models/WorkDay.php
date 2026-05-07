@@ -48,7 +48,7 @@ class WorkDay extends Model
     /** Identificador do motor que gerou o snapshot (troca de algoritmo / comparação / rollback lógico). */
     public const TOLERANCE_ENGINE_ID = 'v1';
 
-    /** Motor tolerance_snapshot quando calculation_path = weekday_clt_event_based (gabarito fixo nos 4 horários). */
+    /** Motor CLT por batida (based): entrada/saída final × gabarito; intervalo de almoço × duração a partir da saída real + minutos configurados. */
     public const TOLERANCE_ENGINE_CLT_EVENT_BASED = 'v2_clt_event_based';
 
     /** Motor CLT estrito (retorno do almoço por duração a partir da saída real). */

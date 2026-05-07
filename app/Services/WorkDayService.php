@@ -290,6 +290,10 @@ class WorkDayService
                         $strictLunchReturn = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_STRICT;
                         $lunchMinStrict = $this->resolveLunchMinutesForCltStrict($deptRef, $schedule, $dayOfWeek);
 
+                        $mergeLunchAsDuration = ! $strictLunchReturn
+                            && count($template) === 4
+                            && $lunchMinStrict > 0;
+
                         $slots = $this->buildCltSlotsForEngine(
                             $date,
                             $tz,
@@ -297,6 +301,7 @@ class WorkDayService
                             $pair['times'],
                             $strictLunchReturn,
                             $lunchMinStrict,
+                            $mergeLunchAsDuration,
                         );
 
                         $progressiveCap = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP;
@@ -308,6 +313,11 @@ class WorkDayService
 
                         if ($strictLunchReturn && count($template) === 4 && $lunchMinStrict > 0) {
                             $cltBlock['lunch_return_expected_source'] = 'actual_lunch_exit_plus_duration';
+                        } elseif ($mergeLunchAsDuration) {
+                            $cltBlock['lunch_return_expected_source'] = 'actual_lunch_exit_plus_configured_duration';
+                            $cltBlock['lunch_interval_semantics_pt'] = 'Intervalo de almoço como um único desvio: '
+                                .'horário previsto de retorno = saída real para almoço + intervalo configurado; '
+                                .'delta = duração real do intervalo − minutos configurados.';
                         } elseif (count($template) === 4) {
                             $cltBlock['lunch_return_expected_source'] = 'gabarito';
                         }
@@ -327,7 +337,8 @@ class WorkDayService
                         $calcBasePt = match (true) {
                             $isStrictPath => 'Eventos de ponto — retorno do almoço pela saída real + duração configurada',
                             $isProgressivePath => 'Eventos de ponto — tolerância progressiva (bucket 5+10 com liberação)',
-                            default => 'Eventos de ponto (batida × horário previsto)',
+                            default => 'Eventos de ponto — entrada e saída final × gabarito; intervalo de almoço × duração '
+                                .'(saída real + minutos configurados)',
                         };
                         $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
                             'engine' => $engineConst,
@@ -542,6 +553,12 @@ class WorkDayService
     }
 
     /**
+     * Monta slots para o motor CLT.
+     *
+     * Quando `$mergeLunchAsDuration` é verdadeiro (modos **based** e **progressive_cap**, não **strict**):
+     * em vez de comparar saída para almoço e retorno aos horários fixos do gabarito, usa **um único evento**
+     * `lunch_duration`: previsto de retorno = saída real para almoço + intervalo configurado (delta = duração real − configurada).
+     *
      * @param  list<array{type: string, time: string}>  $template
      * @param  list<Carbon>  $actualCarbons
      * @return list<array{semantic_type: string, expected: Carbon, actual: Carbon}>
@@ -552,8 +569,29 @@ class WorkDayService
         array $template,
         array $actualCarbons,
         bool $strictLunchReturn,
-        int $lunchMinutesForStrict,
+        int $configuredLunchMinutes,
+        bool $mergeLunchAsDuration,
     ): array {
+        if ($mergeLunchAsDuration && count($template) === 4 && count($actualCarbons) === 4) {
+            return [
+                [
+                    'semantic_type' => 'entry',
+                    'expected' => Carbon::parse(trim($date).' '.trim((string) $template[0]['time']), $tz),
+                    'actual' => $actualCarbons[0],
+                ],
+                [
+                    'semantic_type' => 'lunch_duration',
+                    'expected' => $actualCarbons[1]->copy()->addMinutes($configuredLunchMinutes),
+                    'actual' => $actualCarbons[2],
+                ],
+                [
+                    'semantic_type' => 'final_out',
+                    'expected' => Carbon::parse(trim($date).' '.trim((string) $template[3]['time']), $tz),
+                    'actual' => $actualCarbons[3],
+                ],
+            ];
+        }
+
         $semanticFour = ['entry', 'lunch_out', 'lunch_return', 'final_out'];
         $semanticTwo = ['entry', 'final_out'];
         $semantic = count($template) === 4 ? $semanticFour : $semanticTwo;
@@ -561,8 +599,8 @@ class WorkDayService
         $slots = [];
         foreach ($template as $i => $slot) {
             $actual = $actualCarbons[$i];
-            if ($strictLunchReturn && count($template) === 4 && $i === 2 && $lunchMinutesForStrict > 0) {
-                $expected = $actualCarbons[1]->copy()->addMinutes($lunchMinutesForStrict);
+            if ($strictLunchReturn && count($template) === 4 && $i === 2 && $configuredLunchMinutes > 0) {
+                $expected = $actualCarbons[1]->copy()->addMinutes($configuredLunchMinutes);
             } else {
                 $expected = Carbon::parse(trim($date).' '.trim((string) $slot['time']), $tz);
             }
