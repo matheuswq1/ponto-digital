@@ -108,6 +108,20 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         $this->assertSame('high', $workDay->tt_calculation_confidence);
     }
 
+    /** Progressive cap mantém 4 eventos no almoço (gabarito) para não alterar liberações do bucket vs histórico. */
+    public function test_weekday_clt_progressive_cap_keeps_four_event_lunch_vs_gabarito(): void
+    {
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP);
+        $this->seedFourPunchesCltExample($employee, ['08:04:00', '12:03:00', '13:04:00', '17:00:00']);
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame('weekday_clt_event_progressive_cap', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertTrue((bool) data_get($workDay->tolerance_snapshot, 'clt_applied'));
+        $this->assertSame('4_events', data_get($workDay->tolerance_snapshot, 'clt.event_model'));
+        $this->assertSame('gabarito', data_get($workDay->tolerance_snapshot, 'clt.lunch_return_expected_source'));
+    }
+
     public function test_weekday_clt_fallback_when_only_two_punches(): void
     {
         $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED);

@@ -288,9 +288,14 @@ class WorkDayService
                     $pair = $this->resolveCltPairing($records, $template);
                     if ($pair['times'] !== null) {
                         $strictLunchReturn = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_STRICT;
+                        $progressiveCap = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP;
                         $lunchMinStrict = $this->resolveLunchMinutesForCltStrict($deptRef, $schedule, $dayOfWeek);
 
+                        // Fusão do almoço em um só desvio (duração): faz sentido no CLT "based" (bucket linear).
+                        // No progressive cap, menos eventos mudam a ordem das liberações do bucket e pode alterar
+                        // muito o saldo vs histórico — mantém-se o modelo de 4 marcas × gabarito.
                         $mergeLunchAsDuration = ! $strictLunchReturn
+                            && ! $progressiveCap
                             && count($template) === 4
                             && $lunchMinStrict > 0;
 
@@ -303,8 +308,6 @@ class WorkDayService
                             $lunchMinStrict,
                             $mergeLunchAsDuration,
                         );
-
-                        $progressiveCap = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP;
                         $enginePack = $progressiveCap
                             ? $this->cltToleranceEngine->calculateProgressiveDailyCap($slots)
                             : $this->cltToleranceEngine->calculate($slots);
@@ -555,7 +558,7 @@ class WorkDayService
     /**
      * Monta slots para o motor CLT.
      *
-     * Quando `$mergeLunchAsDuration` é verdadeiro (modos **based** e **progressive_cap**, não **strict**):
+     * Quando `$mergeLunchAsDuration` é verdadeiro (**somente** modo CLT based neste serviço; não progressive cap):
      * em vez de comparar saída para almoço e retorno aos horários fixos do gabarito, usa **um único evento**
      * `lunch_duration`: previsto de retorno = saída real para almoço + intervalo configurado (delta = duração real − configurada).
      *
