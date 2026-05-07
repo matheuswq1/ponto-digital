@@ -171,7 +171,37 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         $this->assertSame('low', $workDay->tolerance_snapshot['calculation_confidence']);
     }
 
-    private function employeeWithSchedule(string $companyToleranceMode): Employee
+    public function test_weekday_clt_strict_lunch_return_uses_duration_from_actual_lunch_exit(): void
+    {
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_STRICT, 90);
+        $this->seedFourPunchesCltExample($employee, ['08:00:00', '12:16:00', '13:41:00', '17:00:00']);
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame('weekday_clt_event_strict', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertSame(WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT, $workDay->tolerance_snapshot['engine']);
+        $this->assertSame(
+            'actual_lunch_exit_plus_duration',
+            data_get($workDay->tolerance_snapshot, 'clt.lunch_return_expected_source')
+        );
+        $this->assertSame(31, $workDay->extra_minutes);
+        $this->assertSame(-5, (int) data_get($workDay->tolerance_snapshot, 'clt_bucket_sum'));
+        $this->assertSame(31, (int) data_get($workDay->tolerance_snapshot, 'outside_event_sum'));
+    }
+
+    public function test_weekday_clt_based_same_punches_counts_return_vs_gabarito(): void
+    {
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED, 90);
+        $this->seedFourPunchesCltExample($employee, ['08:00:00', '12:16:00', '13:41:00', '17:00:00']);
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame('weekday_clt_event_based', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertSame('gabarito', data_get($workDay->tolerance_snapshot, 'clt.lunch_return_expected_source'));
+        $this->assertSame(57, $workDay->extra_minutes);
+    }
+
+    private function employeeWithSchedule(string $companyToleranceMode, int $lunchMinutes = 60): Employee
     {
         $company = Company::factory()->create([
             'tolerance_mode' => $companyToleranceMode,
@@ -190,7 +220,7 @@ class WorkDayCalculateToleranceModeTest extends TestCase
             'name' => 'Escala teste',
             'entry_time' => '08:00:00',
             'exit_time' => '17:00:00',
-            'lunch_minutes' => 60,
+            'lunch_minutes' => $lunchMinutes,
             'tolerance_minutes' => 10,
             'tolerance_mode' => null,
             'work_days' => [1, 2, 3, 4, 5],

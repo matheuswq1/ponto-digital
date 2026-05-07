@@ -55,6 +55,10 @@ class CltSkipReasonTest extends TestCase
             'calculation_path' => 'weekday_clt_event_based',
             'clt_applied' => true,
         ]));
+        $this->assertSame('high', WorkDay::toleranceConfidenceFromSnapshot([
+            'calculation_path' => 'weekday_clt_event_strict',
+            'clt_applied' => true,
+        ]));
         $this->assertSame('low', WorkDay::toleranceConfidenceFromSnapshot([
             'calculation_path' => 'weekday_tolerance',
             'clt_skipped' => true,

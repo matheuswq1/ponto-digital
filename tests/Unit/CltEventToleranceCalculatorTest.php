@@ -35,7 +35,7 @@ class CltEventToleranceCalculatorTest extends TestCase
 
     public function test_all_within_five_and_sum_at_most_ten_yields_zero(): void
     {
-        $calc = new CltEventToleranceCalculator;
+        $calc = $this->app->make(CltEventToleranceCalculator::class);
         $times = $this->timesFromHm(['08:04', '12:03', '13:02', '17:00']);
 
         $r = $calc->compute(self::DATE, self::TZ, $this->templateExample(), $times);
@@ -48,7 +48,7 @@ class CltEventToleranceCalculatorTest extends TestCase
 
     public function test_all_within_five_and_sum_over_ten_counts_full_sum(): void
     {
-        $calc = new CltEventToleranceCalculator;
+        $calc = $this->app->make(CltEventToleranceCalculator::class);
         $times = $this->timesFromHm(['08:04', '12:03', '13:04', '17:00']);
 
         $r = $calc->compute(self::DATE, self::TZ, $this->templateExample(), $times);
@@ -61,7 +61,7 @@ class CltEventToleranceCalculatorTest extends TestCase
 
     public function test_mixed_with_one_over_five_only_small_bucket_summed_and_outside_added(): void
     {
-        $calc = new CltEventToleranceCalculator;
+        $calc = $this->app->make(CltEventToleranceCalculator::class);
         $times = $this->timesFromHm(['08:04', '12:06', '13:03', '17:00']);
 
         $r = $calc->compute(self::DATE, self::TZ, $this->templateExample(), $times);
@@ -75,7 +75,7 @@ class CltEventToleranceCalculatorTest extends TestCase
 
     public function test_negative_small_variations_exceed_cap_counts_full(): void
     {
-        $calc = new CltEventToleranceCalculator;
+        $calc = $this->app->make(CltEventToleranceCalculator::class);
         $times = $this->timesFromHm(['07:56', '11:57', '12:56', '17:00']);
 
         $r = $calc->compute(self::DATE, self::TZ, $this->templateExample(), $times);

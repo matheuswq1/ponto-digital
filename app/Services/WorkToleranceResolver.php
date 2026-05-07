@@ -15,13 +15,21 @@ class WorkToleranceResolver
 
     public const MODE_DAILY_DISCOUNT = 'daily_discount';
 
-    /** Modo CLT por batida (5+10) — aplicado em {@see WorkDayService}; aqui só para validação/cascata. */
+    /** Modo CLT por batida (5+10) — gabarito fixo nos 4 eventos. */
     public const MODE_CLT_EVENT_BASED = 'clt_event_based';
+
+    /** CLT por batida com retorno do almoço = saída real do almoço + duração configurada. */
+    public const MODE_CLT_EVENT_STRICT = 'clt_event_strict';
 
     /** @return list<string> */
     public static function modes(): array
     {
-        return [self::MODE_DAILY_DEAD_BAND, self::MODE_DAILY_DISCOUNT, self::MODE_CLT_EVENT_BASED];
+        return [
+            self::MODE_DAILY_DEAD_BAND,
+            self::MODE_DAILY_DISCOUNT,
+            self::MODE_CLT_EVENT_BASED,
+            self::MODE_CLT_EVENT_STRICT,
+        ];
     }
 
     /** Fuso efetivo para jornada / alertas (IANA). */
@@ -119,7 +127,7 @@ class WorkToleranceResolver
             return 0;
         }
 
-        if ($mode === self::MODE_CLT_EVENT_BASED) {
+        if ($mode === self::MODE_CLT_EVENT_BASED || $mode === self::MODE_CLT_EVENT_STRICT) {
             $mode = self::MODE_DAILY_DEAD_BAND;
         }
 

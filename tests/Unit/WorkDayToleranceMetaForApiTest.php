@@ -43,6 +43,8 @@ class WorkDayToleranceMetaForApiTest extends TestCase
         ] as $key) {
             $this->assertSame(data_get($snapshot, $key), $meta[$key], $key);
         }
+
+        $this->assertNull($meta['event_tolerance_minutes']);
     }
 
     public function test_tolerance_meta_is_complete_false_when_snapshot_invalid(): void

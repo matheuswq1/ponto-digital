@@ -175,7 +175,7 @@ class EmployeeWebController extends Controller
             'ws_exit_time' => 'nullable|date_format:H:i',
             'ws_lunch_minutes' => 'nullable|integer|min:0|max:480',
             'ws_tolerance' => 'nullable|integer|min:0|max:60',
-            'ws_tolerance_mode' => ['nullable', 'string', Rule::in(['', 'daily_dead_band', 'daily_discount', 'clt_event_based'])],
+            'ws_tolerance_mode' => ['nullable', 'string', Rule::in(['', 'daily_dead_band', 'daily_discount', 'clt_event_based', 'clt_event_strict'])],
             'ws_work_days' => 'nullable|array',
             'ws_work_days.*' => 'integer|min:0|max:6',
         ], [

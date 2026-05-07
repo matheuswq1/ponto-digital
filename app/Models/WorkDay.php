@@ -31,11 +31,14 @@ class WorkDay extends Model
     /** Identificador do motor que gerou o snapshot (troca de algoritmo / comparação / rollback lógico). */
     public const TOLERANCE_ENGINE_ID = 'v1';
 
-    /** Motor tolerance_snapshot quando calculation_path = weekday_clt_event_based. */
+    /** Motor tolerance_snapshot quando calculation_path = weekday_clt_event_based (gabarito fixo nos 4 horários). */
     public const TOLERANCE_ENGINE_CLT_EVENT_BASED = 'v2_clt_event_based';
 
+    /** Motor CLT estrito (retorno do almoço por duração a partir da saída real). */
+    public const TOLERANCE_ENGINE_CLT_EVENT_STRICT = 'v3_clt_event_engine';
+
     /** Versão do bloco `tolerance_meta` na API — incrementar só com mudança compatível ou novo contrato documentado. */
-    public const TOLERANCE_META_API_VERSION = 1;
+    public const TOLERANCE_META_API_VERSION = 2;
 
     /**
      * Contrato estável para apps (`tt_kind`): não remover valores; só acrescentar novos no futuro.
@@ -132,7 +135,7 @@ class WorkDay extends Model
 
             return $cat === CltSkipReason::CATEGORY_RULE ? 'medium' : 'low';
         }
-        if ($path === 'weekday_clt_event_based' && ($snapshot['clt_applied'] ?? false)) {
+        if (in_array($path, ['weekday_clt_event_based', 'weekday_clt_event_strict'], true) && ($snapshot['clt_applied'] ?? false)) {
             return 'high';
         }
 
@@ -163,7 +166,43 @@ class WorkDay extends Model
             'clt_skip_category' => data_get($s, 'clt_skip_category'),
             'integration_mode' => data_get($s, 'integration_mode'),
             'calculation_base_pt' => data_get($s, 'calculation_base_pt'),
+            'event_tolerance_minutes' => data_get($s, 'event_tolerance_minutes', data_get($s, 'clt.event_tolerance_minutes')),
+            'daily_cap_minutes' => data_get($s, 'daily_cap_minutes', data_get($s, 'clt.daily_cap_minutes')),
+            'clt_bucket_sum' => data_get($s, 'clt_bucket_sum', data_get($s, 'clt.sum_within_event_tolerance')),
+            'outside_event_sum' => data_get($s, 'outside_event_sum', data_get($s, 'clt.outside_event_tolerance_sum')),
         ];
+    }
+
+    /** Soma do bucket CLT (marcações com |delta| ≤ 5 min) antes do teto diário — null se não aplicável. */
+    public function cltBucketMinutes(): ?int
+    {
+        $s = is_array($this->tolerance_snapshot) ? $this->tolerance_snapshot : null;
+        if ($s === null) {
+            return null;
+        }
+        if (array_key_exists('clt_bucket_sum', $s)) {
+            return (int) $s['clt_bucket_sum'];
+        }
+
+        return isset($s['clt']['sum_within_event_tolerance'])
+            ? (int) $s['clt']['sum_within_event_tolerance']
+            : null;
+    }
+
+    /** Soma dos desvios fora da tolerância por evento (|delta| > 5 min) — null se não aplicável. */
+    public function outsideEventMinutes(): ?int
+    {
+        $s = is_array($this->tolerance_snapshot) ? $this->tolerance_snapshot : null;
+        if ($s === null) {
+            return null;
+        }
+        if (array_key_exists('outside_event_sum', $s)) {
+            return (int) $s['outside_event_sum'];
+        }
+
+        return isset($s['clt']['outside_event_tolerance_sum'])
+            ? (int) $s['clt']['outside_event_tolerance_sum']
+            : null;
     }
 
     public function getTotalHoursAttribute(): float
@@ -253,9 +292,12 @@ class WorkDay extends Model
                 }
                 $lines[] = 'Usado cálculo por saldo diário (faixa/desconto). Consulte clt_skip_reason no snapshot.';
             }
-        } elseif ($path === 'weekday_clt_event_based') {
+        } elseif ($path === 'weekday_clt_event_based' || $path === 'weekday_clt_event_strict') {
             $clt = $s['clt'] ?? [];
-            $lines[] = 'Modo: CLT por marcação (5 / 10) · Base: eventos de ponto.';
+            $strictNote = $path === 'weekday_clt_event_strict'
+                ? ' Retorno do almoço: saída real + duração configurada.'
+                : '';
+            $lines[] = 'Modo: CLT por marcação (5 / 10) · Base: eventos de ponto.'.$strictNote;
             if (isset($s['integration_mode'])) {
                 $lines[] = 'Integração: '.(string) $s['integration_mode'].' — resultado no banco pode diferir de trabalhado − esperado.';
             }
