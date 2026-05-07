@@ -31,6 +31,20 @@ class WorkDay extends Model
     /** Versão do contrato normalizado `policy` dentro do snapshot (consumidores externos / BI / mobile). */
     public const TOLERANCE_POLICY_CONTRACT_VERSION = 1;
 
+    /**
+     * Família matemática estável para BI / mobile / API — derivada só do snapshot persistido
+     * ({@see self::effectiveToleranceEngineFamily()}), sem acoplamento a modo/engine específicos.
+     */
+    public const EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT = 'clt_event';
+
+    public const EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF = 'daily_diff';
+
+    public const EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CALENDAR_FULL_DAY = 'calendar_full_day';
+
+    public const EFFECTIVE_TOLERANCE_ENGINE_FAMILY_OPEN_DAY = 'open_day';
+
+    public const EFFECTIVE_TOLERANCE_ENGINE_FAMILY_UNKNOWN = 'unknown';
+
     /** Identificador do motor que gerou o snapshot (troca de algoritmo / comparação / rollback lógico). */
     public const TOLERANCE_ENGINE_ID = 'v1';
 
@@ -39,6 +53,9 @@ class WorkDay extends Model
 
     /** Motor CLT estrito (retorno do almoço por duração a partir da saída real). */
     public const TOLERANCE_ENGINE_CLT_EVENT_STRICT = 'v3_clt_event_engine';
+
+    /** Motor CLT bucket progressivo / liberação ao atingir teto diário (±10 no bucket). */
+    public const TOLERANCE_ENGINE_CLT_PROGRESSIVE_CAP = 'v4_clt_progressive_cap';
 
     /** Versão do bloco `tolerance_meta` na API — incrementar só com mudança compatível ou novo contrato documentado. */
     public const TOLERANCE_META_API_VERSION = 2;
@@ -123,6 +140,34 @@ class WorkDay extends Model
     }
 
     /**
+     * Família efetiva de cálculo (contrato estável). Depende apenas de `calculation_path` no snapshot.
+     *
+     * @param  array<string, mixed>  $snapshot
+     */
+    public static function effectiveToleranceEngineFamily(array $snapshot): string
+    {
+        $path = (string) ($snapshot['calculation_path'] ?? '');
+
+        if (str_starts_with($path, 'weekday_clt_event')) {
+            return self::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT;
+        }
+
+        if ($path === 'weekday_tolerance') {
+            return self::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF;
+        }
+
+        if ($path === 'holiday_or_sunday_full' || $path === 'saturday_or_off_schedule_full') {
+            return self::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CALENDAR_FULL_DAY;
+        }
+
+        if ($path === 'open_day') {
+            return self::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_OPEN_DAY;
+        }
+
+        return self::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_UNKNOWN;
+    }
+
+    /**
      * Heurística única para snapshot persistido e para accessors — mantém BI e API alinhados.
      *
      * @param  array<string, mixed>  $snapshot
@@ -138,7 +183,7 @@ class WorkDay extends Model
 
             return $cat === CltSkipReason::CATEGORY_RULE ? 'medium' : 'low';
         }
-        if (in_array($path, ['weekday_clt_event_based', 'weekday_clt_event_strict'], true) && ($snapshot['clt_applied'] ?? false)) {
+        if (in_array($path, ['weekday_clt_event_based', 'weekday_clt_event_strict', 'weekday_clt_event_progressive_cap'], true) && ($snapshot['clt_applied'] ?? false)) {
             return 'high';
         }
 
@@ -180,6 +225,9 @@ class WorkDay extends Model
             'mode' => data_get($s, 'policy.mode') ?? data_get($s, 'mode'),
             'calculation_path' => data_get($s, 'policy.calculation.path') ?? data_get($s, 'calculation_path'),
             'calculation_confidence' => data_get($s, 'policy.calculation.confidence') ?? data_get($s, 'calculation_confidence'),
+            'effective_tolerance_engine_family' => data_get($s, 'policy.calculation.family')
+                ?? data_get($s, 'effective_tolerance_engine_family')
+                ?? self::effectiveToleranceEngineFamily($s),
             'expected_events' => data_get($s, 'expected_events'),
             'actual_events' => data_get($s, 'actual_events'),
             'clt_applied' => data_get($s, 'clt_applied'),
@@ -314,12 +362,15 @@ class WorkDay extends Model
                 }
                 $lines[] = 'Usado cálculo por saldo diário (faixa/desconto). Consulte clt_skip_reason no snapshot.';
             }
-        } elseif ($path === 'weekday_clt_event_based' || $path === 'weekday_clt_event_strict') {
+        } elseif ($path === 'weekday_clt_event_based' || $path === 'weekday_clt_event_strict' || $path === 'weekday_clt_event_progressive_cap') {
             $clt = $s['clt'] ?? [];
             $strictNote = $path === 'weekday_clt_event_strict'
                 ? ' Retorno do almoço: saída real + duração configurada.'
                 : '';
-            $lines[] = 'Modo: CLT por marcação (5 / 10) · Base: eventos de ponto.'.$strictNote;
+            $progNote = $path === 'weekday_clt_event_progressive_cap'
+                ? ' Bucket progressivo: 6–9 min → ±5 no bucket + resto no saldo; ≥10 ou |bucket|≥10 libera bucket e encerra tolerância do dia.'
+                : '';
+            $lines[] = 'Modo: CLT por marcação (5 / 10) · Base: eventos de ponto.'.$strictNote.$progNote;
             if (isset($s['integration_mode'])) {
                 $lines[] = 'Integração: '.(string) $s['integration_mode'].' — resultado no banco pode diferir de trabalhado − esperado.';
             }

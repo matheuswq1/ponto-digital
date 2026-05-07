@@ -40,6 +40,8 @@ readonly class WorkToleranceContext
         $modeLabel = match ($this->toleranceMode) {
             WorkToleranceResolver::MODE_DAILY_DISCOUNT => 'Desconto no saldo diário',
             WorkToleranceResolver::MODE_CLT_EVENT_BASED => 'CLT por batida (5+10)',
+            WorkToleranceResolver::MODE_CLT_EVENT_STRICT => 'CLT por batida (5+10, retorno por duração)',
+            WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP => 'CLT por batida — bucket progressivo (5+10)',
             default => 'Faixa neutra (dead band)',
         };
 

@@ -118,4 +118,230 @@ final class CltToleranceEngine
             'clt' => $cltNested,
         ];
     }
+
+    /**
+     * Motor CLT “bucket progressivo”: até 5 min → bucket; 6–9 → ±5 no bucket + resto no saldo;
+     * ≥10 min ou |bucket|≥10 após o evento → todo o bucket vai para o saldo e a tolerância do dia encerra;
+     * depois disso cada evento integral no saldo.
+     *
+     * Snapshot `clt`: inclui `timeline` (passo a passo bucket/banco) e `calculation_engine_family` para analytics.
+     *
+     * @param  list<array{semantic_type: string, expected: Carbon, actual: Carbon}>  $slots
+     * @return array{bank_minutes: int, clt_bucket_sum: int, clt_bucket_result: int, outside_event_sum: int, event_tolerance_minutes: int, daily_cap_minutes: int, events: list<array<string, mixed>>, clt: array<string, mixed>}
+     */
+    public function calculateProgressiveDailyCap(array $slots): array
+    {
+        if ($slots === []) {
+            throw new \InvalidArgumentException('Lista de eventos CLT vazia.');
+        }
+
+        $bucket = 0;
+        $bank = 0;
+        $toleranceClosed = false;
+
+        $releasedBucketsSigned = 0;
+        $immediateCarveSigned = 0;
+        $integralBigSigned = 0;
+        $postCloseSigned = 0;
+
+        $snapshotEvents = [];
+        $detailedEvents = [];
+        $timeline = [];
+
+        foreach ($slots as $slot) {
+            $bankBeforeStep = $bank;
+            $expected = $slot['expected'];
+            $actual = $slot['actual'];
+            $semantic = (string) $slot['semantic_type'];
+            $delta = (int) round(($actual->timestamp - $expected->timestamp) / 60);
+            $abs = abs($delta);
+
+            $toleranceClosedBeforeEvent = $toleranceClosed;
+            $bucketBeforeEvent = $bucket;
+            $releasedBucketMinutes = null;
+            $immediateToBank = null;
+            $toleranceCloseReason = null;
+
+            if ($toleranceClosed) {
+                $bank += $delta;
+                $postCloseSigned += $delta;
+
+                $dto = new WorkEventDeviation(
+                    type: $semantic,
+                    expectedAt: $expected->copy(),
+                    actualAt: $actual->copy(),
+                    diffMinutes: $delta,
+                    withinEventTolerance: false,
+                    enteredCltBucket: false,
+                    outsideEventTolerance: true,
+                );
+
+                $snapProgressive = [
+                    'bucket_before_event' => $bucketBeforeEvent,
+                    'bucket_after_before_cap_check' => $bucket,
+                    'bucket_after_event' => $bucket,
+                    'tolerance_closed' => true,
+                    'tolerance_close_reason' => null,
+                    'released_bucket_minutes' => null,
+                    'immediate_to_bank_minutes' => null,
+                    'progressive_classification' => 'post_cap_direct_bank',
+                ];
+                $snapshotEvents[] = array_merge($dto->toSnapshotEventArray(), $snapProgressive);
+
+                $detailedEvents[] = [
+                    'type' => $semantic,
+                    'expected' => $expected->format('H:i'),
+                    'actual' => $actual->format('H:i'),
+                    'delta' => $delta,
+                    ...$snapProgressive,
+                    'tolerance_closed_before_event' => true,
+                ];
+
+                $timeline[] = [
+                    'event' => $semantic,
+                    'delta' => $delta,
+                    'bucket' => $bucket,
+                    'bank' => $bank,
+                    'bank_step_delta' => $bank - $bankBeforeStep,
+                    'bucket_release' => null,
+                    'immediate_to_bank' => null,
+                    'tolerance_closed_after' => true,
+                    'progressive_classification' => 'post_cap_direct_bank',
+                ];
+
+                continue;
+            }
+
+            $enteredBucketPortion = false;
+            $outsideMicro = false;
+
+            if ($abs <= self::EVENT_TOLERANCE_MINUTES) {
+                $bucket += $delta;
+                $enteredBucketPortion = true;
+            } elseif ($abs < self::DAILY_CAP_MINUTES) {
+                $stepBucket = $delta > 0 ? self::EVENT_TOLERANCE_MINUTES : -self::EVENT_TOLERANCE_MINUTES;
+                $bucket += $stepBucket;
+                $immediateToBank = $delta > 0
+                    ? $delta - self::EVENT_TOLERANCE_MINUTES
+                    : $delta + self::EVENT_TOLERANCE_MINUTES;
+                $bank += $immediateToBank;
+                $immediateCarveSigned += $immediateToBank;
+                $enteredBucketPortion = true;
+                $outsideMicro = true;
+            } else {
+                $releasedBucketMinutes = $bucket;
+                $bank += $delta + $bucket;
+                $releasedBucketsSigned += $bucket;
+                $integralBigSigned += $delta;
+                $bucket = 0;
+                $toleranceClosed = true;
+                $toleranceCloseReason = 'event_exceeds_daily_cap';
+                $outsideMicro = true;
+            }
+
+            $bucketAfterBeforeCapCheck = $bucket;
+
+            if (! $toleranceClosed && abs($bucket) >= self::DAILY_CAP_MINUTES) {
+                $releasedBucketMinutes = $bucket;
+                $bank += $bucket;
+                $releasedBucketsSigned += $bucket;
+                $bucket = 0;
+                $toleranceClosed = true;
+                $toleranceCloseReason = $toleranceCloseReason ?? 'daily_cap_reached';
+            }
+
+            $bucketAfterEvent = $bucket;
+
+            $dto = new WorkEventDeviation(
+                type: $semantic,
+                expectedAt: $expected->copy(),
+                actualAt: $actual->copy(),
+                diffMinutes: $delta,
+                withinEventTolerance: $abs <= self::EVENT_TOLERANCE_MINUTES,
+                enteredCltBucket: $enteredBucketPortion,
+                outsideEventTolerance: $outsideMicro || $abs > self::EVENT_TOLERANCE_MINUTES,
+            );
+
+            $toleranceCloseReasonForSnapshot = (! $toleranceClosedBeforeEvent && $toleranceClosed)
+                ? $toleranceCloseReason
+                : null;
+
+            $classification = match (true) {
+                $toleranceCloseReasonForSnapshot === 'daily_cap_reached' => 'daily_cap_release',
+                $toleranceCloseReasonForSnapshot === 'event_exceeds_daily_cap' => 'event_exceeds_cap',
+                $abs <= self::EVENT_TOLERANCE_MINUTES => 'within_event_tolerance',
+                $abs < self::DAILY_CAP_MINUTES => 'partial_immediate_bank',
+                default => 'event_exceeds_cap',
+            };
+
+            $snapProgressive = [
+                'bucket_before_event' => $bucketBeforeEvent,
+                'bucket_after_before_cap_check' => $bucketAfterBeforeCapCheck,
+                'bucket_after_event' => $bucketAfterEvent,
+                'tolerance_closed' => $toleranceClosed,
+                'tolerance_close_reason' => $toleranceCloseReasonForSnapshot,
+                'released_bucket_minutes' => $releasedBucketMinutes,
+                'immediate_to_bank_minutes' => $immediateToBank,
+                'progressive_classification' => $classification,
+            ];
+            $snapshotEvents[] = array_merge($dto->toSnapshotEventArray(), $snapProgressive);
+
+            $detailedEvents[] = [
+                'type' => $semantic,
+                'expected' => $expected->format('H:i'),
+                'actual' => $actual->format('H:i'),
+                'delta' => $delta,
+                ...$snapProgressive,
+                'tolerance_closed_before_event' => false,
+            ];
+
+            $timeline[] = [
+                'event' => $semantic,
+                'delta' => $delta,
+                'bucket' => $bucketAfterEvent,
+                'bank' => $bank,
+                'bank_step_delta' => $bank - $bankBeforeStep,
+                'bucket_release' => $releasedBucketMinutes,
+                'immediate_to_bank' => $immediateToBank,
+                'tolerance_closed_after' => $toleranceClosed,
+                'progressive_classification' => $classification,
+            ];
+        }
+
+        $outsidePortionSigned = $immediateCarveSigned + $integralBigSigned + $postCloseSigned;
+        $bucketFinalResidual = $bucket;
+
+        $eventModel = count($slots) === 2 ? '2_events' : '4_events';
+
+        $cltNested = [
+            'engine_variant' => 'progressive_daily_cap_v1',
+            'event_model' => $eventModel,
+            'event_tolerance_minutes' => self::EVENT_TOLERANCE_MINUTES,
+            'daily_cap_minutes' => self::DAILY_CAP_MINUTES,
+            'sum_within_event_tolerance' => $bucketFinalResidual,
+            'outside_event_tolerance_sum' => $outsidePortionSigned,
+            'result_minutes_from_clt_small_bucket' => $releasedBucketsSigned,
+            'integration_strategy' => 'clt_progressive_cap_primary',
+            'integration_note_pt' => 'Bucket progressivo: até 5 min só no bucket; 6–9 min divide ±5 no bucket e resto no saldo; '
+                .'≥10 min ou |bucket|≥10 libera todo o bucket no saldo e encerra a tolerância do dia; depois todos os eventos são integralmente no saldo.',
+            'tolerance_closed_end' => $toleranceClosed,
+            'timeline' => $timeline,
+            'calculation_engine_family' => 'clt_event_progressive_cap',
+            'events_progressive' => $detailedEvents,
+            'events' => $detailedEvents,
+            'events_audit' => $snapshotEvents,
+            'rule_applied' => 'progressive_daily_cap_v1',
+        ];
+
+        return [
+            'bank_minutes' => $bank,
+            'clt_bucket_sum' => $bucketFinalResidual,
+            'clt_bucket_result' => $releasedBucketsSigned,
+            'outside_event_sum' => $outsidePortionSigned,
+            'event_tolerance_minutes' => self::EVENT_TOLERANCE_MINUTES,
+            'daily_cap_minutes' => self::DAILY_CAP_MINUTES,
+            'events' => $snapshotEvents,
+            'clt' => $cltNested,
+        ];
+    }
 }

@@ -43,6 +43,8 @@ class WorkDayTolerancePolicyContractTest extends TestCase
         $this->assertSame('America/Sao_Paulo', $p['timezone']);
         $this->assertSame('weekday_tolerance', $p['calculation']['path']);
         $this->assertSame('medium', $p['calculation']['confidence']);
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF, $p['calculation']['family']);
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF, $wd->tolerance_snapshot['effective_tolerance_engine_family']);
 
         $this->assertSame($p, $wd->toleranceMetaForApi()['policy']);
     }
@@ -71,6 +73,8 @@ class WorkDayTolerancePolicyContractTest extends TestCase
         $this->assertSame(90, $p['lunch']['configured_minutes']);
         $this->assertSame('weekday_clt_event_strict', $p['calculation']['path']);
         $this->assertSame('high', $p['calculation']['confidence']);
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT, $p['calculation']['family']);
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT, $wd->tolerance_snapshot['effective_tolerance_engine_family']);
     }
 
     public function test_policy_contract_when_clt_skipped_fallback(): void
@@ -87,10 +91,12 @@ class WorkDayTolerancePolicyContractTest extends TestCase
         $this->assertSame(WorkToleranceResolver::MODE_CLT_EVENT_BASED, $p['mode']);
         $this->assertSame('weekday_tolerance', $p['calculation']['path']);
         $this->assertSame('diff_fallback_after_clt_skip', $p['integration']['mode']);
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF, $p['calculation']['family']);
         $this->assertNull($p['integration']['fallback_mode']);
         $this->assertNull($p['lunch']['strategy']);
         $this->assertNull($p['lunch']['configured_minutes']);
         $this->assertSame('low', $p['calculation']['confidence']);
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF, $wd->tolerance_snapshot['effective_tolerance_engine_family']);
     }
 
     private function employeeWithSchedule(string $companyToleranceMode, int $lunchMinutes = 60): Employee

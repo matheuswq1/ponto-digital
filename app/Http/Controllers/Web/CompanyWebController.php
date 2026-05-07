@@ -166,7 +166,7 @@ class CompanyWebController extends Controller
             'work_end' => 'nullable|date_format:H:i',
             'lunch_duration' => 'nullable|integer|min:0|max:120',
             'max_daily_records' => 'nullable|integer|min:2|max:20',
-            'tolerance_mode' => 'required|string|in:daily_dead_band,daily_discount,clt_event_based,clt_event_strict',
+            'tolerance_mode' => 'required|string|in:daily_dead_band,daily_discount,clt_event_based,clt_event_strict,clt_event_progressive_cap',
             'timezone' => ['nullable', 'string', 'max:64', Rule::in(array_merge([''], timezone_identifiers_list()))],
             // Anti-fraude
             'block_mock_location' => 'nullable|boolean',

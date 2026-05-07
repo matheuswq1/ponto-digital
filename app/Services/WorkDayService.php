@@ -299,7 +299,10 @@ class WorkDayService
                             $lunchMinStrict,
                         );
 
-                        $enginePack = $this->cltToleranceEngine->calculate($slots);
+                        $progressiveCap = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP;
+                        $enginePack = $progressiveCap
+                            ? $this->cltToleranceEngine->calculateProgressiveDailyCap($slots)
+                            : $this->cltToleranceEngine->calculate($slots);
                         $extraMinutes = $enginePack['bank_minutes'];
                         $cltBlock = $enginePack['clt'];
 
@@ -310,14 +313,28 @@ class WorkDayService
                         }
 
                         $isStrictPath = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_STRICT;
+                        $isProgressivePath = $progressiveCap;
+                        $engineConst = match (true) {
+                            $isStrictPath => WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT,
+                            $isProgressivePath => WorkDay::TOLERANCE_ENGINE_CLT_PROGRESSIVE_CAP,
+                            default => WorkDay::TOLERANCE_ENGINE_CLT_EVENT_BASED,
+                        };
+                        $calcPath = match (true) {
+                            $isStrictPath => 'weekday_clt_event_strict',
+                            $isProgressivePath => 'weekday_clt_event_progressive_cap',
+                            default => 'weekday_clt_event_based',
+                        };
+                        $calcBasePt = match (true) {
+                            $isStrictPath => 'Eventos de ponto — retorno do almoço pela saída real + duração configurada',
+                            $isProgressivePath => 'Eventos de ponto — tolerância progressiva (bucket 5+10 com liberação)',
+                            default => 'Eventos de ponto (batida × horário previsto)',
+                        };
                         $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
-                            'engine' => $isStrictPath ? WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT : WorkDay::TOLERANCE_ENGINE_CLT_EVENT_BASED,
-                            'calculation_path' => $isStrictPath ? 'weekday_clt_event_strict' : 'weekday_clt_event_based',
+                            'engine' => $engineConst,
+                            'calculation_path' => $calcPath,
                             'lunch_configured_minutes' => count($template) === 4 ? $lunchMinStrict : null,
                             'integration_mode' => 'clt_primary',
-                            'calculation_base_pt' => $isStrictPath
-                                ? 'Eventos de ponto — retorno do almoço pela saída real + duração configurada'
-                                : 'Eventos de ponto (batida × horário previsto)',
+                            'calculation_base_pt' => $calcBasePt,
                             'total_minutes' => $totalStored,
                             'total_minutes_raw' => $totalMinutes,
                             'expected_minutes' => $expectedMinutes,
@@ -396,6 +413,9 @@ class WorkDayService
     }
 
     /**
+     * Monta o snapshot de tolerância; acrescenta `effective_tolerance_engine_family` e `policy.calculation.family`
+     * (família matemática estável para BI/mobile), sempre derivados de `calculation_path`.
+     *
      * @param  array<string, mixed>  $pathFields  calculation_path, totals, extra_minutes_final, day_closed, …
      * @return array<string, mixed>
      */
@@ -413,6 +433,7 @@ class WorkDayService
             'calendar_date' => $ctx->calendarDate,
         ], $pathFields);
 
+        $merged['effective_tolerance_engine_family'] = WorkDay::effectiveToleranceEngineFamily($merged);
         $merged['calculation_confidence'] = WorkDay::toleranceConfidenceFromSnapshot($merged);
         $merged['policy'] = $this->buildTolerancePolicyContract($merged);
 
@@ -474,6 +495,9 @@ class WorkDayService
                 'confidence' => isset($merged['calculation_confidence']) && is_string($merged['calculation_confidence'])
                     ? $merged['calculation_confidence']
                     : null,
+                'family' => isset($merged['effective_tolerance_engine_family']) && is_string($merged['effective_tolerance_engine_family'])
+                    ? $merged['effective_tolerance_engine_family']
+                    : WorkDay::effectiveToleranceEngineFamily($merged),
             ],
         ];
     }
@@ -494,6 +518,7 @@ class WorkDayService
             WorkToleranceResolver::MODE_DAILY_DISCOUNT => 'Desconto no saldo diário',
             WorkToleranceResolver::MODE_CLT_EVENT_BASED => 'CLT por batida (5+10)',
             WorkToleranceResolver::MODE_CLT_EVENT_STRICT => 'CLT por batida (5+10, retorno por duração)',
+            WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP => 'CLT por batida — bucket progressivo (5+10)',
             default => 'Faixa neutra (dead band)',
         };
     }
@@ -503,6 +528,7 @@ class WorkDayService
         return in_array($mode, [
             WorkToleranceResolver::MODE_CLT_EVENT_BASED,
             WorkToleranceResolver::MODE_CLT_EVENT_STRICT,
+            WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP,
         ], true);
     }
 
@@ -677,6 +703,7 @@ class WorkDayService
             'clt_bucket_sum' => $snap['clt_bucket_sum'] ?? null,
             'outside_event_sum' => $snap['outside_event_sum'] ?? null,
             'calculation_confidence' => $snap['calculation_confidence'] ?? null,
+            'effective_tolerance_engine_family' => $snap['effective_tolerance_engine_family'] ?? null,
             'extra_minutes' => $workDay->extra_minutes,
         ]);
     }

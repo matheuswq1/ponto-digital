@@ -45,6 +45,8 @@ class WorkDayToleranceMetaForApiTest extends TestCase
             $this->assertSame(data_get($snapshot, $key), $meta[$key], $key);
         }
 
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT, $meta['effective_tolerance_engine_family']);
+
         $this->assertNull($meta['event_tolerance_minutes']);
     }
 
@@ -108,6 +110,7 @@ class WorkDayToleranceMetaForApiTest extends TestCase
             'calculation' => [
                 'path' => 'weekday_clt_event_strict',
                 'confidence' => 'high',
+                'family' => WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT,
             ],
         ];
 
@@ -131,6 +134,7 @@ class WorkDayToleranceMetaForApiTest extends TestCase
         $this->assertSame('clt_event_strict', $meta['mode']);
         $this->assertSame('weekday_clt_event_strict', $meta['calculation_path']);
         $this->assertSame('high', $meta['calculation_confidence']);
+        $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT, $meta['effective_tolerance_engine_family']);
         $this->assertSame('clt_primary', $meta['integration_mode']);
         $this->assertSame(5, $meta['event_tolerance_minutes']);
         $this->assertSame(10, $meta['daily_cap_minutes']);
