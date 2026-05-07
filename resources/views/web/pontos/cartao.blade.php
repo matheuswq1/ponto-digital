@@ -296,24 +296,9 @@ if (!function_exists('ponto_cartao_fmt_min')) {
         <button type="submit" class="btn-print">Gerar</button>
     </form>
 
-    <button onclick="exportarCSV()" class="btn-print" style="background:#0369a1;">⬇ CSV</button>
-    <button onclick="exportarPDF()" class="btn-print" style="background:#dc2626;">⬇ PDF</button>
-    <button onclick="window.print()" class="btn-print" style="background:#16a34a;">🖨️ Imprimir</button>
-
-<script>
-function exportarCSV() {
-    var form = document.getElementById('cartao-form');
-    var params = new URLSearchParams(new FormData(form));
-    params.set('export', 'csv');
-    window.location = '{{ route("painel.pontos.cartao") }}?' + params.toString();
-}
-function exportarPDF() {
-    var form = document.getElementById('cartao-form');
-    var params = new URLSearchParams(new FormData(form));
-    params.set('export', 'pdf');
-    window.location = '{{ route("painel.pontos.cartao") }}?' + params.toString();
-}
-</script>
+    <button type="button" onclick="exportarCSV()" class="btn-print" style="background:#0369a1;">⬇ CSV</button>
+    <button type="button" onclick="exportarPDF()" class="btn-print" style="background:#dc2626;">⬇ PDF</button>
+    <button type="button" onclick="window.print()" class="btn-print" style="background:#16a34a;">🖨️ Imprimir</button>
 </div>
 
 @forelse($cards as $card)
@@ -561,5 +546,75 @@ function exportarPDF() {
 </div>
 @endforelse
 
+{{-- Igual ao layout: dd/mm → hidden ISO; esta página não usa layout, por isso o JS precisa estar aqui. --}}
+<script>
+(function () {
+    function parseBrToIso(br) {
+        var parts = String(br).trim().split('/');
+        if (parts.length === 3 && parts[2].length === 4) {
+            var d = parseInt(parts[0], 10), m = parseInt(parts[1], 10), y = parseInt(parts[2], 10);
+            if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1900) {
+                return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+            }
+        }
+        return '';
+    }
+
+    function syncOneVisibleDate(inp) {
+        var hidden = document.getElementById(inp.id + '_iso');
+        if (!hidden) return;
+        hidden.value = parseBrToIso(inp.value);
+    }
+
+    function syncAllCartaoDates() {
+        document.querySelectorAll('[data-datebr]').forEach(syncOneVisibleDate);
+    }
+
+    function initDateBrCartao() {
+        document.querySelectorAll('[data-datebr]').forEach(function (inp) {
+            if (inp.dataset.dateBrInit) return;
+            inp.dataset.dateBrInit = '1';
+            inp.addEventListener('input', function () {
+                var v = inp.value.replace(/\D/g, '').substring(0, 8);
+                if (v.length > 4) v = v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
+                else if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+                inp.value = v;
+                syncOneVisibleDate(inp);
+            });
+            inp.addEventListener('blur', function () {
+                syncOneVisibleDate(inp);
+            });
+        });
+    }
+
+    window.exportarCSV = function () {
+        syncAllCartaoDates();
+        var form = document.getElementById('cartao-form');
+        if (!form) return;
+        var params = new URLSearchParams(new FormData(form));
+        params.set('export', 'csv');
+        window.location = '{{ route("painel.pontos.cartao") }}?' + params.toString();
+    };
+
+    window.exportarPDF = function () {
+        syncAllCartaoDates();
+        var form = document.getElementById('cartao-form');
+        if (!form) return;
+        var params = new URLSearchParams(new FormData(form));
+        params.set('export', 'pdf');
+        window.location = '{{ route("painel.pontos.cartao") }}?' + params.toString();
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initDateBrCartao();
+        var form = document.getElementById('cartao-form');
+        if (form) {
+            form.addEventListener('submit', function () {
+                syncAllCartaoDates();
+            });
+        }
+    });
+})();
+</script>
 </body>
 </html>
