@@ -20,7 +20,7 @@ final class CltToleranceEngine
     public const DAILY_CAP_MINUTES = 10;
 
     /**
-     * @param  list<array{semantic_type: string, expected: Carbon, actual: Carbon}>  $slots
+     * @param  list<array{semantic_type: string, expected: Carbon, actual: Carbon, delta_minutes_override?: int|null}>  $slots
      * @return array{bank_minutes: int, clt_bucket_sum: int, clt_bucket_result: int, outside_event_sum: int, event_tolerance_minutes: int, daily_cap_minutes: int, events: list<array<string, mixed>>, clt: array<string, mixed>}
      */
     public function calculate(array $slots): array
@@ -39,7 +39,7 @@ final class CltToleranceEngine
             $actual = $slot['actual'];
             $semantic = (string) $slot['semantic_type'];
 
-            $delta = (int) round(($actual->timestamp - $expected->timestamp) / 60);
+            $delta = $this->slotSignedDeltaMinutes($slot);
             $abs = abs($delta);
             $within = $abs <= self::EVENT_TOLERANCE_MINUTES;
 
@@ -65,6 +65,7 @@ final class CltToleranceEngine
                 'expected' => $expected->format('H:i'),
                 'actual' => $actual->format('H:i'),
                 'delta' => $delta,
+                'delta_source' => $this->deltaSourceLabel($slot),
                 'bucket' => $within ? 'within_event_tolerance' : 'outside_event_tolerance',
                 'counted_in_clt_sum' => $within,
             ];
@@ -126,7 +127,7 @@ final class CltToleranceEngine
      *
      * Snapshot `clt`: inclui `timeline` (passo a passo bucket/banco) e `calculation_engine_family` para analytics.
      *
-     * @param  list<array{semantic_type: string, expected: Carbon, actual: Carbon}>  $slots
+     * @param  list<array{semantic_type: string, expected: Carbon, actual: Carbon, delta_minutes_override?: int|null}>  $slots
      * @return array{bank_minutes: int, clt_bucket_sum: int, clt_bucket_result: int, outside_event_sum: int, event_tolerance_minutes: int, daily_cap_minutes: int, events: list<array<string, mixed>>, clt: array<string, mixed>}
      */
     public function calculateProgressiveDailyCap(array $slots): array
@@ -153,7 +154,7 @@ final class CltToleranceEngine
             $expected = $slot['expected'];
             $actual = $slot['actual'];
             $semantic = (string) $slot['semantic_type'];
-            $delta = (int) round(($actual->timestamp - $expected->timestamp) / 60);
+            $delta = $this->slotSignedDeltaMinutes($slot);
             $abs = abs($delta);
 
             $toleranceClosedBeforeEvent = $toleranceClosed;
@@ -193,6 +194,7 @@ final class CltToleranceEngine
                     'expected' => $expected->format('H:i'),
                     'actual' => $actual->format('H:i'),
                     'delta' => $delta,
+                    'delta_source' => $this->deltaSourceLabel($slot),
                     ...$snapProgressive,
                     'tolerance_closed_before_event' => true,
                 ];
@@ -291,6 +293,7 @@ final class CltToleranceEngine
                 'expected' => $expected->format('H:i'),
                 'actual' => $actual->format('H:i'),
                 'delta' => $delta,
+                'delta_source' => $this->deltaSourceLabel($slot),
                 ...$snapProgressive,
                 'tolerance_closed_before_event' => false,
             ];
@@ -369,5 +372,33 @@ final class CltToleranceEngine
         }
 
         return false;
+    }
+
+    /**
+     * Minutos assinados por evento: por defeito {@see Carbon} `actual − expected`.
+     * Com `delta_minutes_override`, o chamador define o sinal (ex.: efeito jornada no almoço).
+     *
+     * @param  array{expected: Carbon, actual: Carbon, delta_minutes_override?: int|null}  $slot
+     */
+    private function slotSignedDeltaMinutes(array $slot): int
+    {
+        if (array_key_exists('delta_minutes_override', $slot) && $slot['delta_minutes_override'] !== null) {
+            return (int) $slot['delta_minutes_override'];
+        }
+
+        $expected = $slot['expected'];
+        $actual = $slot['actual'];
+
+        return (int) round(($actual->timestamp - $expected->timestamp) / 60);
+    }
+
+    /**
+     * @param  array{delta_minutes_override?: int|null}  $slot
+     */
+    private function deltaSourceLabel(array $slot): string
+    {
+        return array_key_exists('delta_minutes_override', $slot) && $slot['delta_minutes_override'] !== null
+            ? 'work_effect_duration'
+            : 'clock';
     }
 }

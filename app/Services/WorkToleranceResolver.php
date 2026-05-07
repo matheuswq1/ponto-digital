@@ -24,6 +24,12 @@ class WorkToleranceResolver
     /** CLT por batida: bucket progressivo ±5, parcela 6–9 min (5 no bucket + resto no saldo), ≥10 libera bucket e encerra tolerância do dia. */
     public const MODE_CLT_EVENT_PROGRESSIVE_CAP = 'clt_event_progressive_cap';
 
+    /**
+     * Igual ao progressive_cap, mas o intervalo de almoço é um único evento por **efeito jornada**
+     * (delta = minutos configurados − duração real; almoço menor → delta positivo).
+     */
+    public const MODE_CLT_EVENT_PROGRESSIVE_DURATION = 'clt_event_progressive_duration';
+
     /** @return list<string> */
     public static function modes(): array
     {
@@ -33,6 +39,7 @@ class WorkToleranceResolver
             self::MODE_CLT_EVENT_BASED,
             self::MODE_CLT_EVENT_STRICT,
             self::MODE_CLT_EVENT_PROGRESSIVE_CAP,
+            self::MODE_CLT_EVENT_PROGRESSIVE_DURATION,
         ];
     }
 
@@ -131,7 +138,7 @@ class WorkToleranceResolver
             return 0;
         }
 
-        if ($mode === self::MODE_CLT_EVENT_BASED || $mode === self::MODE_CLT_EVENT_STRICT || $mode === self::MODE_CLT_EVENT_PROGRESSIVE_CAP) {
+        if ($mode === self::MODE_CLT_EVENT_BASED || $mode === self::MODE_CLT_EVENT_STRICT || $mode === self::MODE_CLT_EVENT_PROGRESSIVE_CAP || $mode === self::MODE_CLT_EVENT_PROGRESSIVE_DURATION) {
             $mode = self::MODE_DAILY_DEAD_BAND;
         }
 

@@ -126,6 +126,23 @@ class CltToleranceEngineTest extends TestCase
     }
 
     /** Bucket só com variações dentro de ±5 e soma |−12|>10 → integra −12 inteiro (simétrico ao positivo). */
+    public function test_delta_minutes_override_used_instead_of_timestamps(): void
+    {
+        $engine = new CltToleranceEngine;
+        $r = $engine->calculate([
+            [
+                'semantic_type' => 'lunch_duration',
+                'expected' => Carbon::parse('2026-06-02 13:00:00', 'America/Sao_Paulo'),
+                'actual' => Carbon::parse('2026-06-02 12:00:00', 'America/Sao_Paulo'),
+                'delta_minutes_override' => 15,
+            ],
+        ]);
+
+        $this->assertSame(15, $r['bank_minutes']);
+        $this->assertSame('work_effect_duration', $r['clt']['events'][0]['delta_source']);
+        $this->assertSame(15, $r['clt']['events'][0]['delta']);
+    }
+
     public function test_negative_bucket_exceeds_daily_cap_counts_full_twelve(): void
     {
         $engine = new CltToleranceEngine;

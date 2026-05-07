@@ -57,6 +57,9 @@ class WorkDay extends Model
     /** Motor CLT bucket progressivo / liberação ao atingir teto diário (±10 no bucket). */
     public const TOLERANCE_ENGINE_CLT_PROGRESSIVE_CAP = 'v4_clt_progressive_cap';
 
+    /** Progressive cap com almoço como duração única (efeito jornada no delta do intervalo). */
+    public const TOLERANCE_ENGINE_CLT_PROGRESSIVE_DURATION = 'v5_clt_progressive_duration';
+
     /** Versão do bloco `tolerance_meta` na API — incrementar só com mudança compatível ou novo contrato documentado. */
     public const TOLERANCE_META_API_VERSION = 2;
 
@@ -183,7 +186,7 @@ class WorkDay extends Model
 
             return $cat === CltSkipReason::CATEGORY_RULE ? 'medium' : 'low';
         }
-        if (in_array($path, ['weekday_clt_event_based', 'weekday_clt_event_strict', 'weekday_clt_event_progressive_cap'], true) && ($snapshot['clt_applied'] ?? false)) {
+        if (in_array($path, ['weekday_clt_event_based', 'weekday_clt_event_strict', 'weekday_clt_event_progressive_cap', 'weekday_clt_event_progressive_duration'], true) && ($snapshot['clt_applied'] ?? false)) {
             return 'high';
         }
 
@@ -362,14 +365,16 @@ class WorkDay extends Model
                 }
                 $lines[] = 'Usado cálculo por saldo diário (faixa/desconto). Consulte clt_skip_reason no snapshot.';
             }
-        } elseif ($path === 'weekday_clt_event_based' || $path === 'weekday_clt_event_strict' || $path === 'weekday_clt_event_progressive_cap') {
+        } elseif ($path === 'weekday_clt_event_based' || $path === 'weekday_clt_event_strict' || $path === 'weekday_clt_event_progressive_cap' || $path === 'weekday_clt_event_progressive_duration') {
             $clt = $s['clt'] ?? [];
             $strictNote = $path === 'weekday_clt_event_strict'
                 ? ' Retorno do almoço: saída real + duração configurada.'
                 : '';
-            $progNote = $path === 'weekday_clt_event_progressive_cap'
-                ? ' Bucket progressivo: 6–9 min → ±5 no bucket + resto no saldo; ≥10 ou |bucket|≥10 libera bucket e encerra tolerância do dia.'
-                : '';
+            $progNote = match ($path) {
+                'weekday_clt_event_progressive_duration' => ' Bucket progressivo + almoço por duração (efeito jornada: intervalo menor → delta positivo no evento de almoço). Encerra tolerância como no modo progressivo clássico.',
+                'weekday_clt_event_progressive_cap' => ' Bucket progressivo: 6–9 min → ±5 no bucket + resto no saldo; ≥10 ou |bucket|≥10 libera bucket e encerra tolerância do dia.',
+                default => '',
+            };
             $lines[] = 'Modo: CLT por marcação (5 / 10) · Base: eventos de ponto.'.$strictNote.$progNote;
             if (isset($s['integration_mode'])) {
                 $lines[] = 'Integração: '.(string) $s['integration_mode'].' — resultado no banco pode diferir de trabalhado − esperado.';

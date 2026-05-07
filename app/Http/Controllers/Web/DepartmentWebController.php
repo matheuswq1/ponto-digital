@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\NormalizesRequestTimeFields;
 use App\Models\Company;
 use App\Models\Department;
+use App\Services\WorkToleranceResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -78,7 +79,7 @@ class DepartmentWebController extends Controller
             'lunch_by_day' => 'nullable|array',
             'lunch_by_day.*' => 'nullable|integer|min:0|max:300',
             'tolerance_minutes' => 'nullable|integer|min:0|max:120',
-            'tolerance_mode' => ['nullable', 'string', Rule::in(['', 'daily_dead_band', 'daily_discount', 'clt_event_based', 'clt_event_strict', 'clt_event_progressive_cap'])],
+            'tolerance_mode' => ['nullable', 'string', Rule::in(array_merge([''], WorkToleranceResolver::modes()))],
             'work_days' => 'nullable|array',
             'work_days.*' => 'integer|between:0,6',
             'active' => 'nullable|boolean',
@@ -151,7 +152,7 @@ class DepartmentWebController extends Controller
             'lunch_by_day' => 'nullable|array',
             'lunch_by_day.*' => 'nullable|integer|min:0|max:300',
             'tolerance_minutes' => 'nullable|integer|min:0|max:120',
-            'tolerance_mode' => ['nullable', 'string', Rule::in(['', 'daily_dead_band', 'daily_discount', 'clt_event_based', 'clt_event_strict', 'clt_event_progressive_cap'])],
+            'tolerance_mode' => ['nullable', 'string', Rule::in(array_merge([''], WorkToleranceResolver::modes()))],
             'work_days' => 'nullable|array',
             'work_days.*' => 'integer|between:0,6',
             'active' => 'nullable|boolean',

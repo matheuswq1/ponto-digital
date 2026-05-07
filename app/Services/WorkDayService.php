@@ -289,15 +289,20 @@ class WorkDayService
                     if ($pair['times'] !== null) {
                         $strictLunchReturn = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_STRICT;
                         $progressiveCap = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP;
+                        $progressiveDuration = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_DURATION;
                         $lunchMinStrict = $this->resolveLunchMinutesForCltStrict($deptRef, $schedule, $dayOfWeek);
 
-                        // Fusão do almoço em um só desvio (duração): faz sentido no CLT "based" (bucket linear).
-                        // No progressive cap, menos eventos mudam a ordem das liberações do bucket e pode alterar
-                        // muito o saldo vs histórico — mantém-se o modelo de 4 marcas × gabarito.
+                        // Fusão do almoço: based (delta relógio na duração) ou progressive duration (delta efeito-jornada).
+                        // Progressive cap clássico mantém 4 marcas × gabarito (histórico).
                         $mergeLunchAsDuration = ! $strictLunchReturn
-                            && ! $progressiveCap
                             && count($template) === 4
-                            && $lunchMinStrict > 0;
+                            && $lunchMinStrict > 0
+                            && (
+                                $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_BASED
+                                || $progressiveDuration
+                            );
+
+                        $lunchDurationConvention = $progressiveDuration ? 'work_effect' : 'clock';
 
                         $slots = $this->buildCltSlotsForEngine(
                             $date,
@@ -307,39 +312,58 @@ class WorkDayService
                             $strictLunchReturn,
                             $lunchMinStrict,
                             $mergeLunchAsDuration,
+                            $lunchDurationConvention,
                         );
-                        $enginePack = $progressiveCap
+
+                        $useProgressiveEngine = $progressiveCap || $progressiveDuration;
+
+                        $enginePack = $useProgressiveEngine
                             ? $this->cltToleranceEngine->calculateProgressiveDailyCap($slots)
                             : $this->cltToleranceEngine->calculate($slots);
                         $extraMinutes = $enginePack['bank_minutes'];
                         $cltBlock = $enginePack['clt'];
 
+                        if ($progressiveDuration) {
+                            $cltBlock['engine_variant'] = 'progressive_daily_cap_duration_v1';
+                            $cltBlock['calculation_engine_family'] = 'clt_event_progressive_duration';
+                            $cltBlock['rule_applied'] = 'progressive_daily_cap_duration_v1';
+                        }
+
                         if ($strictLunchReturn && count($template) === 4 && $lunchMinStrict > 0) {
                             $cltBlock['lunch_return_expected_source'] = 'actual_lunch_exit_plus_duration';
+                        } elseif ($progressiveDuration && $mergeLunchAsDuration) {
+                            $cltBlock['lunch_return_expected_source'] = 'actual_lunch_exit_plus_configured_duration';
+                            $cltBlock['lunch_delta_convention'] = 'work_effect_duration';
+                            $cltBlock['lunch_interval_semantics_pt'] = 'Almoço como único evento no bucket progressivo; '
+                                .'delta oficial = minutos de intervalo configurados − duração real '
+                                .'(intervalo menor ⇒ mais trabalho líquido ⇒ contribuição positiva neste eixo).';
                         } elseif ($mergeLunchAsDuration) {
                             $cltBlock['lunch_return_expected_source'] = 'actual_lunch_exit_plus_configured_duration';
                             $cltBlock['lunch_interval_semantics_pt'] = 'Intervalo de almoço como um único desvio: '
                                 .'horário previsto de retorno = saída real para almoço + intervalo configurado; '
-                                .'delta = duração real do intervalo − minutos configurados.';
+                                .'delta por relógio = retorno real − esse horário (= duração real − configurada).';
                         } elseif (count($template) === 4) {
                             $cltBlock['lunch_return_expected_source'] = 'gabarito';
                         }
 
                         $isStrictPath = $ctx->toleranceMode === WorkToleranceResolver::MODE_CLT_EVENT_STRICT;
-                        $isProgressivePath = $progressiveCap;
                         $engineConst = match (true) {
                             $isStrictPath => WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT,
-                            $isProgressivePath => WorkDay::TOLERANCE_ENGINE_CLT_PROGRESSIVE_CAP,
+                            $progressiveCap => WorkDay::TOLERANCE_ENGINE_CLT_PROGRESSIVE_CAP,
+                            $progressiveDuration => WorkDay::TOLERANCE_ENGINE_CLT_PROGRESSIVE_DURATION,
                             default => WorkDay::TOLERANCE_ENGINE_CLT_EVENT_BASED,
                         };
                         $calcPath = match (true) {
                             $isStrictPath => 'weekday_clt_event_strict',
-                            $isProgressivePath => 'weekday_clt_event_progressive_cap',
+                            $progressiveCap => 'weekday_clt_event_progressive_cap',
+                            $progressiveDuration => 'weekday_clt_event_progressive_duration',
                             default => 'weekday_clt_event_based',
                         };
                         $calcBasePt = match (true) {
                             $isStrictPath => 'Eventos de ponto — retorno do almoço pela saída real + duração configurada',
-                            $isProgressivePath => 'Eventos de ponto — tolerância progressiva (bucket 5+10 com liberação)',
+                            $progressiveDuration => 'Eventos de ponto — bucket progressivo; entrada/saída × gabarito; '
+                                .'almoço × duração com delta efeito-jornada (configurado − real)',
+                            $progressiveCap => 'Eventos de ponto — tolerância progressiva (bucket 5+10 com liberação)',
                             default => 'Eventos de ponto — entrada e saída final × gabarito; intervalo de almoço × duração '
                                 .'(saída real + minutos configurados)',
                         };
@@ -533,6 +557,7 @@ class WorkDayService
             WorkToleranceResolver::MODE_CLT_EVENT_BASED => 'CLT por batida (5+10)',
             WorkToleranceResolver::MODE_CLT_EVENT_STRICT => 'CLT por batida (5+10, retorno por duração)',
             WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP => 'CLT por batida — bucket progressivo (5+10)',
+            WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_DURATION => 'CLT por batida — progressive + almoço por duração (efeito jornada)',
             default => 'Faixa neutra (dead band)',
         };
     }
@@ -543,6 +568,7 @@ class WorkDayService
             WorkToleranceResolver::MODE_CLT_EVENT_BASED,
             WorkToleranceResolver::MODE_CLT_EVENT_STRICT,
             WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP,
+            WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_DURATION,
         ], true);
     }
 
@@ -558,13 +584,12 @@ class WorkDayService
     /**
      * Monta slots para o motor CLT.
      *
-     * Quando `$mergeLunchAsDuration` é verdadeiro (**somente** modo CLT based neste serviço; não progressive cap):
-     * em vez de comparar saída para almoço e retorno aos horários fixos do gabarito, usa **um único evento**
-     * `lunch_duration`: previsto de retorno = saída real para almoço + intervalo configurado (delta = duração real − configurada).
+     * Quando `$mergeLunchAsDuration`: um único evento `lunch_duration` em vez de saída/retorno × gabarito.
+     * Convenção `clock`: delta = retorno real − (saída almoço + L). Convenção `work_effect`: delta = L − duração real.
      *
      * @param  list<array{type: string, time: string}>  $template
      * @param  list<Carbon>  $actualCarbons
-     * @return list<array{semantic_type: string, expected: Carbon, actual: Carbon}>
+     * @return list<array<string, mixed>>
      */
     private function buildCltSlotsForEngine(
         string $date,
@@ -574,19 +599,27 @@ class WorkDayService
         bool $strictLunchReturn,
         int $configuredLunchMinutes,
         bool $mergeLunchAsDuration,
+        string $lunchDurationConvention = 'clock',
     ): array {
         if ($mergeLunchAsDuration && count($template) === 4 && count($actualCarbons) === 4) {
+            $lunchRow = [
+                'semantic_type' => 'lunch_duration',
+                'expected' => $actualCarbons[1]->copy()->addMinutes($configuredLunchMinutes),
+                'actual' => $actualCarbons[2],
+            ];
+
+            if ($lunchDurationConvention === 'work_effect') {
+                $durationReal = max(0, (int) round(($actualCarbons[2]->timestamp - $actualCarbons[1]->timestamp) / 60));
+                $lunchRow['delta_minutes_override'] = $configuredLunchMinutes - $durationReal;
+            }
+
             return [
                 [
                     'semantic_type' => 'entry',
                     'expected' => Carbon::parse(trim($date).' '.trim((string) $template[0]['time']), $tz),
                     'actual' => $actualCarbons[0],
                 ],
-                [
-                    'semantic_type' => 'lunch_duration',
-                    'expected' => $actualCarbons[1]->copy()->addMinutes($configuredLunchMinutes),
-                    'actual' => $actualCarbons[2],
-                ],
+                $lunchRow,
                 [
                     'semantic_type' => 'final_out',
                     'expected' => Carbon::parse(trim($date).' '.trim((string) $template[3]['time']), $tz),

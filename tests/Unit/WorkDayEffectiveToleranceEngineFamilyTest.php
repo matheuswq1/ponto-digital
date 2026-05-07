@@ -21,6 +21,10 @@ class WorkDayEffectiveToleranceEngineFamilyTest extends TestCase
             WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT,
             WorkDay::effectiveToleranceEngineFamily(['calculation_path' => 'weekday_clt_event_progressive_cap'])
         );
+        $this->assertSame(
+            WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT,
+            WorkDay::effectiveToleranceEngineFamily(['calculation_path' => 'weekday_clt_event_progressive_duration'])
+        );
 
         $this->assertSame(
             WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF,

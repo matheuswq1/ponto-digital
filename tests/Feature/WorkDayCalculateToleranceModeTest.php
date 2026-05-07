@@ -122,6 +122,26 @@ class WorkDayCalculateToleranceModeTest extends TestCase
         $this->assertSame('gabarito', data_get($workDay->tolerance_snapshot, 'clt.lunch_return_expected_source'));
     }
 
+    /** Bucket progressivo + almoço fundido: delta do almoço = configurado − duração real (efeito jornada). */
+    public function test_weekday_clt_progressive_duration_short_lunch_positive_work_effect_delta(): void
+    {
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_DURATION);
+        $this->seedFourPunchesCltExample($employee, ['08:00:00', '12:00:00', '12:40:00', '17:00:00']);
+
+        $workDay = app(WorkDayService::class)->calculateAndSave($employee, self::WEEKDAY);
+
+        $this->assertSame('weekday_clt_event_progressive_duration', $workDay->tolerance_snapshot['calculation_path']);
+        $this->assertSame(WorkDay::TOLERANCE_ENGINE_CLT_PROGRESSIVE_DURATION, $workDay->tolerance_snapshot['engine']);
+        $this->assertSame('3_events_lunch_duration', data_get($workDay->tolerance_snapshot, 'clt.event_model'));
+        $this->assertSame('clt_event_progressive_duration', data_get($workDay->tolerance_snapshot, 'clt.calculation_engine_family'));
+        $this->assertSame('progressive_daily_cap_duration_v1', data_get($workDay->tolerance_snapshot, 'clt.engine_variant'));
+
+        $lunchEv = collect(data_get($workDay->tolerance_snapshot, 'clt.events_progressive'))->firstWhere('type', 'lunch_duration');
+        $this->assertNotNull($lunchEv);
+        $this->assertSame(20, (int) $lunchEv['delta']);
+        $this->assertSame('work_effect_duration', $lunchEv['delta_source']);
+    }
+
     public function test_weekday_clt_fallback_when_only_two_punches(): void
     {
         $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED);
