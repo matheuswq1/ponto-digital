@@ -34,7 +34,7 @@ $FACE_CTR    = $cfg['FACE_CONTAINER']
 
 Write-Host "`n=== [1/3] Git push para origin ===" -ForegroundColor Cyan
 Set-Location "$PSScriptRoot\.."
-git push origin master
+git push origin main
 if ($LASTEXITCODE -ne 0) { Write-Error "git push falhou."; exit 1 }
 
 Write-Host "`n=== [2/3] Deploy no servidor ($VPS_HOST) ===" -ForegroundColor Cyan
@@ -43,7 +43,7 @@ $remoteCmd = @"
 set -e
 cd $APP_DIR
 git config --global --add safe.directory $APP_DIR
-git pull origin master
+git pull origin main
 chown -R ponto:ponto .
 sudo -u ponto php artisan migrate --force --no-interaction
 sudo -u ponto php artisan config:cache

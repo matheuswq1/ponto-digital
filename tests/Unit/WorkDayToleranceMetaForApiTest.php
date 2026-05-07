@@ -35,6 +35,7 @@ class WorkDayToleranceMetaForApiTest extends TestCase
 
         $this->assertSame(WorkDay::TOLERANCE_META_API_VERSION, $meta['meta_version']);
         $this->assertTrue($meta['is_complete']);
+        $this->assertNull($meta['policy']);
         foreach ([
             'engine', 'mode', 'calculation_path', 'calculation_confidence',
             'expected_events', 'actual_events',
@@ -59,6 +60,7 @@ class WorkDayToleranceMetaForApiTest extends TestCase
         $meta = $wd->toleranceMetaForApi();
 
         $this->assertFalse($meta['is_complete']);
+        $this->assertNull($meta['policy']);
     }
 
     public function test_work_day_resource_uses_same_meta_as_model_method(): void
@@ -80,5 +82,57 @@ class WorkDayToleranceMetaForApiTest extends TestCase
         $payload = (new WorkDayResource($wd))->toArray(Request::create('/'));
 
         $this->assertSame($wd->toleranceMetaForApi(), $payload['tolerance_meta']);
+    }
+
+    public function test_tolerance_meta_prefers_policy_when_present_over_legacy_roots(): void
+    {
+        $policy = [
+            'version' => WorkDay::TOLERANCE_POLICY_CONTRACT_VERSION,
+            'generated_from_snapshot_version' => WorkDay::TOLERANCE_SNAPSHOT_SCHEMA_VERSION,
+            'engine' => WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT,
+            'mode' => 'clt_event_strict',
+            'tolerance' => [
+                'daily_minutes' => 10,
+                'event_minutes' => 5,
+                'daily_cap_minutes' => 10,
+            ],
+            'integration' => [
+                'mode' => 'clt_primary',
+                'fallback_mode' => null,
+            ],
+            'lunch' => [
+                'strategy' => null,
+                'configured_minutes' => null,
+            ],
+            'timezone' => 'America/Sao_Paulo',
+            'calculation' => [
+                'path' => 'weekday_clt_event_strict',
+                'confidence' => 'high',
+            ],
+        ];
+
+        $snapshot = [
+            'version' => 1,
+            'engine' => WorkDay::TOLERANCE_ENGINE_ID,
+            'mode' => 'daily_dead_band',
+            'calculation_path' => 'weekday_tolerance',
+            'calculation_confidence' => 'medium',
+            'integration_mode' => null,
+            'event_tolerance_minutes' => null,
+            'daily_cap_minutes' => null,
+            'policy' => $policy,
+        ];
+
+        $wd = WorkDay::make(['tolerance_snapshot' => $snapshot]);
+        $meta = $wd->toleranceMetaForApi();
+
+        $this->assertSame($policy, $meta['policy']);
+        $this->assertSame(WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT, $meta['engine']);
+        $this->assertSame('clt_event_strict', $meta['mode']);
+        $this->assertSame('weekday_clt_event_strict', $meta['calculation_path']);
+        $this->assertSame('high', $meta['calculation_confidence']);
+        $this->assertSame('clt_primary', $meta['integration_mode']);
+        $this->assertSame(5, $meta['event_tolerance_minutes']);
+        $this->assertSame(10, $meta['daily_cap_minutes']);
     }
 }

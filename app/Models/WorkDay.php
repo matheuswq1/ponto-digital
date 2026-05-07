@@ -28,6 +28,9 @@ class WorkDay extends Model
     /** Versão do esquema do JSON em tolerance_snapshot (migrações futuras sem invalidar histórico). */
     public const TOLERANCE_SNAPSHOT_SCHEMA_VERSION = 1;
 
+    /** Versão do contrato normalizado `policy` dentro do snapshot (consumidores externos / BI / mobile). */
+    public const TOLERANCE_POLICY_CONTRACT_VERSION = 1;
+
     /** Identificador do motor que gerou o snapshot (troca de algoritmo / comparação / rollback lógico). */
     public const TOLERANCE_ENGINE_ID = 'v1';
 
@@ -144,6 +147,7 @@ class WorkDay extends Model
 
     /**
      * Contrato estável de leitura para apps (`tolerance_meta` na API) — derivado apenas do snapshot persistido.
+     * Campos espelhados em `policy` usam dual-read (preferência ao contrato); o restante permanece só no legado.
      *
      * @return array<string, mixed>
      */
@@ -151,23 +155,41 @@ class WorkDay extends Model
     {
         $s = is_array($this->tolerance_snapshot) ? $this->tolerance_snapshot : [];
 
+        $eventTol = data_get($s, 'policy.tolerance.event_minutes');
+        if ($eventTol === null) {
+            $eventTol = data_get($s, 'event_tolerance_minutes');
+        }
+        if ($eventTol === null) {
+            $eventTol = data_get($s, 'clt.event_tolerance_minutes');
+        }
+
+        $dailyCap = data_get($s, 'policy.tolerance.daily_cap_minutes');
+        if ($dailyCap === null) {
+            $dailyCap = data_get($s, 'daily_cap_minutes');
+        }
+        if ($dailyCap === null) {
+            $dailyCap = data_get($s, 'clt.daily_cap_minutes');
+        }
+
         return [
             'meta_version' => self::TOLERANCE_META_API_VERSION,
             'is_complete' => $this->hasValidToleranceSnapshot(),
-            'engine' => data_get($s, 'engine'),
-            'mode' => data_get($s, 'mode'),
-            'calculation_path' => data_get($s, 'calculation_path'),
-            'calculation_confidence' => data_get($s, 'calculation_confidence'),
+            // Contrato institucional (dual-write); snapshots antigos sem `policy` expõem null.
+            'policy' => data_get($s, 'policy'),
+            'engine' => data_get($s, 'policy.engine') ?? data_get($s, 'engine'),
+            'mode' => data_get($s, 'policy.mode') ?? data_get($s, 'mode'),
+            'calculation_path' => data_get($s, 'policy.calculation.path') ?? data_get($s, 'calculation_path'),
+            'calculation_confidence' => data_get($s, 'policy.calculation.confidence') ?? data_get($s, 'calculation_confidence'),
             'expected_events' => data_get($s, 'expected_events'),
             'actual_events' => data_get($s, 'actual_events'),
             'clt_applied' => data_get($s, 'clt_applied'),
             'clt_skipped' => data_get($s, 'clt_skipped'),
             'clt_skip_reason' => data_get($s, 'clt_skip_reason'),
             'clt_skip_category' => data_get($s, 'clt_skip_category'),
-            'integration_mode' => data_get($s, 'integration_mode'),
+            'integration_mode' => data_get($s, 'policy.integration.mode') ?? data_get($s, 'integration_mode'),
             'calculation_base_pt' => data_get($s, 'calculation_base_pt'),
-            'event_tolerance_minutes' => data_get($s, 'event_tolerance_minutes', data_get($s, 'clt.event_tolerance_minutes')),
-            'daily_cap_minutes' => data_get($s, 'daily_cap_minutes', data_get($s, 'clt.daily_cap_minutes')),
+            'event_tolerance_minutes' => $eventTol,
+            'daily_cap_minutes' => $dailyCap,
             'clt_bucket_sum' => data_get($s, 'clt_bucket_sum', data_get($s, 'clt.sum_within_event_tolerance')),
             'outside_event_sum' => data_get($s, 'outside_event_sum', data_get($s, 'clt.outside_event_tolerance_sum')),
         ];

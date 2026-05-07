@@ -25,12 +25,15 @@ class WorkDayService
      * @param  bool  $preserveClosedToleranceSnapshot  Se true e o dia já estava fechado com snapshot válido,
      *                                                 mantém o JSON de auditoria (evita drift em replays); o saldo
      *                                                 (`extra_minutes`) continua a ser recalculado. Use false após
-     *                                                 correções de ponto, backfills ou recálculos mensais.
+     *                                                 correções de ponto, backfills ou migração explícita de regra.
+     * @param  array<string, mixed>|null  $recalculationAudit  Campos extra fundidos no snapshot após recálculo (ex.: CLI).
+     *                                                         Só aplica quando o snapshot **não** fica congelado e há snapshot novo não vazio.
      */
     public function calculateAndSave(
         Employee $employee,
         string $date,
         bool $preserveClosedToleranceSnapshot = false,
+        ?array $recalculationAudit = null,
     ): WorkDay {
         // Garantir que departamento e escala individual estão carregados
         $employee->loadMissing(['workSchedule', 'dept', 'company']);
@@ -59,6 +62,16 @@ class WorkDayService
         if ($shouldFreezeSnapshot) {
             $data['tolerance_snapshot'] = $existing->tolerance_snapshot;
             $this->logFrozenSnapshotDrift($employee->id, $date, $data);
+        } elseif (
+            $recalculationAudit !== null
+            && is_array($data['tolerance_snapshot'] ?? null)
+            && ($data['tolerance_snapshot'] ?? []) !== []
+        ) {
+            $data['tolerance_snapshot'] = array_merge(
+                $data['tolerance_snapshot'],
+                $recalculationAudit,
+                ['recalculated_to_engine' => data_get($data['tolerance_snapshot'], 'engine')],
+            );
         }
 
         $workDay = WorkDay::query()
@@ -300,6 +313,7 @@ class WorkDayService
                         $toleranceSnapshot = $this->mergeToleranceSnapshot($ctx, [
                             'engine' => $isStrictPath ? WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT : WorkDay::TOLERANCE_ENGINE_CLT_EVENT_BASED,
                             'calculation_path' => $isStrictPath ? 'weekday_clt_event_strict' : 'weekday_clt_event_based',
+                            'lunch_configured_minutes' => count($template) === 4 ? $lunchMinStrict : null,
                             'integration_mode' => 'clt_primary',
                             'calculation_base_pt' => $isStrictPath
                                 ? 'Eventos de ponto — retorno do almoço pela saída real + duração configurada'
@@ -400,8 +414,68 @@ class WorkDayService
         ], $pathFields);
 
         $merged['calculation_confidence'] = WorkDay::toleranceConfidenceFromSnapshot($merged);
+        $merged['policy'] = $this->buildTolerancePolicyContract($merged);
 
         return $merged;
+    }
+
+    /**
+     * Contrato institucional (`policy`): visão normalizada só para leitura — não altera regras de cálculo.
+     * Derivado exclusivamente de chaves já presentes em `$merged` após o merge do snapshot.
+     * Inclui `generated_from_snapshot_version` (= `$merged['version']`) para correlacionar contrato `policy` com evoluções futuras do schema JSON.
+     *
+     * @param  array<string, mixed>  $merged
+     * @return array<string, mixed>
+     */
+    private function buildTolerancePolicyContract(array $merged): array
+    {
+        $eventMinutes = data_get($merged, 'event_tolerance_minutes');
+        if ($eventMinutes === null) {
+            $eventMinutes = data_get($merged, 'clt.event_tolerance_minutes');
+        }
+        $dailyCapMinutes = data_get($merged, 'daily_cap_minutes');
+        if ($dailyCapMinutes === null) {
+            $dailyCapMinutes = data_get($merged, 'clt.daily_cap_minutes');
+        }
+
+        $lunchStrategy = data_get($merged, 'clt.lunch_return_expected_source');
+        $lunchConfigured = data_get($merged, 'lunch_configured_minutes');
+        if ($lunchConfigured === null) {
+            $lunchConfigured = data_get($merged, 'clt.lunch_configured_minutes');
+        }
+
+        $integrationMode = array_key_exists('integration_mode', $merged)
+            ? $merged['integration_mode']
+            : null;
+
+        return [
+            'version' => WorkDay::TOLERANCE_POLICY_CONTRACT_VERSION,
+            'generated_from_snapshot_version' => isset($merged['version']) ? (int) $merged['version'] : null,
+            'mode' => (string) ($merged['mode'] ?? ''),
+            'engine' => (string) ($merged['engine'] ?? ''),
+            'tolerance' => [
+                'daily_minutes' => isset($merged['minutes']) ? (int) $merged['minutes'] : null,
+                'event_minutes' => $eventMinutes !== null ? (int) $eventMinutes : null,
+                'daily_cap_minutes' => $dailyCapMinutes !== null ? (int) $dailyCapMinutes : null,
+            ],
+            'integration' => [
+                'mode' => is_string($integrationMode) ? $integrationMode : null,
+                'fallback_mode' => null,
+            ],
+            'lunch' => [
+                'strategy' => is_string($lunchStrategy) ? $lunchStrategy : null,
+                'configured_minutes' => $lunchConfigured !== null ? (int) $lunchConfigured : null,
+            ],
+            'timezone' => isset($merged['timezone']) && is_string($merged['timezone']) ? $merged['timezone'] : null,
+            'calculation' => [
+                'path' => isset($merged['calculation_path']) && is_string($merged['calculation_path'])
+                    ? $merged['calculation_path']
+                    : null,
+                'confidence' => isset($merged['calculation_confidence']) && is_string($merged['calculation_confidence'])
+                    ? $merged['calculation_confidence']
+                    : null,
+            ],
+        ];
     }
 
     private function toleranceSourceLabelPt(string $source): string

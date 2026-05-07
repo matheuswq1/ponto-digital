@@ -16,10 +16,12 @@ class WorkDayRecalculateCommand extends Command
                             {--to= : Data final (Y-m-d)}
                             {--only-closed : Apenas dias com saída registada (is_closed)}
                             {--employee= : ID do colaborador (opcional)}
+                            {--company= : ID da empresa (opcional)}
+                            {--force-refresh-snapshot : Sobrescreve tolerance_snapshot em dias já fechados (homologação / migração de modo)}
                             {--chunk=500 : Registos por chunk}
                             {--dry-run : Listar quantidade sem gravar}';
 
-    protected $description = 'Recalcula WorkDay(s) num intervalo (atualiza saldo e snapshot; use após migrações de regras)';
+    protected $description = 'Recalcula WorkDay(s) num intervalo. Por defeito mantém snapshot em dias fechados com auditoria válida; use --force-refresh-snapshot para alinhar histórico à regra atual.';
 
     public function handle(WorkDayService $workDayService): int
     {
@@ -50,13 +52,20 @@ class WorkDayRecalculateCommand extends Command
         $onlyClosed = (bool) $this->option('only-closed');
         $employeeId = $this->option('employee');
         $employeeId = $employeeId !== null && $employeeId !== '' ? (int) $employeeId : null;
+        $companyId = $this->option('company');
+        $companyId = $companyId !== null && $companyId !== '' ? (int) $companyId : null;
+        $forceRefreshSnapshot = (bool) $this->option('force-refresh-snapshot');
+        $preserveClosedToleranceSnapshot = ! $forceRefreshSnapshot;
         $chunk = max(1, (int) $this->option('chunk'));
         $dryRun = (bool) $this->option('dry-run');
 
+        // SQLite + cast `date`: whereBetween no campo pode ignorar linhas — usar whereDate (intervalo inclusivo).
         $baseQuery = WorkDay::query()
-            ->whereBetween('date', [$fromDate, $toDate])
+            ->whereDate('date', '>=', $fromDate)
+            ->whereDate('date', '<=', $toDate)
             ->when($onlyClosed, fn ($q) => $q->where('is_closed', true))
             ->when($employeeId, fn ($q) => $q->where('employee_id', $employeeId))
+            ->when($companyId, fn ($q) => $q->whereHas('employee', fn ($e) => $e->where('company_id', $companyId)))
             ->orderBy('id');
 
         $totalRows = (clone $baseQuery)->count();
@@ -67,12 +76,21 @@ class WorkDayRecalculateCommand extends Command
             return self::SUCCESS;
         }
 
-        $this->info("Recálculo de {$totalRows} dia(s) entre {$fromDate} e {$toDate}".($onlyClosed ? ' (só fechados)' : '').'…');
+        $scopeNote = ($onlyClosed ? ' (só fechados)' : '')
+            .($companyId ? " empresa #{$companyId}" : '')
+            .($forceRefreshSnapshot ? '; snapshots fechados serão regravados' : '; snapshots fechados preservados por defeito');
+        $this->info("Recálculo de {$totalRows} dia(s) entre {$fromDate} e {$toDate}{$scopeNote}…");
 
         $processed = 0;
         $errors = 0;
 
-        $baseQuery->chunkById($chunk, function ($rows) use ($workDayService, &$processed, &$errors): void {
+        $baseQuery->chunkById($chunk, function ($rows) use (
+            $workDayService,
+            &$processed,
+            &$errors,
+            $preserveClosedToleranceSnapshot,
+            $forceRefreshSnapshot,
+        ): void {
             foreach ($rows as $workDay) {
                 /** @var WorkDay $workDay */
                 try {
@@ -88,7 +106,13 @@ class WorkDayRecalculateCommand extends Command
                         ? $workDay->date->format('Y-m-d')
                         : (string) $workDay->date;
 
-                    $workDayService->calculateAndSave($employee, $dateStr, false);
+                    $recalculationAudit = $forceRefreshSnapshot ? [
+                        'recalculated_at' => now()->utc()->toIso8601String(),
+                        'recalculated_via' => 'cli:workday:recalculate',
+                        'recalculated_from_engine' => data_get($workDay->tolerance_snapshot, 'engine'),
+                    ] : null;
+
+                    $workDayService->calculateAndSave($employee, $dateStr, $preserveClosedToleranceSnapshot, $recalculationAudit);
                     $processed++;
                     if ($processed % 500 === 0) {
                         $this->line("… {$processed} processados");
