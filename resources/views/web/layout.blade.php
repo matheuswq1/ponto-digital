@@ -709,5 +709,46 @@ function navToggle(group) {
 })();
 </script>
 
+{{-- ── Máscara CPF (000.000.000-00) ── --}}
+<script>
+(function () {
+    function formatCpfDigits(d) {
+        d = String(d || '').replace(/\D/g, '').substring(0, 11);
+        var out = '';
+        if (d.length > 0) out += d.slice(0, 3);
+        if (d.length > 3) out += '.' + d.slice(3, 6);
+        if (d.length > 6) out += '.' + d.slice(6, 9);
+        if (d.length > 9) out += '-' + d.slice(9, 11);
+        return out;
+    }
+
+    function bind(inp) {
+        if (inp.dataset.cpfMaskInit) return;
+        inp.dataset.cpfMaskInit = '1';
+
+        if (inp.value) inp.value = formatCpfDigits(inp.value);
+
+        inp.addEventListener('input', function () {
+            inp.value = formatCpfDigits(inp.value);
+        });
+
+        inp.addEventListener('paste', function (ev) {
+            ev.preventDefault();
+            var t = (ev.clipboardData || window.clipboardData).getData('text');
+            inp.value = formatCpfDigits(t);
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }
+
+    function initCpfMask() {
+        document.querySelectorAll('[data-cpf-mask]').forEach(bind);
+    }
+
+    document.addEventListener('DOMContentLoaded', initCpfMask);
+    var obs = new MutationObserver(initCpfMask);
+    obs.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+
 </body>
 </html>

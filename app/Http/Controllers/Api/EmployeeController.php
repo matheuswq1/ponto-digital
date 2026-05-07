@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Company;
 use App\Models\Employee;
+use App\Rules\ValidCpf;
 use App\Services\EmployeeService;
+use App\Support\Cpf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -74,10 +76,12 @@ class EmployeeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->prepareCpfForApiValidation($request);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'cpf' => 'required|string|max:14|unique:employees,cpf',
+            'cpf' => ['required', 'string', 'size:14', Rule::unique('employees', 'cpf'), new ValidCpf],
             'cargo' => 'required|string|max:100',
             'department' => 'nullable|string|max:100',
             'department_id' => [
@@ -161,5 +165,17 @@ class EmployeeController extends Controller
             'message' => 'Funcionário desligado com sucesso.',
             'data' => new EmployeeResource($employee),
         ]);
+    }
+
+    private function prepareCpfForApiValidation(Request $request): void
+    {
+        $raw = $request->input('cpf');
+        if ($raw === null || ! is_string($raw)) {
+            return;
+        }
+        $formatted = Cpf::formatMasked($raw);
+        if ($formatted !== null) {
+            $request->merge(['cpf' => $formatted]);
+        }
     }
 }

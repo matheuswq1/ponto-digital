@@ -10,8 +10,10 @@ use App\Models\Employee;
 use App\Models\TimeRecord;
 use App\Models\User;
 use App\Models\WorkSchedule;
+use App\Rules\ValidCpf;
 use App\Services\AuditService;
 use App\Services\WorkToleranceResolver;
+use App\Support\Cpf;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -63,10 +65,12 @@ class EmployeeWebController extends Controller
     {
         $this->authorize('manage-employees');
 
+        $this->prepareCpfForValidation($request);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'cpf' => 'required|string|size:14|unique:employees,cpf',
+            'cpf' => ['required', 'string', 'size:14', Rule::unique('employees', 'cpf'), new ValidCpf],
             'cargo' => 'required|string|max:100',
             'company_id' => 'required|exists:companies,id',
             'department_id' => [
@@ -82,7 +86,7 @@ class EmployeeWebController extends Controller
             'name.required' => 'O nome é obrigatório.',
             'email.unique' => 'Este e-mail já está em uso.',
             'cpf.unique' => 'Este CPF já está cadastrado.',
-            'cpf.size' => 'CPF deve ter 14 caracteres (000.000.000-00).',
+            'cpf.size' => 'CPF deve estar completo no formato 000.000.000-00.',
         ]);
 
         DB::transaction(function () use ($request) {
@@ -156,10 +160,12 @@ class EmployeeWebController extends Controller
 
         $this->normalizeRequestTimeFields($request, ['ws_entry_time', 'ws_exit_time']);
 
+        $this->prepareCpfForValidation($request);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,'.$employee->user_id,
-            'cpf' => 'nullable|string|size:14|unique:employees,cpf,'.$employee->id,
+            'cpf' => ['nullable', 'string', 'size:14', Rule::unique('employees', 'cpf')->ignore($employee->id), new ValidCpf],
             'cargo' => 'required|string|max:100',
             'company_id' => 'required|exists:companies,id',
             'department_id' => [
@@ -179,6 +185,7 @@ class EmployeeWebController extends Controller
             'ws_work_days' => 'nullable|array',
             'ws_work_days.*' => 'integer|min:0|max:6',
         ], [
+            'cpf.size' => 'CPF deve estar completo no formato 000.000.000-00.',
             'ws_entry_time.date_format' => 'Informe o horário de entrada como HH:MM (ex.: 08:00).',
             'ws_exit_time.date_format' => 'Informe o horário de saída como HH:MM (ex.: 17:00).',
         ]);
@@ -374,7 +381,7 @@ class EmployeeWebController extends Controller
                 'data_admissao', 'matricula', 'pis', 'senha',
             ], ';');
             fputcsv($handle, [
-                'João Silva', 'joao@empresa.com', '000.000.000-00',
+                'João Silva', 'joao@empresa.com', '529.982.247-25',
                 'Analista', 'TI', '1', 'clt', '44',
                 '2024-01-15', 'MAT001', '000.00000.00-0', 'senha123',
             ], ';');
@@ -426,6 +433,15 @@ class EmployeeWebController extends Controller
 
                 continue;
             }
+
+            $cpfNorm = Cpf::formatMasked($line['cpf']);
+            if ($cpfNorm === null || ! Cpf::isValid($cpfNorm)) {
+                $errors[] = "Linha {$row}: CPF inválido.";
+
+                continue;
+            }
+            $line['cpf'] = $cpfNorm;
+
             if (User::where('email', $line['email'])->exists()) {
                 $errors[] = "Linha {$row}: e-mail '{$line['email']}' já existe.";
 
@@ -652,6 +668,20 @@ class EmployeeWebController extends Controller
         }
 
         return redirect()->route('painel.employees.index')->with('success', $msg);
+    }
+
+    private function prepareCpfForValidation(Request $request): void
+    {
+        $raw = $request->input('cpf');
+        if ($raw === null || ! is_string($raw) || trim($raw) === '') {
+            $request->merge(['cpf' => null]);
+
+            return;
+        }
+        $formatted = Cpf::formatMasked($raw);
+        if ($formatted !== null) {
+            $request->merge(['cpf' => $formatted]);
+        }
     }
 
     /**
