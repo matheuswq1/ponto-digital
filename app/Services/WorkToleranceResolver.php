@@ -15,20 +15,21 @@ class WorkToleranceResolver
 
     public const MODE_DAILY_DISCOUNT = 'daily_discount';
 
-    /** Modo CLT por batida (5+10) — gabarito fixo nos 4 eventos. */
-    public const MODE_CLT_EVENT_BASED = 'clt_event_based';
-
-    /** CLT por batida com retorno do almoço = saída real do almoço + duração configurada. */
-    public const MODE_CLT_EVENT_STRICT = 'clt_event_strict';
-
-    /** CLT por batida: bucket progressivo ±5, parcela 6–9 min (5 no bucket + resto no saldo), ≥10 libera bucket e encerra tolerância do dia. */
-    public const MODE_CLT_EVENT_PROGRESSIVE_CAP = 'clt_event_progressive_cap';
-
     /**
-     * Igual ao progressive_cap, mas o intervalo de almoço é um único evento por **efeito jornada**
-     * (delta = minutos configurados − duração real; almoço menor → delta positivo).
+     * Único modo CLT: bucket progressivo (5+10) + intervalo de almoço por **duração real vs configurada**
+     * (efeito jornada: delta = configurado − real; horário de saída para almoço não é comparado ao gabarito).
      */
-    public const MODE_CLT_EVENT_PROGRESSIVE_DURATION = 'clt_event_progressive_duration';
+    public const MODE_CLT_EVENT = 'clt_event_progressive_duration';
+
+    /** @deprecated Use {@see self::MODE_CLT_EVENT} — mesmo slug, mantido para chamadas antigas. */
+    public const MODE_CLT_EVENT_PROGRESSIVE_DURATION = self::MODE_CLT_EVENT;
+
+    /** @var array<string, string> */
+    private const LEGACY_CLT_MODE_MAP = [
+        'clt_event_based' => self::MODE_CLT_EVENT,
+        'clt_event_strict' => self::MODE_CLT_EVENT,
+        'clt_event_progressive_cap' => self::MODE_CLT_EVENT,
+    ];
 
     /** @return list<string> */
     public static function modes(): array
@@ -36,11 +37,13 @@ class WorkToleranceResolver
         return [
             self::MODE_DAILY_DEAD_BAND,
             self::MODE_DAILY_DISCOUNT,
-            self::MODE_CLT_EVENT_BASED,
-            self::MODE_CLT_EVENT_STRICT,
-            self::MODE_CLT_EVENT_PROGRESSIVE_CAP,
-            self::MODE_CLT_EVENT_PROGRESSIVE_DURATION,
+            self::MODE_CLT_EVENT,
         ];
+    }
+
+    public static function normalizeToleranceMode(string $mode): string
+    {
+        return self::LEGACY_CLT_MODE_MAP[$mode] ?? $mode;
     }
 
     /** Fuso efetivo para jornada / alertas (IANA). */
@@ -117,6 +120,8 @@ class WorkToleranceResolver
             $from = WorkToleranceContext::SOURCE_COMPANY;
         }
 
+        $mode = self::normalizeToleranceMode($mode);
+
         if (! in_array($mode, self::modes(), true)) {
             $mode = self::MODE_DAILY_DEAD_BAND;
         }
@@ -138,7 +143,9 @@ class WorkToleranceResolver
             return 0;
         }
 
-        if ($mode === self::MODE_CLT_EVENT_BASED || $mode === self::MODE_CLT_EVENT_STRICT || $mode === self::MODE_CLT_EVENT_PROGRESSIVE_CAP || $mode === self::MODE_CLT_EVENT_PROGRESSIVE_DURATION) {
+        $mode = self::normalizeToleranceMode($mode);
+
+        if ($mode === self::MODE_CLT_EVENT) {
             $mode = self::MODE_DAILY_DEAD_BAND;
         }
 

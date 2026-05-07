@@ -37,12 +37,11 @@ readonly class WorkToleranceContext
 
     public function appliedModeDescriptionPt(): string
     {
-        $modeLabel = match ($this->toleranceMode) {
+        $normalized = WorkToleranceResolver::normalizeToleranceMode($this->toleranceMode);
+
+        $modeLabel = match ($normalized) {
             WorkToleranceResolver::MODE_DAILY_DISCOUNT => 'Desconto no saldo diário',
-            WorkToleranceResolver::MODE_CLT_EVENT_BASED => 'CLT por batida (5+10)',
-            WorkToleranceResolver::MODE_CLT_EVENT_STRICT => 'CLT por batida (5+10, retorno por duração)',
-            WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_CAP => 'CLT por batida — bucket progressivo (5+10)',
-            WorkToleranceResolver::MODE_CLT_EVENT_PROGRESSIVE_DURATION => 'CLT por batida — bucket progressivo + almoço por duração (efeito jornada)',
+            WorkToleranceResolver::MODE_CLT_EVENT => 'CLT por batida — bucket progressivo + almoço por duração',
             default => 'Faixa neutra (dead band)',
         };
 

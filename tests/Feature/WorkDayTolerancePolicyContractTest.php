@@ -49,9 +49,9 @@ class WorkDayTolerancePolicyContractTest extends TestCase
         $this->assertSame($p, $wd->toleranceMetaForApi()['policy']);
     }
 
-    public function test_policy_contract_when_clt_strict_applied(): void
+    public function test_policy_contract_when_clt_event_applied(): void
     {
-        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_STRICT, 90);
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT, 90);
         TimeRecord::factory()->for($employee)->entrada()->forDate(self::WEEKDAY, '08:00:00')->create();
         TimeRecord::factory()->for($employee)->saida()->forDate(self::WEEKDAY, '12:16:00')->create();
         TimeRecord::factory()->for($employee)->entrada()->forDate(self::WEEKDAY, '13:41:00')->create();
@@ -62,16 +62,16 @@ class WorkDayTolerancePolicyContractTest extends TestCase
 
         $this->assertSame(WorkDay::TOLERANCE_POLICY_CONTRACT_VERSION, $p['version']);
         $this->assertSame(WorkDay::TOLERANCE_SNAPSHOT_SCHEMA_VERSION, $p['generated_from_snapshot_version']);
-        $this->assertSame(WorkToleranceResolver::MODE_CLT_EVENT_STRICT, $p['mode']);
-        $this->assertSame(WorkDay::TOLERANCE_ENGINE_CLT_EVENT_STRICT, $p['engine']);
+        $this->assertSame(WorkToleranceResolver::MODE_CLT_EVENT, $p['mode']);
+        $this->assertSame(WorkDay::TOLERANCE_ENGINE_CLT_PROGRESSIVE_DURATION, $p['engine']);
         $this->assertSame(10, $p['tolerance']['daily_minutes']);
         $this->assertSame(5, $p['tolerance']['event_minutes']);
         $this->assertSame(10, $p['tolerance']['daily_cap_minutes']);
         $this->assertSame('clt_primary', $p['integration']['mode']);
         $this->assertNull($p['integration']['fallback_mode']);
-        $this->assertSame('actual_lunch_exit_plus_duration', $p['lunch']['strategy']);
+        $this->assertSame('actual_lunch_exit_plus_configured_duration', $p['lunch']['strategy']);
         $this->assertSame(90, $p['lunch']['configured_minutes']);
-        $this->assertSame('weekday_clt_event_strict', $p['calculation']['path']);
+        $this->assertSame('weekday_clt_event_progressive_duration', $p['calculation']['path']);
         $this->assertSame('high', $p['calculation']['confidence']);
         $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT, $p['calculation']['family']);
         $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_CLT_EVENT, $wd->tolerance_snapshot['effective_tolerance_engine_family']);
@@ -79,7 +79,7 @@ class WorkDayTolerancePolicyContractTest extends TestCase
 
     public function test_policy_contract_when_clt_skipped_fallback(): void
     {
-        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT_BASED);
+        $employee = $this->employeeWithSchedule(WorkToleranceResolver::MODE_CLT_EVENT);
         TimeRecord::factory()->for($employee)->entrada()->forDate(self::WEEKDAY, '08:00:00')->create();
         TimeRecord::factory()->for($employee)->saida()->forDate(self::WEEKDAY, '16:15:00')->create();
 
@@ -88,7 +88,7 @@ class WorkDayTolerancePolicyContractTest extends TestCase
 
         $this->assertSame(WorkDay::TOLERANCE_POLICY_CONTRACT_VERSION, $p['version']);
         $this->assertSame(WorkDay::TOLERANCE_SNAPSHOT_SCHEMA_VERSION, $p['generated_from_snapshot_version']);
-        $this->assertSame(WorkToleranceResolver::MODE_CLT_EVENT_BASED, $p['mode']);
+        $this->assertSame(WorkToleranceResolver::MODE_CLT_EVENT, $p['mode']);
         $this->assertSame('weekday_tolerance', $p['calculation']['path']);
         $this->assertSame('diff_fallback_after_clt_skip', $p['integration']['mode']);
         $this->assertSame(WorkDay::EFFECTIVE_TOLERANCE_ENGINE_FAMILY_DAILY_DIFF, $p['calculation']['family']);

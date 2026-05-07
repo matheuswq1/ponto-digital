@@ -7,7 +7,7 @@ namespace App\Services;
 use Carbon\Carbon;
 
 /**
- * Adaptador legado: monta slots a partir do gabarito fixo e delega ao {@see CltToleranceEngine}.
+ * Delega ao mesmo modelo que {@see WorkDayService}: bucket progressivo + almoço por duração (efeito jornada).
  *
  * @see WorkDayService::calculate()
  */
@@ -39,23 +39,37 @@ final class CltEventToleranceCalculator
             $actualTimes,
         );
 
-        $pack = $this->cltToleranceEngine->calculate($slots);
+        $pack = $this->cltToleranceEngine->calculateProgressiveDailyCap($slots);
+        $clt = $pack['clt'];
+
+        if ($this->usesMergedLunchDuration($slots)) {
+            $clt['engine_variant'] = 'progressive_daily_cap_duration_v1';
+            $clt['calculation_engine_family'] = 'clt_event_progressive_duration';
+            $clt['rule_applied'] = 'progressive_daily_cap_duration_v1';
+        }
 
         return [
             'bank_minutes' => $pack['bank_minutes'],
-            'clt' => $pack['clt'],
+            'clt' => $clt,
         ];
     }
 
     /**
-     * Replica a mesma ideia de {@see WorkDayService::buildCltSlotsForEngine} em modo não strict:
-     * 4 batidas com intervalo configurado > 0 → 3 eventos (entrada, duração do almoço, saída final).
-     *
-     * Minutos do intervalo são inferidos do gabarito (horário previsto de retorno − saída para almoço).
+     * @param  list<array<string, mixed>>  $slots
+     */
+    private function usesMergedLunchDuration(array $slots): bool
+    {
+        return count($slots) === 3
+            && (($slots[1]['semantic_type'] ?? '') === 'lunch_duration');
+    }
+
+    /**
+     * Replica {@see WorkDayService::buildCltSlotsForEngine} para dias com almoço: 4 batidas → 3 eventos,
+     * delta do intervalo = configurado − duração real.
      *
      * @param  list<array{type: string, time: string}>  $template
      * @param  list<Carbon>  $actualTimes
-     * @return list<array{semantic_type: string, expected: Carbon, actual: Carbon}>
+     * @return list<array<string, mixed>>
      */
     private function buildSlotsAlignedWithWorkDayService(
         string $calendarDate,
@@ -68,6 +82,8 @@ final class CltEventToleranceCalculator
             $returnTemplate = Carbon::parse(trim($calendarDate).' '.trim((string) $template[2]['time']), $timezone);
             $configuredLunchMinutes = max(0, (int) round(($returnTemplate->timestamp - $exitTemplate->timestamp) / 60));
             if ($configuredLunchMinutes > 0) {
+                $durationReal = max(0, (int) round(($actualTimes[2]->timestamp - $actualTimes[1]->timestamp) / 60));
+
                 return [
                     [
                         'semantic_type' => 'entry',
@@ -78,6 +94,7 @@ final class CltEventToleranceCalculator
                         'semantic_type' => 'lunch_duration',
                         'expected' => $actualTimes[1]->copy()->addMinutes($configuredLunchMinutes),
                         'actual' => $actualTimes[2],
+                        'delta_minutes_override' => $configuredLunchMinutes - $durationReal,
                     ],
                     [
                         'semantic_type' => 'final_out',
