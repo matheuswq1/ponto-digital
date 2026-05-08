@@ -211,6 +211,8 @@ class WorkDayService
         $totalIntervals = 0;
         $openEntryAt = null;
         $firstExitAt = null;
+        /** @var list<array{0: \Carbon\Carbon, 1: \Carbon\Carbon}> */
+        $pairedSegments = [];
 
         foreach ($records as $record) {
             if ($record->type === 'entrada') {
@@ -220,10 +222,19 @@ class WorkDayService
                 }
                 $openEntryAt = $record->datetime;
             } elseif ($record->type === 'saida' && $openEntryAt !== null) {
+                $pairedSegments[] = [$openEntryAt, $record->datetime];
                 $totalMinutes += (int) abs($record->datetime->diffInRealMinutes($openEntryAt));
                 $firstExitAt = $record->datetime;
                 $openEntryAt = null;
             }
+        }
+
+        // SA / VA: saída e retorno do primeiro intervalo entre blocos (≥2 pares entrada→saída no dia)
+        $lunchStart = null;
+        $lunchEnd = null;
+        if (count($pairedSegments) >= 2) {
+            $lunchStart = $pairedSegments[0][1]->format('H:i:s');
+            $lunchEnd = $pairedSegments[1][0]->format('H:i:s');
         }
 
         // Minutos esperados — apenas para dias de trabalho configurados
@@ -398,8 +409,8 @@ class WorkDayService
 
         return [
             'entry_time' => $entryTime,
-            'lunch_start' => null,
-            'lunch_end' => null,
+            'lunch_start' => $lunchStart,
+            'lunch_end' => $lunchEnd,
             'exit_time' => $exitTime,
             'total_minutes' => $totalStored,
             'expected_minutes' => $expectedMinutes,
