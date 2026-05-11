@@ -15,6 +15,7 @@ class PayPeriodClosure extends Model
         'notes',
         'closed_at',
         'closed_by',
+        'corrected_from_closure_id',
     ];
 
     protected function casts(): array
@@ -39,6 +40,21 @@ class PayPeriodClosure extends Model
     public function acknowledgements(): HasMany
     {
         return $this->hasMany(EmployeePayPeriodAcknowledgement::class);
+    }
+
+    public function correctedFromClosure(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'corrected_from_closure_id');
+    }
+
+    public function correctionClosures(): HasMany
+    {
+        return $this->hasMany(self::class, 'corrected_from_closure_id');
+    }
+
+    public function isCorrection(): bool
+    {
+        return $this->corrected_from_closure_id !== null;
     }
 
     /**

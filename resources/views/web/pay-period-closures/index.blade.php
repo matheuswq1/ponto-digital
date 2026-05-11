@@ -61,6 +61,60 @@
     $scopeOld = old('closure_scope', 'company');
 @endphp
 
+@if($correctionSourceClosure ?? null)
+@php
+    $cStart = $correctionSourceClosure->period_start->format('d/m/Y');
+    $cEnd = $correctionSourceClosure->period_end->format('d/m/Y');
+    $cancelCorrectionParams = auth()->user()->isAdmin()
+        ? array_filter(['company_id' => $correctionSourceClosure->company_id])
+        : [];
+@endphp
+<div class="bg-white rounded-xl border border-indigo-200 shadow-sm p-5 mb-6 ring-1 ring-indigo-100">
+    <h3 class="text-sm font-semibold text-indigo-900 mb-2">Correção de espelho contestado</h3>
+    <p class="text-sm text-slate-600 mb-3">
+        Gera um novo fecho para o mesmo período, apenas para quem contestou o espelho de
+        <strong>{{ $cStart }}</strong> — <strong>{{ $cEnd }}</strong>.
+        Depois de corrigir batidas no sistema, envie para voltarem a ver o espelho como pendente na app.
+    </p>
+    <ul class="text-xs text-slate-500 space-y-1 mb-4 list-disc list-inside">
+        @foreach($correctionRejectedAcks as $ra)
+            @php $rn = optional($ra->employee?->user)->name ?? ('#'.$ra->employee_id); @endphp
+            <li>{{ $rn }}</li>
+        @endforeach
+    </ul>
+    <form method="post" action="{{ route('painel.pay-period-closures.store') }}" class="space-y-4">
+        @csrf
+        @if(auth()->user()->isAdmin())
+            <input type="hidden" name="company_id" value="{{ $correctionSourceClosure->company_id }}">
+        @endif
+        @foreach($correctionRejectedAcks as $ra)
+            <input type="hidden" name="supersedes_acknowledgement_ids[]" value="{{ $ra->id }}">
+        @endforeach
+        <div class="flex flex-wrap gap-4 items-end">
+            <div>
+                <span class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Período</span>
+                <span class="text-sm font-medium text-slate-800">{{ $cStart }} — {{ $cEnd }}</span>
+                <input type="hidden" name="period_start" value="{{ $cStart }}">
+                <input type="hidden" name="period_end" value="{{ $cEnd }}">
+            </div>
+        </div>
+        <div>
+            <label for="notes_correction" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Observações da correção (opcional)</label>
+            <textarea name="notes" id="notes_correction" rows="2" maxlength="5000"
+                      class="w-full max-w-2xl text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none">{{ old('notes') }}</textarea>
+        </div>
+        <div class="flex flex-wrap gap-3 items-center">
+            <button type="submit"
+                    class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2 hover:bg-indigo-700 transition">
+                Gerar espelho de correção
+            </button>
+            <a href="{{ route('painel.pay-period-closures.index', $cancelCorrectionParams) }}"
+               class="text-sm text-slate-600 hover:text-slate-900 underline">Cancelar</a>
+        </div>
+    </form>
+</div>
+@else
+
 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6">
     <h3 class="text-sm font-semibold text-slate-800 mb-4">Novo fecho</h3>
     <form method="post" action="{{ route('painel.pay-period-closures.store') }}" class="space-y-4">
@@ -160,6 +214,8 @@
     </form>
 </div>
 
+@endif
+
 @if($closures->isEmpty())
 <div class="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-sm">
     <svg class="mx-auto w-12 h-12 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
@@ -194,6 +250,9 @@
                     @endif
                     <td class="px-4 py-3 text-slate-800 font-medium">
                         {{ $c->period_start->format('d/m/Y') }} — {{ $c->period_end->format('d/m/Y') }}
+                        @if($c->corrected_from_closure_id)
+                            <span class="ml-1 inline-flex align-middle rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-semibold px-2 py-0.5">Correção</span>
+                        @endif
                     </td>
                     <td class="px-4 py-3 text-center text-slate-600 tabular-nums">{{ $c->people_total }}</td>
                     <td class="px-4 py-3 text-slate-600">
@@ -210,7 +269,19 @@
                         <span class="inline-flex min-w-[2rem] justify-center rounded-full bg-rose-100 text-rose-800 text-xs font-semibold px-2 py-0.5">{{ $c->rejected_count }}</span>
                     </td>
                     <td class="px-4 py-3 text-right align-middle">
-                        @if($c->pending_count > 0 && $c->approved_count == 0 && $c->rejected_count == 0)
+                        @php
+                            $corrParams = auth()->user()->isAdmin()
+                                ? ['company_id' => $c->company_id, 'correction_from_closure_id' => $c->id]
+                                : ['correction_from_closure_id' => $c->id];
+                            $canDeleteRaw = $c->pending_count > 0 && $c->approved_count == 0 && $c->rejected_count == 0;
+                        @endphp
+                        @if($c->rejected_count > 0)
+                            <a href="{{ route('painel.pay-period-closures.index', $corrParams) }}"
+                               class="inline-block text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline mr-2">
+                                Correção
+                            </a>
+                        @endif
+                        @if($canDeleteRaw)
                             <form method="post" action="{{ route('painel.pay-period-closures.destroy', $c) }}" class="inline"
                                   onsubmit="return confirm('Remover este fecho? Os colaboradores deixam de ver este espelho pendente na app.');">
                                 @csrf
@@ -219,7 +290,7 @@
                                     Excluir
                                 </button>
                             </form>
-                        @else
+                        @elseif($c->rejected_count == 0)
                             <span class="text-xs text-slate-400">—</span>
                         @endif
                     </td>

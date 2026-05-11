@@ -12,8 +12,8 @@ use App\Services\PayPeriodClosureService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class PayPeriodClosureWebController extends Controller
 {
@@ -31,7 +31,7 @@ class PayPeriodClosureWebController extends Controller
             ->withCount([
                 'acknowledgements as pending_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE),
                 'acknowledgements as approved_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_APROVADO),
-                'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO),
+                'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO)->whereNull('superseded_at'),
                 'acknowledgements as people_total',
             ]);
 
@@ -72,6 +72,35 @@ class PayPeriodClosureWebController extends Controller
                 : $dataCompanyId);
         }
 
+        $correctionSourceClosure = null;
+        $correctionRejectedAcks = collect();
+
+        if ($request->filled('correction_from_closure_id')) {
+            $cid = (int) $request->query('correction_from_closure_id');
+            $cq = PayPeriodClosure::query()->with([
+                'company',
+                'acknowledgements' => function ($q) {
+                    $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO)
+                        ->whereNull('superseded_at')
+                        ->orderBy('employee_id')
+                        ->with('employee.user');
+                },
+            ])->whereKey($cid);
+
+            if (! $user->isAdmin()) {
+                abort_unless($user->company_id, 403, 'Empresa não associada ao utilizador.');
+                $cq->where('company_id', $user->company_id);
+            }
+
+            $correctionSourceClosure = $cq->first();
+            if ($correctionSourceClosure && $correctionSourceClosure->acknowledgements->isNotEmpty()) {
+                $correctionRejectedAcks = $correctionSourceClosure->acknowledgements;
+            } else {
+                $correctionSourceClosure = null;
+                $correctionRejectedAcks = collect();
+            }
+        }
+
         return view('web.pay-period-closures.index', compact(
             'closures',
             'companies',
@@ -80,6 +109,8 @@ class PayPeriodClosureWebController extends Controller
             'employeesForClosure',
             'dataCompanyId',
             'selectedCompanyForForm',
+            'correctionSourceClosure',
+            'correctionRejectedAcks',
         ));
     }
 
@@ -88,6 +119,77 @@ class PayPeriodClosureWebController extends Controller
         $this->authorize('manage-employees');
 
         $user = $request->user();
+
+        $tz = config('app.timezone');
+
+        $supersedesInput = collect((array) $request->input('supersedes_acknowledgement_ids', []))
+            ->map(fn ($v) => (int) $v)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($supersedesInput !== []) {
+            $rules = [
+                'period_start' => ['required', 'regex:/^\d{2}\/\d{2}\/\d{4}$/'],
+                'period_end' => ['required', 'regex:/^\d{2}\/\d{2}\/\d{4}$/'],
+                'notes' => 'nullable|string|max:5000',
+                'supersedes_acknowledgement_ids' => 'required|array|min:1',
+                'supersedes_acknowledgement_ids.*' => 'integer',
+            ];
+            if ($user->isAdmin()) {
+                $rules['company_id'] = 'required|exists:companies,id';
+            }
+
+            $validated = $request->validate($rules);
+
+            try {
+                $start = Carbon::createFromFormat('d/m/Y', $validated['period_start'], $tz)->startOfDay();
+                $end = Carbon::createFromFormat('d/m/Y', $validated['period_end'], $tz)->startOfDay();
+            } catch (\Throwable) {
+                throw ValidationException::withMessages([
+                    'period_start' => ['Use datas válidas no formato dd/mm/aaaa.'],
+                ]);
+            }
+
+            if ($start->format('d/m/Y') !== $validated['period_start'] || $end->format('d/m/Y') !== $validated['period_end']) {
+                throw ValidationException::withMessages([
+                    'period_start' => ['Data inválida (ex.: dia ou mês inexistente).'],
+                ]);
+            }
+
+            if ($end->lt($start)) {
+                throw ValidationException::withMessages([
+                    'period_end' => ['A data final deve ser igual ou posterior à inicial.'],
+                ]);
+            }
+
+            $companyId = $user->isAdmin()
+                ? (int) $validated['company_id']
+                : (int) $user->company_id;
+
+            if (! $companyId) {
+                return back()->with('error', 'Utilizador sem empresa associada.')->withInput();
+            }
+
+            try {
+                $service->closePeriod(
+                    $user,
+                    $companyId,
+                    $start->toDateString(),
+                    $end->toDateString(),
+                    $validated['notes'] ?? null,
+                    [],
+                    array_values(array_unique(array_map('intval', $validated['supersedes_acknowledgement_ids']))),
+                );
+            } catch (ValidationException $e) {
+                return back()->withErrors($e->errors())->withInput();
+            }
+
+            return redirect()
+                ->route('painel.pay-period-closures.index')
+                ->with('success', 'Espelho de correção gerado. Os colaboradores voltam a ver o período pendente na app.');
+        }
 
         $rules = [
             'period_start' => ['required', 'regex:/^\d{2}\/\d{2}\/\d{4}$/'],
@@ -106,7 +208,6 @@ class PayPeriodClosureWebController extends Controller
 
         $validated = $request->validate($rules);
 
-        $tz = config('app.timezone');
         try {
             $start = Carbon::createFromFormat('d/m/Y', $validated['period_start'], $tz)->startOfDay();
             $end = Carbon::createFromFormat('d/m/Y', $validated['period_end'], $tz)->startOfDay();
@@ -143,14 +244,18 @@ class PayPeriodClosureWebController extends Controller
             $validated['employee_ids'] ?? [],
         );
 
-        $service->closePeriod(
-            $user,
-            $companyId,
-            $start->toDateString(),
-            $end->toDateString(),
-            $validated['notes'] ?? null,
-            $employeeIds,
-        );
+        try {
+            $service->closePeriod(
+                $user,
+                $companyId,
+                $start->toDateString(),
+                $end->toDateString(),
+                $validated['notes'] ?? null,
+                $employeeIds,
+            );
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors())->withInput();
+        }
 
         return redirect()
             ->route('painel.pay-period-closures.index')

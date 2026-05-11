@@ -6,6 +6,7 @@ class PayPeriodClosureBrief {
   final String periodEnd;
   final String? notes;
   final String? closedAt;
+  final bool isCorrection;
 
   const PayPeriodClosureBrief({
     required this.id,
@@ -13,6 +14,7 @@ class PayPeriodClosureBrief {
     required this.periodEnd,
     this.notes,
     this.closedAt,
+    this.isCorrection = false,
   });
 
   factory PayPeriodClosureBrief.fromJson(Map<String, dynamic> json) {
@@ -22,6 +24,7 @@ class PayPeriodClosureBrief {
       periodEnd: json['period_end'] as String,
       notes: json['notes'] as String?,
       closedAt: json['closed_at'] as String?,
+      isCorrection: json['is_correction'] == true,
     );
   }
 }

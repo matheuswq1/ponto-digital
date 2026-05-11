@@ -21,13 +21,20 @@ class EmployeePayPeriodAcknowledgement extends Model
         'status',
         'employee_notes',
         'responded_at',
+        'superseded_at',
     ];
 
     protected function casts(): array
     {
         return [
             'responded_at' => 'datetime',
+            'superseded_at' => 'datetime',
         ];
+    }
+
+    public function isSuperseded(): bool
+    {
+        return $this->superseded_at !== null;
     }
 
     public function payPeriodClosure(): BelongsTo

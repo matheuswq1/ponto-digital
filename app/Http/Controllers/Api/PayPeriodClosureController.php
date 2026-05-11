@@ -37,7 +37,7 @@ class PayPeriodClosureController extends Controller
             ->withCount([
                 'acknowledgements as pending_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE),
                 'acknowledgements as approved_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_APROVADO),
-                'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO),
+                'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO)->whereNull('superseded_at'),
                 'acknowledgements as people_total',
             ])
             ->orderByDesc('period_end')
@@ -72,26 +72,45 @@ class PayPeriodClosureController extends Controller
             'department_ids.*' => 'integer',
             'employee_ids' => 'exclude_unless:closure_scope,employees|required|array|min:1',
             'employee_ids.*' => 'integer',
+            'supersedes_acknowledgement_ids' => 'sometimes|array|min:1',
+            'supersedes_acknowledgement_ids.*' => 'integer',
         ]);
 
-        $scope = $validated['closure_scope'] ?? PayPeriodClosureService::SCOPE_COMPANY;
+        $supersedes = array_values(array_unique(array_map(
+            'intval',
+            $validated['supersedes_acknowledgement_ids'] ?? [],
+        )));
 
         try {
-            $employeeIds = $this->payPeriodClosureService->resolveTargetEmployeeIds(
-                (int) $user->company_id,
-                $scope,
-                $validated['department_ids'] ?? [],
-                $validated['employee_ids'] ?? [],
-            );
+            if ($supersedes !== []) {
+                $closure = $this->payPeriodClosureService->closePeriod(
+                    $user,
+                    (int) $user->company_id,
+                    $validated['period_start'],
+                    $validated['period_end'],
+                    $validated['notes'] ?? null,
+                    [],
+                    $supersedes,
+                );
+            } else {
+                $scope = $validated['closure_scope'] ?? PayPeriodClosureService::SCOPE_COMPANY;
 
-            $closure = $this->payPeriodClosureService->closePeriod(
-                $user,
-                (int) $user->company_id,
-                $validated['period_start'],
-                $validated['period_end'],
-                $validated['notes'] ?? null,
-                $employeeIds,
-            );
+                $employeeIds = $this->payPeriodClosureService->resolveTargetEmployeeIds(
+                    (int) $user->company_id,
+                    $scope,
+                    $validated['department_ids'] ?? [],
+                    $validated['employee_ids'] ?? [],
+                );
+
+                $closure = $this->payPeriodClosureService->closePeriod(
+                    $user,
+                    (int) $user->company_id,
+                    $validated['period_start'],
+                    $validated['period_end'],
+                    $validated['notes'] ?? null,
+                    $employeeIds,
+                );
+            }
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => collect($e->errors())->flatten()->first(),
@@ -102,7 +121,7 @@ class PayPeriodClosureController extends Controller
         $closure->loadCount([
             'acknowledgements as pending_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE),
             'acknowledgements as approved_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_APROVADO),
-            'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO),
+            'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO)->whereNull('superseded_at'),
             'acknowledgements as people_total',
         ]);
 
@@ -150,6 +169,7 @@ class PayPeriodClosureController extends Controller
 
         $rows = EmployeePayPeriodAcknowledgement::query()
             ->where('employee_id', $employee->id)
+            ->whereNull('superseded_at')
             ->with('payPeriodClosure')
             ->get()
             ->sortByDesc(fn (EmployeePayPeriodAcknowledgement $a) => $a->payPeriodClosure->period_end)
@@ -181,6 +201,12 @@ class PayPeriodClosureController extends Controller
 
         if (! $ack) {
             return response()->json(['message' => 'Não existe espelho para si neste período.'], 404);
+        }
+
+        if ($ack->superseded_at !== null) {
+            return response()->json([
+                'message' => 'Este espelho foi substituído por uma correção. Consulte o período mais recente na lista.',
+            ], 410);
         }
 
         $start = $payPeriodClosure->period_start->toDateString();
@@ -231,6 +257,7 @@ class PayPeriodClosureController extends Controller
                     'period_start' => $start,
                     'period_end' => $end,
                     'notes' => $payPeriodClosure->notes,
+                    'is_correction' => $payPeriodClosure->corrected_from_closure_id !== null,
                     'closed_at' => $payPeriodClosure->closed_at->toIso8601String(),
                 ],
                 'summary' => [
@@ -276,6 +303,12 @@ class PayPeriodClosureController extends Controller
             return response()->json(['message' => 'Não existe espelho para si neste período.'], 404);
         }
 
+        if ($ack->superseded_at !== null) {
+            return response()->json([
+                'message' => 'Este espelho foi substituído por uma correção. Consulte o período mais recente na lista.',
+            ], 410);
+        }
+
         if (! $ack->isPending()) {
             return response()->json(['message' => 'Este período já foi respondido.'], 422);
         }
@@ -314,6 +347,8 @@ class PayPeriodClosureController extends Controller
             'period_start' => $c->period_start->toDateString(),
             'period_end' => $c->period_end->toDateString(),
             'notes' => $c->notes,
+            'is_correction' => $c->corrected_from_closure_id !== null,
+            'corrected_from_closure_id' => $c->corrected_from_closure_id,
             'closed_at' => $c->closed_at->toIso8601String(),
             'pending_count' => $pending,
             'approved_count' => $approved,
@@ -340,6 +375,7 @@ class PayPeriodClosureController extends Controller
                 'period_start' => $c->period_start->toDateString(),
                 'period_end' => $c->period_end->toDateString(),
                 'notes' => $c->notes,
+                'is_correction' => $c->corrected_from_closure_id !== null,
                 'closed_at' => $c->closed_at->toIso8601String(),
             ],
         ];
