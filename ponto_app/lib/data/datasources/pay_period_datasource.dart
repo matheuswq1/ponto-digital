@@ -40,11 +40,13 @@ class PayPeriodDatasource {
     required int closureId,
     required bool approve,
     String? notes,
+    Map<String, String>? clientMeta,
   }) async {
     try {
       await _api.post('/pay-period-closures/$closureId/respond', data: {
         'decision': approve ? 'approve' : 'reject',
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (clientMeta != null && clientMeta.isNotEmpty) 'client_meta': clientMeta,
       });
     } catch (e) {
       throw _handleError(e);

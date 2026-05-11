@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class EmployeePayPeriodAcknowledgement extends Model
 {
@@ -45,6 +46,11 @@ class EmployeePayPeriodAcknowledgement extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function auditEvents(): HasMany
+    {
+        return $this->hasMany(PayPeriodAckAuditEvent::class, 'pay_period_acknowledgement_id');
     }
 
     public function isPending(): bool

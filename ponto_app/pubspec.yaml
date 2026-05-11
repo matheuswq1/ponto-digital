@@ -20,6 +20,7 @@ dependencies:
   # HTTP
   dio: ^5.8.0+1
   pretty_dio_logger: ^1.4.0
+  package_info_plus: ^8.1.2
 
   # Armazenamento local
   shared_preferences: ^2.3.4

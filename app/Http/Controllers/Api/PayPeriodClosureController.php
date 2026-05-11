@@ -3,23 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\WorkDayResource;
 use App\Models\EmployeePayPeriodAcknowledgement;
 use App\Models\PayPeriodClosure;
-use App\Models\TimeRecord;
-use App\Models\WorkDay;
+use App\Services\PayPeriodAcknowledgementAuditService;
 use App\Services\PayPeriodClosureService;
-use App\Services\WorkDayService;
-use Carbon\Carbon;
+use App\Services\PayPeriodMirrorPayloadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PayPeriodClosureController extends Controller
 {
     public function __construct(
-        private readonly WorkDayService $workDayService,
         private readonly PayPeriodClosureService $payPeriodClosureService,
+        private readonly PayPeriodMirrorPayloadService $mirrorPayloadService,
+        private readonly PayPeriodAcknowledgementAuditService $acknowledgementAuditService,
     ) {}
 
     /**
@@ -209,69 +208,15 @@ class PayPeriodClosureController extends Controller
             ], 410);
         }
 
-        $start = $payPeriodClosure->period_start->toDateString();
-        $end = $payPeriodClosure->period_end->toDateString();
-
-        $balance = $this->workDayService->getPeriodBalance($employee, $start, $end);
-
-        $workDays = $employee->workDays()
-            ->whereBetween('date', [$start, $end])
-            ->with('employee:id,company_id')
-            ->orderBy('date')
-            ->get();
-
-        $tz = config('app.timezone', 'America/Sao_Paulo');
-        $records = $employee->timeRecords()
-            ->where('datetime', '>=', Carbon::parse($start, $tz)->startOfDay())
-            ->where('datetime', '<=', Carbon::parse($end, $tz)->endOfDay())
-            ->orderBy('datetime')
-            ->get();
-
-        $recordsByDate = $records->groupBy(fn (TimeRecord $r) => $r->datetime->format('Y-m-d'));
-
-        $workDaysPayload = $workDays->map(function (WorkDay $wd) use ($recordsByDate, $request) {
-            $base = (new WorkDayResource($wd))->toArray($request);
-            $key = $wd->date->toDateString();
-            $dayRecords = $recordsByDate->get($key, collect());
-            $base['time_records'] = $dayRecords->map(fn (TimeRecord $tr) => [
-                'id' => $tr->id,
-                'type' => $tr->type,
-                'type_label' => $tr->getTypeLabel(),
-                'time' => $tr->datetime->format('H:i'),
-                'datetime' => $tr->datetime->format('Y-m-d\TH:i:s'),
-            ])->values()->all();
-
-            return $base;
-        })->values()->all();
+        $mirrorPayload = $this->mirrorPayloadService->buildMirrorPayload(
+            $employee,
+            $payPeriodClosure,
+            $ack,
+            $request,
+        );
 
         return response()->json([
-            'data' => [
-                'acknowledgement' => [
-                    'id' => $ack->id,
-                    'status' => $ack->status,
-                    'employee_notes' => $ack->employee_notes,
-                    'responded_at' => $ack->responded_at?->toIso8601String(),
-                ],
-                'closure' => [
-                    'id' => $payPeriodClosure->id,
-                    'period_start' => $start,
-                    'period_end' => $end,
-                    'notes' => $payPeriodClosure->notes,
-                    'is_correction' => $payPeriodClosure->corrected_from_closure_id !== null,
-                    'closed_at' => $payPeriodClosure->closed_at->toIso8601String(),
-                ],
-                'summary' => [
-                    'total_worked_minutes' => $balance['total_worked_minutes'],
-                    'total_expected_minutes' => $balance['total_expected_minutes'],
-                    'balance_minutes' => $balance['balance_minutes'],
-                    'days_worked' => $balance['days_worked'],
-                    'days_absent' => $balance['days_absent'],
-                    'balance_hours' => $this->formatSignedHours((int) $balance['balance_minutes']),
-                    'worked_hours' => $this->formatUnsignedHours((int) $balance['total_worked_minutes']),
-                    'expected_hours' => $this->formatUnsignedHours((int) $balance['total_expected_minutes']),
-                ],
-                'work_days' => $workDaysPayload,
-            ],
+            'data' => $mirrorPayload,
         ]);
     }
 
@@ -283,6 +228,12 @@ class PayPeriodClosureController extends Controller
         $validated = $request->validate([
             'decision' => 'required|in:approve,reject',
             'notes' => 'nullable|string|max:5000',
+            'client_meta' => 'nullable|array',
+            'client_meta.app_version' => 'nullable|string|max:128',
+            'client_meta.build_number' => 'nullable|string|max:64',
+            'client_meta.platform' => 'nullable|string|max:64',
+            'client_meta.device_id' => 'nullable|string|max:128',
+            'client_meta.locale' => 'nullable|string|max:64',
         ]);
 
         $employee = $request->user()->employee;
@@ -313,12 +264,46 @@ class PayPeriodClosureController extends Controller
             return response()->json(['message' => 'Este período já foi respondido.'], 422);
         }
 
-        $ack->status = $validated['decision'] === 'approve'
-            ? EmployeePayPeriodAcknowledgement::STATUS_APROVADO
-            : EmployeePayPeriodAcknowledgement::STATUS_REJEITADO;
-        $ack->employee_notes = $validated['notes'] ?? null;
-        $ack->responded_at = now();
-        $ack->save();
+        $notesRaw = $validated['notes'] ?? null;
+        $notesTrimmed = $notesRaw !== null && $notesRaw !== '' ? trim((string) $notesRaw) : null;
+        if ($notesTrimmed === '') {
+            $notesTrimmed = null;
+        }
+
+        $clientMeta = PayPeriodAcknowledgementAuditService::normalizeClientMeta($validated['client_meta'] ?? null);
+
+        try {
+            $audit = DB::transaction(function () use ($request, $ack, $payPeriodClosure, $employee, $validated, $notesTrimmed, $clientMeta) {
+                $decision = $validated['decision'];
+
+                $record = $this->acknowledgementAuditService->recordDecision(
+                    $request,
+                    $ack,
+                    $payPeriodClosure,
+                    $employee,
+                    $decision,
+                    $notesTrimmed,
+                    $clientMeta,
+                );
+
+                $ack->status = $decision === 'approve'
+                    ? EmployeePayPeriodAcknowledgement::STATUS_APROVADO
+                    : EmployeePayPeriodAcknowledgement::STATUS_REJEITADO;
+                $ack->employee_notes = $notesTrimmed;
+                $ack->responded_at = now();
+                $ack->save();
+
+                return $record;
+            });
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Não foi possível registar a resposta de forma segura. Tente novamente ou contacte o RH.',
+            ], 503);
+        }
+
+        $ack->refresh();
 
         return response()->json([
             'message' => $ack->status === EmployeePayPeriodAcknowledgement::STATUS_APROVADO
@@ -328,7 +313,10 @@ class PayPeriodClosureController extends Controller
                 'id' => $ack->id,
                 'status' => $ack->status,
                 'employee_notes' => $ack->employee_notes,
-                'responded_at' => $ack->responded_at->toIso8601String(),
+                'responded_at' => $ack->responded_at?->toIso8601String(),
+                'audit_snapshot_hash' => $audit['snapshot_hash'],
+                'audit_event_id' => $audit['audit_event_id'],
+                'terms_version' => config('pay_mirror.terms_version'),
             ],
         ]);
     }
@@ -379,27 +367,5 @@ class PayPeriodClosureController extends Controller
                 'closed_at' => $c->closed_at->toIso8601String(),
             ],
         ];
-    }
-
-    private function formatUnsignedHours(int $minutes): string
-    {
-        $abs = abs($minutes);
-        $h = intdiv($abs, 60);
-        $m = $abs % 60;
-
-        return sprintf('%02d:%02d', $h, $m);
-    }
-
-    private function formatSignedHours(int $minutes): string
-    {
-        if ($minutes === 0) {
-            return '00:00';
-        }
-        $sign = $minutes > 0 ? '+' : '−';
-        $abs = abs($minutes);
-        $h = intdiv($abs, 60);
-        $m = $abs % 60;
-
-        return sprintf('%s%02d:%02d', $sign, $h, $m);
     }
 }

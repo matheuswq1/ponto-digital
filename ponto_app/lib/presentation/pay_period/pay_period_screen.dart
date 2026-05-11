@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/pay_period_client_meta.dart';
 import '../../data/datasources/pay_period_datasource.dart';
 import '../../data/models/pay_period_models.dart';
 import '../../data/models/work_day_model.dart';
@@ -270,10 +271,12 @@ class _PayPeriodDetailScreenState extends ConsumerState<PayPeriodDetailScreen> {
 
     setState(() => _submitting = true);
     try {
+      final clientMeta = await buildPayPeriodClientMeta(ref);
       await ref.read(payPeriodDatasourceProvider).respond(
             closureId: widget.closureId,
             approve: approve,
             notes: notes,
+            clientMeta: clientMeta,
           );
       ref.invalidate(payPeriodDetailProvider(widget.closureId));
       ref.invalidate(myPayPeriodsProvider);
