@@ -1,3 +1,30 @@
+class WorkDayTimeRecord {
+  final int id;
+  final String type;
+  final String typeLabel;
+  final String time;
+  final String? datetime;
+
+  const WorkDayTimeRecord({
+    required this.id,
+    required this.type,
+    required this.typeLabel,
+    required this.time,
+    this.datetime,
+  });
+
+  factory WorkDayTimeRecord.fromJson(Map<String, dynamic> json) {
+    final idVal = json['id'];
+    return WorkDayTimeRecord(
+      id: idVal is int ? idVal : (idVal as num).toInt(),
+      type: json['type'] as String? ?? '',
+      typeLabel: json['type_label'] as String? ?? (json['type'] as String? ?? ''),
+      time: json['time'] as String? ?? '',
+      datetime: json['datetime'] as String?,
+    );
+  }
+}
+
 class WorkDayModel {
   final int id;
   final String date;
@@ -15,6 +42,7 @@ class WorkDayModel {
   final String status;
   final bool isClosed;
   final String balanceType;
+  final List<WorkDayTimeRecord> timeRecords;
 
   const WorkDayModel({
     required this.id,
@@ -33,12 +61,14 @@ class WorkDayModel {
     required this.status,
     required this.isClosed,
     required this.balanceType,
+    this.timeRecords = const [],
   });
 
   factory WorkDayModel.fromJson(Map<String, dynamic> json) {
     final times = json['times'] as Map<String, dynamic>?;
     final hours = json['hours'] as Map<String, dynamic>?;
     final minutes = json['minutes'] as Map<String, dynamic>?;
+    final trList = json['time_records'] as List<dynamic>? ?? [];
     return WorkDayModel(
       id: json['id'],
       date: json['date'],
@@ -56,6 +86,9 @@ class WorkDayModel {
       status: json['status'] ?? 'normal',
       isClosed: json['is_closed'] ?? false,
       balanceType: json['balance_type'] ?? 'neutro',
+      timeRecords: trList
+          .map((e) => WorkDayTimeRecord.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 

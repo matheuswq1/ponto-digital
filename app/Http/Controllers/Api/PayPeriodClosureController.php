@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\WorkDayResource;
 use App\Models\EmployeePayPeriodAcknowledgement;
 use App\Models\PayPeriodClosure;
+use App\Models\TimeRecord;
+use App\Models\WorkDay;
 use App\Services\PayPeriodClosureService;
 use App\Services\WorkDayService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -190,6 +193,30 @@ class PayPeriodClosureController extends Controller
             ->orderBy('date')
             ->get();
 
+        $tz = config('app.timezone', 'America/Sao_Paulo');
+        $records = $employee->timeRecords()
+            ->where('datetime', '>=', Carbon::parse($start, $tz)->startOfDay())
+            ->where('datetime', '<=', Carbon::parse($end, $tz)->endOfDay())
+            ->orderBy('datetime')
+            ->get();
+
+        $recordsByDate = $records->groupBy(fn (TimeRecord $r) => $r->datetime->format('Y-m-d'));
+
+        $workDaysPayload = $workDays->map(function (WorkDay $wd) use ($recordsByDate, $request) {
+            $base = (new WorkDayResource($wd))->toArray($request);
+            $key = $wd->date->toDateString();
+            $dayRecords = $recordsByDate->get($key, collect());
+            $base['time_records'] = $dayRecords->map(fn (TimeRecord $tr) => [
+                'id' => $tr->id,
+                'type' => $tr->type,
+                'type_label' => $tr->getTypeLabel(),
+                'time' => $tr->datetime->format('H:i'),
+                'datetime' => $tr->datetime->format('Y-m-d\TH:i:s'),
+            ])->values()->all();
+
+            return $base;
+        })->values()->all();
+
         return response()->json([
             'data' => [
                 'acknowledgement' => [
@@ -215,7 +242,7 @@ class PayPeriodClosureController extends Controller
                     'worked_hours' => $this->formatUnsignedHours((int) $balance['total_worked_minutes']),
                     'expected_hours' => $this->formatUnsignedHours((int) $balance['total_expected_minutes']),
                 ],
-                'work_days' => WorkDayResource::collection($workDays),
+                'work_days' => $workDaysPayload,
             ],
         ]);
     }

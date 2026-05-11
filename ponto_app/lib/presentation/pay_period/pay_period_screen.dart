@@ -578,6 +578,20 @@ class _WorkDayRow extends StatelessWidget {
 
   const _WorkDayRow({required this.day});
 
+  static String _aggregatedTimes(WorkDayModel day) {
+    final parts = <String>[
+      if (day.entryTime != null && day.entryTime!.trim().isNotEmpty)
+        day.entryTime!.trim(),
+      if (day.lunchStart != null && day.lunchStart!.trim().isNotEmpty)
+        day.lunchStart!.trim(),
+      if (day.lunchEnd != null && day.lunchEnd!.trim().isNotEmpty)
+        day.lunchEnd!.trim(),
+      if (day.exitTime != null && day.exitTime!.trim().isNotEmpty)
+        day.exitTime!.trim(),
+    ];
+    return parts.isEmpty ? '—' : parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -588,6 +602,7 @@ class _WorkDayRow extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 44,
@@ -598,10 +613,46 @@ class _WorkDayRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              '${day.entryTime ?? '—'} · ${day.exitTime ?? '—'}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
-            ),
+            child: day.timeRecords.isNotEmpty
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: day.timeRecords
+                        .map(
+                          (r) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  width: 42,
+                                  child: Text(
+                                    r.time,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    r.typeLabel,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade800,
+                                      height: 1.25,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  )
+                : Text(
+                    _aggregatedTimes(day),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                  ),
           ),
           Text(
             day.extraHours,
