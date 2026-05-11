@@ -132,6 +132,7 @@ class NotificationService {
       'time_record_edit.reject' || 'edit_request_rejected' => 'edit',
       'point_addition_approved' || 'point_addition_rejected' => 'add',
       'hour_bank_approved' || 'hour_bank_rejected' => 'ponto',
+      'pay_period_closure' => 'pay_period',
       'admin_broadcast' => 'info',
       _ => 'info',
     };
@@ -187,6 +188,13 @@ class NotificationService {
       case 'point_addition_approved':
       case 'point_addition_rejected':
         router.go('/home/edit-requests');
+      case 'pay_period_closure':
+        final id = data['closure_id'] as String?;
+        if (id != null && id.isNotEmpty) {
+          router.go('/home/pay-period-detail/$id');
+        } else {
+          router.go('/home/pay-periods');
+        }
       default:
         router.go('/home');
     }

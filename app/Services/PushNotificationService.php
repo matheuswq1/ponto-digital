@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\DeviceToken;
 use App\Models\Employee;
 use App\Models\FraudAttempt;
+use App\Models\PayPeriodClosure;
 use App\Models\TimeRecordEdit;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -135,6 +136,78 @@ class PushNotificationService
         }
 
         $this->sendToUser($user, $payload);
+    }
+
+    /**
+     * Notifica colaboradores de que um período de espelho foi fechado e pede confirmação na app.
+     *
+     * @param  array<int>  $employeeIds
+     */
+    public function notifyPayPeriodClosure(PayPeriodClosure $closure, array $employeeIds): void
+    {
+        $employeeIds = array_values(array_unique(array_filter(array_map('intval', $employeeIds), fn ($id) => $id > 0)));
+        if ($employeeIds === []) {
+            return;
+        }
+
+        $messaging = $this->messaging();
+        if ($messaging === null) {
+            Log::warning('PushNotificationService: FCM indisponível (fecho espelho ponto)');
+
+            return;
+        }
+
+        $employees = Employee::query()->whereIn('id', $employeeIds)->get(['id', 'user_id']);
+        $userIds = $employees->pluck('user_id')->unique()->filter()->values()->all();
+
+        if ($userIds === []) {
+            return;
+        }
+
+        $tokensByUser = DeviceToken::query()
+            ->whereIn('user_id', $userIds)
+            ->get(['user_id', 'token'])
+            ->groupBy('user_id');
+
+        $periodLabel = $closure->period_start->format('d/m/Y').' a '.$closure->period_end->format('d/m/Y');
+        $title = 'Espelho de ponto fechado';
+        $body = 'Confirme o período '.$periodLabel.' na app.';
+
+        $dataPayload = $this->normalizeDataForFcm([
+            'type' => 'pay_period_closure',
+            'closure_id' => (string) $closure->id,
+        ]);
+
+        foreach ($employees as $employee) {
+            $tokens = $tokensByUser->get($employee->user_id);
+            if ($tokens === null || $tokens->isEmpty()) {
+                continue;
+            }
+
+            foreach ($tokens as $row) {
+                $token = $row->token;
+                try {
+                    $message = CloudMessage::fromArray([
+                        'token' => $token,
+                        'notification' => [
+                            'title' => $title,
+                            'body' => $body,
+                        ],
+                        'data' => $dataPayload,
+                        'android' => [
+                            'priority' => 'HIGH',
+                            'notification' => [
+                                'channel_id' => 'ponto_alerts',
+                                'sound' => 'default',
+                            ],
+                        ],
+                    ]);
+                    $messaging->send($message);
+                } catch (Throwable $e) {
+                    Log::warning('FCM pay_period_closure: '.$e->getMessage(), ['token' => substr((string) $token, 0, 20)]);
+                }
+            }
+        }
     }
 
     /**

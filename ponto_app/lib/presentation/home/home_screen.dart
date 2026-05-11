@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../auth/auth_provider.dart';
+import '../pay_period/pay_period_home_prompt.dart';
+import '../pay_period/pay_period_provider.dart';
 import '../point/register_point_provider.dart';
 import 'today_provider.dart';
 import 'notifications_provider.dart';
@@ -26,6 +28,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   /// Destaque do item «Avisos» só enquanto o bottom sheet está aberto (não há rota dedicada).
   bool _notificationsTabHighlighted = false;
+
+  /// Evita dois popups de espelho quase simultâneos (arranque + resumed).
+  DateTime? _lastPayPeriodPromptAt;
 
   /// Mapa da rota activa para o separador da barra (0=Início, 1=Histórico, 2=Banco de horas).
   static int _tabIndexForRoute(String matchedLocation) {
@@ -50,6 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       }
       // Perfil: throttle de 5 min interno no notifier
       ref.read(authProvider.notifier).refreshProfile();
+      _promptPayPeriodIfPending();
     });
   }
 
@@ -65,6 +71,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       // Quando o app volta do background, força refresh para pegar mudanças do servidor
       ref.read(authProvider.notifier).forceRefreshProfile();
       ref.read(todayProvider.notifier).refresh();
+      _promptPayPeriodIfPending();
+    }
+  }
+
+  Future<void> _promptPayPeriodIfPending() async {
+    if (!mounted) return;
+
+    final loc = GoRouterState.of(context).matchedLocation.split('?').first;
+    if (loc != '/home') return;
+
+    final now = DateTime.now();
+    if (_lastPayPeriodPromptAt != null &&
+        now.difference(_lastPayPeriodPromptAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+
+    ref.invalidate(myPayPeriodsProvider);
+
+    try {
+      final rows = await ref.read(myPayPeriodsProvider.future);
+      if (!mounted) return;
+
+      final pending = rows.where((r) => r.isPending).toList();
+      if (pending.isEmpty) return;
+
+      _lastPayPeriodPromptAt = now;
+      await showPayPeriodPendingReminderDialog(context, pending);
+    } catch (_) {
+      // Falha de rede: não bloqueia a home
     }
   }
 
@@ -1250,6 +1285,7 @@ class _NotificationsSheet extends ConsumerWidget {
                           'edit' => Icons.edit_note,
                           'add' => Icons.add_circle_outline,
                           'warning' => Icons.warning_amber_rounded,
+                          'pay_period' => Icons.fact_check_rounded,
                           _ => Icons.notifications_outlined,
                         };
                         final iconColor = switch (n.icon) {
@@ -1257,6 +1293,7 @@ class _NotificationsSheet extends ConsumerWidget {
                           'edit' => const Color(0xFF3B82F6),
                           'add' => const Color(0xFF10B981),
                           'warning' => AppColors.warning,
+                          'pay_period' => const Color(0xFF8B5CF6),
                           _ => const Color(0xFF6366F1),
                         };
                         return ListTile(

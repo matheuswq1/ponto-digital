@@ -13,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class PayPeriodClosureService
 {
+    public function __construct(
+        private readonly PushNotificationService $pushNotificationService,
+    ) {}
+
     public const SCOPE_COMPANY = 'company';
 
     public const SCOPE_DEPARTMENTS = 'departments';
@@ -137,7 +141,7 @@ class PayPeriodClosureService
 
         $this->assertNoOverlappingPeriodForEmployees($companyId, $start, $end, $employeeIds);
 
-        return DB::transaction(function () use ($closedByUser, $companyId, $start, $end, $notes, $employeeIds) {
+        $closure = DB::transaction(function () use ($closedByUser, $companyId, $start, $end, $notes, $employeeIds) {
             $closure = PayPeriodClosure::query()->create([
                 'company_id' => $companyId,
                 'period_start' => $start,
@@ -157,6 +161,10 @@ class PayPeriodClosureService
 
             return $closure->fresh(['company']);
         });
+
+        $this->pushNotificationService->notifyPayPeriodClosure($closure, $employeeIds);
+
+        return $closure;
     }
 
     /**
