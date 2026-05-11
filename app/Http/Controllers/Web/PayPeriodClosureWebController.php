@@ -7,9 +7,11 @@ use App\Models\Company;
 use App\Models\EmployeePayPeriodAcknowledgement;
 use App\Models\PayPeriodClosure;
 use App\Services\PayPeriodClosureService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Illuminate\Validation\ValidationException;
 
 class PayPeriodClosureWebController extends Controller
 {
@@ -49,8 +51,8 @@ class PayPeriodClosureWebController extends Controller
         $user = $request->user();
 
         $rules = [
-            'period_start' => 'required|date',
-            'period_end' => 'required|date|after_or_equal:period_start',
+            'period_start' => ['required', 'regex:/^\d{2}\/\d{2}\/\d{4}$/'],
+            'period_end' => ['required', 'regex:/^\d{2}\/\d{2}\/\d{4}$/'],
             'notes' => 'nullable|string|max:5000',
         ];
 
@@ -59,6 +61,28 @@ class PayPeriodClosureWebController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        $tz = config('app.timezone');
+        try {
+            $start = Carbon::createFromFormat('d/m/Y', $validated['period_start'], $tz)->startOfDay();
+            $end = Carbon::createFromFormat('d/m/Y', $validated['period_end'], $tz)->startOfDay();
+        } catch (\Throwable) {
+            throw ValidationException::withMessages([
+                'period_start' => ['Use datas válidas no formato dd/mm/aaaa.'],
+            ]);
+        }
+
+        if ($start->format('d/m/Y') !== $validated['period_start'] || $end->format('d/m/Y') !== $validated['period_end']) {
+            throw ValidationException::withMessages([
+                'period_start' => ['Data inválida (ex.: dia ou mês inexistente).'],
+            ]);
+        }
+
+        if ($end->lt($start)) {
+            throw ValidationException::withMessages([
+                'period_end' => ['A data final deve ser igual ou posterior à inicial.'],
+            ]);
+        }
 
         $companyId = $user->isAdmin()
             ? (int) $validated['company_id']
@@ -71,8 +95,8 @@ class PayPeriodClosureWebController extends Controller
         $service->closePeriod(
             $user,
             $companyId,
-            $validated['period_start'],
-            $validated['period_end'],
+            $start->toDateString(),
+            $end->toDateString(),
             $validated['notes'] ?? null,
         );
 

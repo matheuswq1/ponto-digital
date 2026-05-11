@@ -56,13 +56,16 @@
         <div class="flex flex-wrap gap-4">
             <div>
                 <label for="period_start" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Data inicial</label>
-                <input type="date" name="period_start" id="period_start" value="{{ old('period_start') }}" required
-                       class="text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none @error('period_start') border-rose-400 @enderror">
+                <input type="text" name="period_start" id="period_start" value="{{ old('period_start') }}" required
+                       inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" autocomplete="off"
+                       class="text-sm border border-slate-300 rounded-lg px-3 py-2 w-36 focus:ring-2 focus:ring-indigo-200 outline-none @error('period_start') border-rose-400 @enderror">
+                <p class="text-[11px] text-slate-400 mt-1">Digite no formato dia/mês/ano — sem saltos entre campos.</p>
             </div>
             <div>
                 <label for="period_end" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Data final</label>
-                <input type="date" name="period_end" id="period_end" value="{{ old('period_end') }}" required
-                       class="text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-200 outline-none @error('period_end') border-rose-400 @enderror">
+                <input type="text" name="period_end" id="period_end" value="{{ old('period_end') }}" required
+                       inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" autocomplete="off"
+                       class="text-sm border border-slate-300 rounded-lg px-3 py-2 w-36 focus:ring-2 focus:ring-indigo-200 outline-none @error('period_end') border-rose-400 @enderror">
             </div>
         </div>
         <div>
@@ -150,5 +153,22 @@
     @endif
 </div>
 @endif
+
+<script>
+(function () {
+    function maskBrDate(el) {
+        el.addEventListener('input', function () {
+            var d = el.value.replace(/\D/g, '').slice(0, 8);
+            if (d.length <= 2) el.value = d;
+            else if (d.length <= 4) el.value = d.slice(0, 2) + '/' + d.slice(2);
+            else el.value = d.slice(0, 2) + '/' + d.slice(2, 4) + '/' + d.slice(4);
+        });
+    }
+    var s = document.getElementById('period_start');
+    var e = document.getElementById('period_end');
+    if (s) maskBrDate(s);
+    if (e) maskBrDate(e);
+})();
+</script>
 
 @endsection
