@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,7 +24,20 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
-  int _selectedNavIndex = 0;
+  /// Destaque do item «Avisos» só enquanto o bottom sheet está aberto (não há rota dedicada).
+  bool _notificationsTabHighlighted = false;
+
+  /// Mapa da rota activa para o separador da barra (0=Início, 1=Histórico, 2=Banco de horas).
+  static int _tabIndexForRoute(String matchedLocation) {
+    final loc = matchedLocation.split('?').first;
+    if (loc.startsWith('/home/history')) return 1;
+    if (loc.startsWith('/home/balance') ||
+        loc.startsWith('/home/request-leave')) {
+      return 2;
+    }
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +79,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
     return Scaffold(
       backgroundColor: context.appBackground,
+      extendBody: true,
       body: RefreshIndicator(
         onRefresh: () async => ref.read(todayProvider.notifier).refresh(),
         child: CustomScrollView(
@@ -131,7 +147,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   if (todayState.data != null)
                     _buildTodayRecords(context, todayState.data!.records),
 
-                  const SizedBox(height: 100),
+                  SizedBox(height: MediaQuery.paddingOf(context).bottom + 124),
                 ]),
               ),
             ),
@@ -676,6 +692,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         onTap: () => context.goNamed('vacation'),
       ),
       _ModuleTile(
+        icon: Icons.fact_check_rounded,
+        label: 'Espelho de ponto',
+        subtitle: 'Períodos fechados pelo RH',
+        color: const Color(0xFF0D9488),
+        onTap: () => context.pushNamed('pay-periods'),
+      ),
+      _ModuleTile(
         icon: Icons.edit_calendar_rounded,
         label: 'Solicitações',
         subtitle: 'Correções e adições',
@@ -770,112 +793,210 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
   Widget _buildBottomNav(BuildContext context) {
     final unread = ref.watch(unreadNotificationsCountProvider);
+    final routeLoc = GoRouterState.of(context).matchedLocation;
+    final routeTab = _tabIndexForRoute(routeLoc);
+    final selectedIndex =
+        _notificationsTabHighlighted ? 3 : routeTab;
 
     final items = [
       _BottomNavItemData(icon: Icons.home_rounded, label: 'Início', color: AppColors.primary),
       _BottomNavItemData(icon: Icons.history_rounded, label: 'Histórico', color: const Color(0xFF3B82F6)),
-      _BottomNavItemData(icon: Icons.account_balance_wallet_rounded, label: 'Banco Horas', color: const Color(0xFF10B981)),
+      _BottomNavItemData(icon: Icons.account_balance_wallet_rounded, label: 'Banco de horas', color: const Color(0xFF10B981)),
       _BottomNavItemData(icon: Icons.notifications_outlined, label: 'Avisos', color: const Color(0xFF6366F1), badge: unread),
     ];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: context.appNavBarBg,
-        boxShadow: [
-          BoxShadow(
-            color: context.appShadow,
-            blurRadius: 24,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-          child: Row(
-            children: List.generate(items.length, (i) {
-              final item = items[i];
-              final isSelected = _selectedNavIndex == i;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _selectedNavIndex = i);
-                    switch (i) {
-                      case 1: context.goNamed('history');
-                      case 2: context.goNamed('balance');
-                      case 3: _showNotificationsSheet(context, ref);
-                      default: break;
-                    }
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: isSelected ? item.color.withValues(alpha: 0.1) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+    const barHeight = 68.0;
+    const pillHeight = 54.0;
+    const slotInset = 6.0;
+    const animMs = 380;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, safeBottom + 10),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final slotW = constraints.maxWidth / items.length;
+          final pillW = slotW - slotInset * 2;
+          final pillTop = (barHeight - pillHeight) / 2;
+          final activeColor =
+              items[selectedIndex.clamp(0, items.length - 1)].color;
+
+          return Material(
+            color: Colors.transparent,
+            elevation: isDark ? 16 : 22,
+            shadowColor: Colors.black.withValues(alpha: isDark ? 0.55 : 0.2),
+            borderRadius: BorderRadius.circular(32),
+            clipBehavior: Clip.antiAlias,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(
+                      color: scheme.outline.withValues(alpha: isDark ? 0.35 : 0.22),
+                      width: 1,
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        scheme.surface.withValues(alpha: isDark ? 0.52 : 0.86),
+                        scheme.surface.withValues(alpha: isDark ? 0.38 : 0.78),
+                      ],
+                    ),
+                  ),
+                  child: SizedBox(
+                    height: barHeight,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      fit: StackFit.expand,
                       children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: isSelected ? item.color.withValues(alpha: 0.15) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                item.icon,
-                                size: 24,
-                                color: isSelected ? item.color : context.appTextSecondary,
-                              ),
+                        AnimatedPositionedDirectional(
+                          duration: const Duration(milliseconds: animMs),
+                          curve: const Cubic(0.22, 1, 0.36, 1),
+                          top: pillTop,
+                          start: selectedIndex * slotW + slotInset,
+                          width: pillW,
+                          height: pillHeight,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(26),
+                              color: activeColor.withValues(alpha: isDark ? 0.34 : 0.22),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: activeColor.withValues(alpha: 0.35),
+                                  blurRadius: 14,
+                                  spreadRadius: -2,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
                             ),
-                            if (item.badge > 0)
-                              Positioned(
-                                top: -2,
-                                right: -4,
-                                child: Container(
-                                  width: 15,
-                                  height: 15,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: context.badgeBorderOnNav, width: 1.5),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      item.badge > 9 ? '9+' : '${item.badge}',
-                                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                                    ),
+                          ),
+                        ),
+                        Row(
+                          children: List.generate(items.length, (i) {
+                            final item = items[i];
+                            final isSelected = selectedIndex == i;
+                            return Expanded(
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    HapticFeedback.lightImpact();
+                                    switch (i) {
+                                      case 0:
+                                        setState(() => _notificationsTabHighlighted = false);
+                                        context.go('/home');
+                                        break;
+                                      case 1:
+                                        setState(() => _notificationsTabHighlighted = false);
+                                        context.goNamed('history');
+                                        break;
+                                      case 2:
+                                        setState(() => _notificationsTabHighlighted = false);
+                                        context.goNamed('balance');
+                                        break;
+                                      case 3:
+                                        setState(() => _notificationsTabHighlighted = true);
+                                        _showNotificationsSheet(context, ref);
+                                        break;
+                                    }
+                                  },
+                                  splashColor: item.color.withValues(alpha: 0.18),
+                                  highlightColor: item.color.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(26),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      AnimatedScale(
+                                        scale: isSelected ? 1.1 : 1.0,
+                                        duration: const Duration(milliseconds: animMs),
+                                        curve: const Cubic(0.22, 1, 0.36, 1),
+                                        child: Stack(
+                                          clipBehavior: Clip.none,
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Icon(
+                                              item.icon,
+                                              size: 24,
+                                              color: isSelected
+                                                  ? item.color
+                                                  : context.appTextSecondary,
+                                            ),
+                                            if (item.badge > 0)
+                                              PositionedDirectional(
+                                                top: -6,
+                                                end: -10,
+                                                child: Container(
+                                                  constraints: const BoxConstraints(
+                                                    minWidth: 17,
+                                                    minHeight: 17,
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFEF4444),
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color: context.badgeBorderOnNav,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  child: Center(
+                                                    child: Text(
+                                                      item.badge > 9 ? '9+' : '${item.badge}',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      AnimatedDefaultTextStyle(
+                                        duration: const Duration(milliseconds: animMs),
+                                        curve: Curves.easeOutCubic,
+                                        style: TextStyle(
+                                          fontSize: isSelected ? 11.5 : 10,
+                                          height: 1.05,
+                                          letterSpacing: -0.25,
+                                          fontWeight:
+                                              isSelected ? FontWeight.w800 : FontWeight.w500,
+                                          color: isSelected
+                                              ? item.color
+                                              : context.appTextSecondary.withValues(alpha: 0.82),
+                                        ),
+                                        child: Text(
+                                          item.label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
-                        AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 200),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                            color: isSelected ? item.color : context.appTextSecondary,
-                          ),
-                          child: Text(item.label),
+                            );
+                          }),
                         ),
                       ],
                     ),
                   ),
                 ),
-              );
-            }),
-          ),
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

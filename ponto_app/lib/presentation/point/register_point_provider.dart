@@ -11,7 +11,15 @@ import '../../services/device_service.dart';
 import '../../services/wifi_service.dart';
 import '../../core/errors/app_exception.dart';
 
-enum RegisterPointStatus { idle, loadingLocation, takingPhoto, uploading, success, error, offline }
+enum RegisterPointStatus {
+  idle,
+  loadingLocation,
+  takingPhoto,
+  uploading,
+  success,
+  error,
+  offline
+}
 
 /// Resultado da validação de políticas da empresa.
 enum PolicyCheckResult {
@@ -132,8 +140,8 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
       final multiGeofences = company.geofences;
       if (multiGeofences.isNotEmpty) {
         // Passa se estiver dentro de QUALQUER geocerca activa
-        final insideAny = multiGeofences.any((g) =>
-          _locationService.isWithinGeofence(
+        final insideAny = multiGeofences.any(
+          (g) => _locationService.isWithinGeofence(
             userLat: loc.latitude,
             userLon: loc.longitude,
             centerLat: g.latitude,
@@ -163,7 +171,8 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
 
     // 4. Wi-Fi obrigatório
     if (company.requireWifi) {
-      final allowed = await _wifiService.isSsidAllowed(company.allowedWifiSsids);
+      final allowed =
+          await _wifiService.isSsidAllowed(company.allowedWifiSsids);
       if (!allowed) return PolicyCheckResult.wifiMismatch;
     }
 
@@ -172,11 +181,17 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
 
   /// Calcula velocidade (km/h) desde o último ponto registado.
   double? _calcSpeedKmh(LocationResult? location) {
-    if (location == null || _lastLat == null || _lastLon == null || _lastPointTime == null) {
+    if (location == null ||
+        _lastLat == null ||
+        _lastLon == null ||
+        _lastPointTime == null) {
       return null;
     }
     final distanceM = _locationService.distanceBetween(
-      _lastLat!, _lastLon!, location.latitude, location.longitude,
+      _lastLat!,
+      _lastLon!,
+      location.latitude,
+      location.longitude,
     );
     final seconds = DateTime.now().difference(_lastPointTime!).inSeconds;
     if (seconds <= 0) return null;
@@ -184,7 +199,8 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
   }
 
   Future<bool> register(String type, {File? photo}) async {
-    state = state.copyWith(status: RegisterPointStatus.loadingLocation, errorMessage: null);
+    state = state.copyWith(
+        status: RegisterPointStatus.loadingLocation, errorMessage: null);
 
     // 1. Capturar localização
     final location = await _locationService.getCurrentLocation();
@@ -222,7 +238,8 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
         _lastPointTime = DateTime.now();
       }
 
-      state = state.copyWith(status: RegisterPointStatus.success, result: record);
+      state =
+          state.copyWith(status: RegisterPointStatus.success, result: record);
       return true;
     } on AppException catch (e) {
       if (e.isNetwork) {
@@ -230,7 +247,8 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
         await _saveOffline(type, location, deviceId, photo);
         state = state.copyWith(
           status: RegisterPointStatus.offline,
-          errorMessage: 'Sem conexão. Ponto salvo localmente e será sincronizado.',
+          errorMessage:
+              'Sem conexão. Ponto salvo localmente e será sincronizado.',
         );
         return true;
       }
@@ -279,7 +297,8 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
         final dbPath = await getDatabasesPath();
         final offlineDir = Directory(join(dbPath, 'offline_photos'));
         if (!offlineDir.existsSync()) offlineDir.createSync(recursive: true);
-        final dest = File(join(offlineDir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg'));
+        final dest = File(join(
+            offlineDir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg'));
         await photo.copy(dest.path);
         persistedPath = dest.path;
       } catch (_) {
@@ -323,14 +342,17 @@ class RegisterPointNotifier extends StateNotifier<RegisterPointState> {
       await _localDb.markAllAsSynced(syncedIds);
       await _localDb.clearSynced();
 
-      return {'synced': result['registered'] ?? 0, 'failed': result['failed'] ?? 0};
+      return {
+        'synced': result['registered'] ?? 0,
+        'failed': result['failed'] ?? 0
+      };
     } catch (_) {
       return {'synced': 0, 'failed': pending.length};
     }
   }
 
   static String _fmtLocal(DateTime dt) {
-    final p = (int n, [int w = 2]) => n.toString().padLeft(w, '0');
+    String p(int n, [int w = 2]) => n.toString().padLeft(w, '0');
     return '${p(dt.year, 4)}-${p(dt.month)}-${p(dt.day)}T${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
   }
 
@@ -352,4 +374,3 @@ final pendingOfflineCountProvider = FutureProvider<int>((ref) async {
   final db = ref.read(localDatabaseProvider);
   return db.getPendingCount();
 });
-

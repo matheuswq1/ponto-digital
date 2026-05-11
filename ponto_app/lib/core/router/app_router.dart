@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +19,7 @@ import '../../presentation/balance/request_leave_screen.dart';
 import '../../presentation/communications/communications_screen.dart';
 import '../../presentation/payslips/payslips_screen.dart';
 import '../../presentation/vacation/vacation_screen.dart';
+import '../../presentation/pay_period/pay_period_screen.dart';
 import '../../data/models/time_record_model.dart';
 import '../../data/models/hour_bank_request_model.dart';
 
@@ -106,7 +106,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                 position: Tween<Offset>(
                   begin: const Offset(0, 1),
                   end: Offset.zero,
-                ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+                ).animate(
+                    CurvedAnimation(parent: animation, curve: Curves.easeOut)),
                 child: child,
               ),
             ),
@@ -144,11 +145,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               return CustomTransitionPage(
                 key: state.pageKey,
                 child: RequestEditScreen(record: record),
-                transitionsBuilder: (_, animation, __, child) => SlideTransition(
+                transitionsBuilder: (_, animation, __, child) =>
+                    SlideTransition(
                   position: Tween<Offset>(
                     begin: const Offset(0, 0.1),
                     end: Offset.zero,
-                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+                  ).animate(CurvedAnimation(
+                      parent: animation, curve: Curves.easeOut)),
                   child: child,
                 ),
               );
@@ -162,11 +165,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               return CustomTransitionPage(
                 key: state.pageKey,
                 child: RequestAddPointScreen(suggestedDate: suggestedDate),
-                transitionsBuilder: (_, animation, __, child) => SlideTransition(
+                transitionsBuilder: (_, animation, __, child) =>
+                    SlideTransition(
                   position: Tween<Offset>(
                     begin: const Offset(0, 0.1),
                     end: Offset.zero,
-                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+                  ).animate(CurvedAnimation(
+                      parent: animation, curve: Curves.easeOut)),
                   child: child,
                 ),
               );
@@ -188,6 +193,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const VacationScreen(),
           ),
           GoRoute(
+            path: 'pay-periods',
+            name: 'pay-periods',
+            builder: (_, __) => const PayPeriodsScreen(),
+          ),
+          GoRoute(
+            path: 'pay-period-detail/:closureId',
+            name: 'pay-period-detail',
+            builder: (context, state) {
+              final id = int.tryParse(
+                      state.pathParameters['closureId'] ?? '') ??
+                  0;
+              return PayPeriodDetailScreen(closureId: id);
+            },
+          ),
+          GoRoute(
             path: 'request-leave',
             name: 'request-leave',
             pageBuilder: (context, state) {
@@ -195,11 +215,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               return CustomTransitionPage(
                 key: state.pageKey,
                 child: RequestLeaveScreen(balance: balance),
-                transitionsBuilder: (_, animation, __, child) => SlideTransition(
+                transitionsBuilder: (_, animation, __, child) =>
+                    SlideTransition(
                   position: Tween<Offset>(
                     begin: const Offset(0, 1),
                     end: Offset.zero,
-                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+                  ).animate(CurvedAnimation(
+                      parent: animation, curve: Curves.easeOut)),
                   child: child,
                 ),
               );
@@ -210,4 +232,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-

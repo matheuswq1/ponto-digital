@@ -128,7 +128,8 @@ class TimeRecordDatasource {
   }
 
   /// Lista solicitações de correção (minhas, ou todas para gestor/admin no backend)
-  Future<Map<String, dynamic>> getEditRequests({String? status, int page = 1}) async {
+  Future<Map<String, dynamic>> getEditRequests(
+      {String? status, int page = 1}) async {
     try {
       final response = await _api.get('/edit-requests', params: {
         if (status != null) 'status': status,
@@ -147,7 +148,8 @@ class TimeRecordDatasource {
   }
 
   /// Sincroniza pontos offline. Se o registo tiver photo_path, envia como FormData multipart.
-  Future<Map<String, dynamic>> syncOffline(List<Map<String, dynamic>> records) async {
+  Future<Map<String, dynamic>> syncOffline(
+      List<Map<String, dynamic>> records) async {
     try {
       // Verificar se algum registo tem foto para enviar como multipart
       final hasPhotos = records.any((r) => r['photo_path'] != null);
@@ -182,7 +184,9 @@ class TimeRecordDatasource {
           synced++;
           // Limpar foto local após sync bem-sucedido
           if (photo != null && photo.existsSync()) {
-            try { photo.deleteSync(); } catch (_) {}
+            try {
+              photo.deleteSync();
+            } catch (_) {}
           }
         } catch (_) {
           failed++;
@@ -196,7 +200,7 @@ class TimeRecordDatasource {
 
   /// Formata DateTime como string sem timezone (hora local) para enviar à API.
   static String _fmtLocal(DateTime dt) {
-    final p = (int n, [int w = 2]) => n.toString().padLeft(w, '0');
+    String p(int n, [int w = 2]) => n.toString().padLeft(w, '0');
     return '${p(dt.year, 4)}-${p(dt.month)}-${p(dt.day)}T${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
   }
 
@@ -208,4 +212,3 @@ class TimeRecordDatasource {
     return AppException.unknown(e.toString());
   }
 }
-

@@ -84,6 +84,11 @@ class Company extends Model
         return $this->hasMany(Employee::class)->where('active', true);
     }
 
+    public function payPeriodClosures(): HasMany
+    {
+        return $this->hasMany(PayPeriodClosure::class);
+    }
+
     public function fraudAttempts(): HasMany
     {
         return $this->hasMany(FraudAttempt::class);

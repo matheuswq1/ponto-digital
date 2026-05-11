@@ -1,24 +1,30 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/network/api_client.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_exception.dart';
+import '../../core/network/api_client.dart';
+import '../../core/storage/secure_storage_service.dart';
 import '../models/user_model.dart';
 
 final authDatasourceProvider = Provider<AuthDatasource>(
-  (ref) => AuthDatasource(ref.read(apiClientProvider)),
+  (ref) => AuthDatasource(
+    ref.read(apiClientProvider),
+    ref.read(secureStorageServiceProvider),
+  ),
 );
 
 class AuthDatasource {
   final ApiClient _api;
+  final SecureStorageService _secureStorage;
 
-  AuthDatasource(this._api);
+  AuthDatasource(this._api, this._secureStorage);
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final deviceName = prefs.getString(AppConstants.deviceNameKey) ?? 'Flutter App';
+      final deviceName =
+          prefs.getString(AppConstants.deviceNameKey) ?? 'Flutter App';
 
       final response = await _api.post('/login', data: {
         'email': email,
@@ -30,8 +36,8 @@ class AuthDatasource {
       final user = UserModel.fromJson(response.data['user']);
       final faceEnrolled = response.data['face_enrolled'] as bool? ?? false;
 
-      await prefs.setString(AppConstants.tokenKey, token);
-      await prefs.setString(AppConstants.userKey, user.toJsonString());
+      await _secureStorage.writeToken(token);
+      await _secureStorage.writeUserJson(user.toJsonString());
 
       return {'token': token, 'user': user, 'face_enrolled': faceEnrolled};
     } catch (e) {
@@ -45,60 +51,40 @@ class AuthDatasource {
     } catch (_) {
       // Mesmo com erro, limpa o token local
     } finally {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(AppConstants.tokenKey);
-      await prefs.remove(AppConstants.userKey);
+      await _secureStorage.clearSession();
     }
   }
 
   Future<UserModel?> getStoredUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString(AppConstants.userKey);
+    final userJson = await _secureStorage.readUserJson();
     if (userJson == null) return null;
     return UserModel.fromJsonString(userJson);
   }
 
   Future<bool> hasToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(AppConstants.tokenKey) != null;
+    return await _secureStorage.readToken() != null;
   }
 
-  /// Salva as credenciais localmente para o "Lembrar de mim".
+  /// Salva as credenciais em armazenamento seguro para o "Lembrar de mim".
   /// Guarda também o nome do utilizador para exibição segura na tela de login.
   Future<void> saveCredentials(String email, String password,
       {String? name}) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(AppConstants.rememberMeKey, true);
-    await prefs.setString(AppConstants.savedEmailKey, email);
-    await prefs.setString(AppConstants.savedPasswordKey, password);
-    if (name != null) {
-      await prefs.setString(AppConstants.savedNameKey, name);
-    }
+    await _secureStorage.saveCredentials(email, password, name: name);
   }
 
   /// Remove as credenciais salvas.
   Future<void> clearCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AppConstants.rememberMeKey);
-    await prefs.remove(AppConstants.savedEmailKey);
-    await prefs.remove(AppConstants.savedPasswordKey);
-    await prefs.remove(AppConstants.savedNameKey);
+    await _secureStorage.clearCredentials();
   }
 
   /// Retorna as credenciais salvas ou null se não houver.
   Future<Map<String, String>?> getSavedCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    final remember = prefs.getBool(AppConstants.rememberMeKey) ?? false;
-    if (!remember) return null;
-    final email = prefs.getString(AppConstants.savedEmailKey);
-    final password = prefs.getString(AppConstants.savedPasswordKey);
-    final name = prefs.getString(AppConstants.savedNameKey);
-    if (email == null || password == null) return null;
-    return {'email': email, 'password': password, if (name != null) 'name': name};
+    return _secureStorage.getSavedCredentials();
   }
 
   /// Regista token FCM no Laravel (chame após [firebase_messaging] obter o token).
-  Future<void> registerDeviceToken(String token, {String platform = 'android'}) async {
+  Future<void> registerDeviceToken(String token,
+      {String platform = 'android'}) async {
     await _api.post('/device-tokens', data: {
       'token': token,
       'platform': platform,
@@ -124,14 +110,14 @@ class AuthDatasource {
 
   /// Persiste dados do utilizador no armazenamento local (para sessão offline).
   Future<void> persistUser(UserModel user) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(AppConstants.userKey, user.toJsonString());
+    await _secureStorage.writeUserJson(user.toJsonString());
   }
 
   AppException _handleError(dynamic e) {
     if (e is AppException) return e;
-    if (e is DioException && e.error is AppException) return e.error as AppException;
+    if (e is DioException && e.error is AppException) {
+      return e.error as AppException;
+    }
     return AppException.unknown(e.toString());
   }
 }
-

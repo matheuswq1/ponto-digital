@@ -4,16 +4,19 @@ import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 import '../errors/app_exception.dart';
+import '../storage/secure_storage_service.dart';
 
-final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+final apiClientProvider = Provider<ApiClient>(
+  (ref) => ApiClient(ref.read(secureStorageServiceProvider)),
+);
 
 class ApiClient {
+  final SecureStorageService _secureStorage;
   late final Dio _dio;
 
-  ApiClient() {
+  ApiClient(this._secureStorage) {
     _dio = Dio(BaseOptions(
       baseUrl: AppConstants.baseUrl,
       connectTimeout: Duration(seconds: AppConstants.connectTimeout),
@@ -26,18 +29,23 @@ class ApiClient {
     ));
 
     _dio.interceptors.addAll([
-      _AuthInterceptor(),
-      PrettyDioLogger(
-        requestHeader: false,
-        requestBody: true,
-        responseBody: true,
-        error: true,
-        compact: true,
-      ),
+      _AuthInterceptor(_secureStorage),
+      if (kDebugMode)
+        PrettyDioLogger(
+          requestHeader: false,
+          requestBody: true,
+          responseBody: true,
+          error: true,
+          compact: true,
+        ),
       _ErrorInterceptor(),
     ]);
 
-    // Em debug, aceita qualquer certificado para dev local (HTTP/HTTPS)
+    _allowBadCertificatesForDebug();
+  }
+
+  // Em debug, aceita qualquer certificado para dev local (HTTP/HTTPS)
+  void _allowBadCertificatesForDebug() {
     if (kDebugMode && _dio.httpClientAdapter is IOHttpClientAdapter) {
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
@@ -47,7 +55,10 @@ class ApiClient {
     }
   }
 
-  Dio get dio => _dio;
+  Dio get dio {
+    _allowBadCertificatesForDebug();
+    return _dio;
+  }
 
   Future<Response> get(String path, {Map<String, dynamic>? params}) =>
       _dio.get(path, queryParameters: params);
@@ -63,10 +74,14 @@ class ApiClient {
 }
 
 class _AuthInterceptor extends Interceptor {
+  final SecureStorageService _secureStorage;
+
+  _AuthInterceptor(this._secureStorage);
+
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(AppConstants.tokenKey);
+  void onRequest(
+      RequestOptions options, RequestInterceptorHandler handler) async {
+    final token = await _secureStorage.readToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
@@ -101,10 +116,17 @@ class _ErrorInterceptor extends Interceptor {
           err.type == DioExceptionType.receiveTimeout ||
           err.type == DioExceptionType.sendTimeout;
 
-      final isCleartext = causeStr.contains('cleartext') || causeStr.contains('plain text');
-      final isRefused   = causeStr.contains('refused') || causeStr.contains('econnrefused');
-      final isHandshake = causeStr.contains('handshake') || causeStr.contains('certificate') || causeStr.contains('ssl') || causeStr.contains('tls');
-      final isHost      = causeStr.contains('failed host lookup') || causeStr.contains('no address') || causeStr.contains('socketexception');
+      final isCleartext =
+          causeStr.contains('cleartext') || causeStr.contains('plain text');
+      final isRefused =
+          causeStr.contains('refused') || causeStr.contains('econnrefused');
+      final isHandshake = causeStr.contains('handshake') ||
+          causeStr.contains('certificate') ||
+          causeStr.contains('ssl') ||
+          causeStr.contains('tls');
+      final isHost = causeStr.contains('failed host lookup') ||
+          causeStr.contains('no address') ||
+          causeStr.contains('socketexception');
 
       String msg;
       if (isCleartext) {
@@ -130,8 +152,11 @@ class _ErrorInterceptor extends Interceptor {
     }
 
     final data = response.data;
-    final message = data is Map ? (data['message'] ?? 'Erro desconhecido.') : 'Erro desconhecido.';
-    final errors = data is Map ? (data['errors'] as Map<String, dynamic>?) : null;
+    final message = data is Map
+        ? (data['message'] ?? 'Erro desconhecido.')
+        : 'Erro desconhecido.';
+    final errors =
+        data is Map ? (data['errors'] as Map<String, dynamic>?) : null;
 
     switch (response.statusCode) {
       case 401:

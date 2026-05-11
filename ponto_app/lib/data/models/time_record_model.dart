@@ -11,6 +11,7 @@ class TimeRecordModel {
   final bool isMockLocation;
   final bool offline;
   final bool isEdited;
+
   /// Verdadeiro se já existe uma solicitação de correção PENDENTE para este registo.
   final bool hasPendingEdit;
   final String? deviceId;
@@ -35,7 +36,7 @@ class TimeRecordModel {
   /// Horário formatado no fuso do dispositivo: "dd/MM/yyyy HH:mm:ss"
   String get datetimeLocal {
     final d = datetime; // já está em local após .toLocal() no fromJson
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}:${pad(d.second)}';
   }
 
@@ -65,7 +66,9 @@ class TimeRecordModel {
   /// Forçamos a criação como hora local directamente.
   static DateTime _parseLocalDatetime(String raw) {
     // Remove qualquer sufixo de fuso que possa ter escapado do backend
-    final clean = raw.replaceAll(RegExp(r'[Zz]$'), '').replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), '');
+    final clean = raw
+        .replaceAll(RegExp(r'[Zz]$'), '')
+        .replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), '');
     final parts = clean.split(RegExp(r'[T ]'));
     final dateParts = parts[0].split('-');
     final timeParts = (parts.length > 1 ? parts[1] : '00:00:00').split(':');
@@ -92,7 +95,8 @@ class TimeRecordModel {
         'employee_id': employeeId,
         'type': type,
         'type_label': typeLabel,
-        'datetime': '${datetime.year.toString().padLeft(4,'0')}-${datetime.month.toString().padLeft(2,'0')}-${datetime.day.toString().padLeft(2,'0')}T${datetime.hour.toString().padLeft(2,'0')}:${datetime.minute.toString().padLeft(2,'0')}:${datetime.second.toString().padLeft(2,'0')}',
+        'datetime':
+            '${datetime.year.toString().padLeft(4, '0')}-${datetime.month.toString().padLeft(2, '0')}-${datetime.day.toString().padLeft(2, '0')}T${datetime.hour.toString().padLeft(2, '0')}:${datetime.minute.toString().padLeft(2, '0')}:${datetime.second.toString().padLeft(2, '0')}',
         'location': {
           'latitude': latitude,
           'longitude': longitude,
@@ -109,7 +113,8 @@ class TimeRecordModel {
   Map<String, dynamic> toLocalDb() => {
         'employee_id': employeeId,
         'type': type,
-        'datetime': '${datetime.year.toString().padLeft(4,'0')}-${datetime.month.toString().padLeft(2,'0')}-${datetime.day.toString().padLeft(2,'0')}T${datetime.hour.toString().padLeft(2,'0')}:${datetime.minute.toString().padLeft(2,'0')}:${datetime.second.toString().padLeft(2,'0')}',
+        'datetime':
+            '${datetime.year.toString().padLeft(4, '0')}-${datetime.month.toString().padLeft(2, '0')}-${datetime.day.toString().padLeft(2, '0')}T${datetime.hour.toString().padLeft(2, '0')}:${datetime.minute.toString().padLeft(2, '0')}:${datetime.second.toString().padLeft(2, '0')}',
         'latitude': latitude,
         'longitude': longitude,
         'photo_url': photoUrl,
@@ -118,7 +123,8 @@ class TimeRecordModel {
         'synced': 0,
       };
 
-  TimeRecordModel copyWith({String? photoUrl, bool? offline}) => TimeRecordModel(
+  TimeRecordModel copyWith({String? photoUrl, bool? offline}) =>
+      TimeRecordModel(
         id: id,
         employeeId: employeeId,
         type: type,
@@ -153,7 +159,8 @@ class TodayStatusModel {
     this.maxDailyRecords = 10,
   });
 
-  factory TodayStatusModel.fromJson(Map<String, dynamic> json) => TodayStatusModel(
+  factory TodayStatusModel.fromJson(Map<String, dynamic> json) =>
+      TodayStatusModel(
         date: json['date'],
         records: (json['records'] as List)
             .map((r) => TimeRecordModel.fromJson(r))
@@ -185,4 +192,3 @@ class TodayStatusModel {
     return result;
   }
 }
-

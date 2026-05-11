@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\HourBankController;
+use App\Http\Controllers\Api\PayPeriodClosureController;
 use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TimeRecordAdditionController;
@@ -110,6 +111,20 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/reports/tolerance-summary', [ReportController::class, 'toleranceSummary'])
             ->name('api.reports.tolerance-summary');
+
+        // Fecho de período (espelho de ponto) — funcionário consulta/aprova; gestor fecha período
+        Route::prefix('pay-period-closures')->group(function () {
+            Route::get('/mine', [PayPeriodClosureController::class, 'mine'])->name('api.pay-period-closures.mine');
+            Route::get('/{pay_period_closure}/mine-detail', [PayPeriodClosureController::class, 'mineDetail'])
+                ->name('api.pay-period-closures.mine-detail');
+            Route::post('/{pay_period_closure}/respond', [PayPeriodClosureController::class, 'respond'])
+                ->name('api.pay-period-closures.respond');
+
+            Route::middleware('can:manage-employees')->group(function () {
+                Route::get('/', [PayPeriodClosureController::class, 'index'])->name('api.pay-period-closures.index');
+                Route::post('/', [PayPeriodClosureController::class, 'store'])->name('api.pay-period-closures.store');
+            });
+        });
 
         // Funcionários (admin/gestor)
         Route::middleware('can:manage-employees')->group(function () {

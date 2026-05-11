@@ -78,6 +78,11 @@ class Employee extends Model
         return $this->hasMany(WorkSchedule::class);
     }
 
+    public function payPeriodAcknowledgements(): HasMany
+    {
+        return $this->hasMany(EmployeePayPeriodAcknowledgement::class);
+    }
+
     public function hourBankTransactions(): HasMany
     {
         return $this->hasMany(HourBankTransaction::class);
@@ -113,8 +118,9 @@ class Employee extends Model
     public function getHourBankBalanceFormattedAttribute(): string
     {
         $minutes = $this->hour_bank_balance_minutes;
-        $sign    = $minutes >= 0 ? '+' : '-';
-        $abs     = abs($minutes);
+        $sign = $minutes >= 0 ? '+' : '-';
+        $abs = abs($minutes);
+
         return sprintf('%s%02d:%02d', $sign, intdiv($abs, 60), $abs % 60);
     }
 

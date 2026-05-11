@@ -3,9 +3,14 @@ import '../../data/datasources/work_day_datasource.dart';
 import '../../data/models/work_day_model.dart';
 import '../../core/errors/app_exception.dart';
 
-final selectedMonthProvider = StateProvider<DateTime>((_) => DateTime.now());
+/// Primeiro dia do mês corrente — evita inconsistências ao mudar mês (dia 31 → mês seguinte).
+final selectedMonthProvider = StateProvider<DateTime>((_) {
+  final n = DateTime.now();
+  return DateTime(n.year, n.month);
+});
 
-final monthSummaryProvider = FutureProvider.autoDispose.family<MonthSummaryModel, DateTime>(
+final monthSummaryProvider =
+    FutureProvider.autoDispose.family<MonthSummaryModel, DateTime>(
   (ref, date) async {
     final datasource = ref.read(workDayDatasourceProvider);
     try {
@@ -15,4 +20,3 @@ final monthSummaryProvider = FutureProvider.autoDispose.family<MonthSummaryModel
     }
   },
 );
-

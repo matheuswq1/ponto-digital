@@ -31,7 +31,7 @@ class NotificationsNotifier extends StateNotifier<List<AppNotification>> {
   NotificationsNotifier() : super([]);
 
   void add(AppNotification notification) {
-    state = [notification, ...state.take(49).toList()];
+    state = [notification, ...state.take(49)];
   }
 
   void markAllRead() {

@@ -357,17 +357,27 @@ class _SaldoCard extends StatelessWidget {
               style: TextStyle(
                   color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
-          Text(balance.formatted,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1)),
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(balance.formatted,
+                  maxLines: 1,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1)),
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             balance.isPositive
                 ? '${(balance.totalMinutes ~/ 60)}h ${balance.totalMinutes % 60}min em crédito'
                 : 'Saldo negativo — solicitações não permitidas',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ],
@@ -425,10 +435,14 @@ class _HourPicker extends StatelessWidget {
             ),
             Expanded(
               child: Center(
-                child: Text(
-                  value.toString().padLeft(2, '0'),
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value.toString().padLeft(2, '0'),
+                    maxLines: 1,
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ),
