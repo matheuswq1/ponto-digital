@@ -110,6 +110,32 @@ class PayPeriodClosureController extends Controller
     }
 
     /**
+     * Remove o fecho apenas se todos os colaboradores ainda estiverem pendentes.
+     */
+    public function destroy(Request $request, PayPeriodClosure $payPeriodClosure): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->isAdmin()) {
+            if ($user->company_id !== null && (int) $payPeriodClosure->company_id !== (int) $user->company_id) {
+                return response()->json(['message' => 'Período não encontrado.'], 404);
+            }
+        } elseif (! $user->company_id || (int) $payPeriodClosure->company_id !== (int) $user->company_id) {
+            return response()->json(['message' => 'Período não encontrado.'], 404);
+        }
+
+        if (! $payPeriodClosure->canDeleteWhileAllPending()) {
+            return response()->json([
+                'message' => 'Só é possível excluir enquanto todos os colaboradores estiverem pendentes.',
+            ], 422);
+        }
+
+        $payPeriodClosure->delete();
+
+        return response()->json(['message' => 'Fecho removido.']);
+    }
+
+    /**
      * Lista reconhecimentos do funcionário autenticado.
      */
     public function mine(Request $request): JsonResponse
@@ -251,16 +277,21 @@ class PayPeriodClosureController extends Controller
      */
     private function closurePayload(PayPeriodClosure $c): array
     {
+        $pending = (int) ($c->pending_count ?? 0);
+        $approved = (int) ($c->approved_count ?? 0);
+        $rejected = (int) ($c->rejected_count ?? 0);
+
         return [
             'id' => $c->id,
             'period_start' => $c->period_start->toDateString(),
             'period_end' => $c->period_end->toDateString(),
             'notes' => $c->notes,
             'closed_at' => $c->closed_at->toIso8601String(),
-            'pending_count' => (int) ($c->pending_count ?? 0),
-            'approved_count' => (int) ($c->approved_count ?? 0),
-            'rejected_count' => (int) ($c->rejected_count ?? 0),
-            'people_total' => (int) ($c->people_total ?? (($c->pending_count ?? 0) + ($c->approved_count ?? 0) + ($c->rejected_count ?? 0))),
+            'pending_count' => $pending,
+            'approved_count' => $approved,
+            'rejected_count' => $rejected,
+            'people_total' => (int) ($c->people_total ?? ($pending + $approved + $rejected)),
+            'deletable_all_pending' => $pending > 0 && $approved === 0 && $rejected === 0,
         ];
     }
 

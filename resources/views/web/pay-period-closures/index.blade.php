@@ -6,7 +6,7 @@
 
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
     <div>
-        <p class="text-sm text-slate-500">Feche um período para que os colaboradores aceitem ou rejeitem o espelho na app. Pode fechar para toda a empresa, só por departamento(s) ou colaboradores à escolha.</p>
+        <p class="text-sm text-slate-500">Feche um período para que os colaboradores aceitem ou rejeitem o espelho na app. Pode fechar para toda a empresa, só por departamento(s) ou colaboradores à escolha. Enquanto todos estiverem pendentes (ninguém aceitou nem contestou), pode usar «Excluir» na tabela para remover o fecho; até lá, o colaborador continua a ver o lembrete ao abrir a app.</p>
         @if(! auth()->user()->isAdmin() && auth()->user()->company)
             <p class="text-xs text-slate-400 mt-1">{{ auth()->user()->company->name }}</p>
         @endif
@@ -183,6 +183,7 @@
                     <th class="px-4 py-3 text-center">Pend.</th>
                     <th class="px-4 py-3 text-center">Aprov.</th>
                     <th class="px-4 py-3 text-center">Rej.</th>
+                    <th class="px-4 py-3 text-right">Acções</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -207,6 +208,20 @@
                     </td>
                     <td class="px-4 py-3 text-center">
                         <span class="inline-flex min-w-[2rem] justify-center rounded-full bg-rose-100 text-rose-800 text-xs font-semibold px-2 py-0.5">{{ $c->rejected_count }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-right align-middle">
+                        @if($c->pending_count > 0 && $c->approved_count == 0 && $c->rejected_count == 0)
+                            <form method="post" action="{{ route('painel.pay-period-closures.destroy', $c) }}" class="inline"
+                                  onsubmit="return confirm('Remover este fecho? Os colaboradores deixam de ver este espelho pendente na app.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:underline">
+                                    Excluir
+                                </button>
+                            </form>
+                        @else
+                            <span class="text-xs text-slate-400">—</span>
+                        @endif
                     </td>
                 </tr>
                 @endforeach

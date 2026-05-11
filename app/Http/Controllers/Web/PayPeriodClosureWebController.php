@@ -156,4 +156,32 @@ class PayPeriodClosureWebController extends Controller
             ->route('painel.pay-period-closures.index')
             ->with('success', 'Período fechado. Os colaboradores podem consultar e responder ao espelho na app.');
     }
+
+    public function destroy(Request $request, PayPeriodClosure $payPeriodClosure): RedirectResponse
+    {
+        $this->authorize('manage-employees');
+
+        $user = $request->user();
+
+        if (! $user->isAdmin()) {
+            abort_unless(
+                $user->company_id && (int) $payPeriodClosure->company_id === (int) $user->company_id,
+                403,
+                'Sem permissão para este fecho.'
+            );
+        }
+
+        if (! $payPeriodClosure->canDeleteWhileAllPending()) {
+            return back()->with(
+                'error',
+                'Só é possível excluir enquanto todos os colaboradores estiverem pendentes (ninguém aceitou nem contestou).'
+            );
+        }
+
+        $payPeriodClosure->delete();
+
+        return redirect()
+            ->route('painel.pay-period-closures.index')
+            ->with('success', 'Fecho removido. Os colaboradores deixam de ver este espelho na app.');
+    }
 }

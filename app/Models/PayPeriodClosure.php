@@ -40,4 +40,18 @@ class PayPeriodClosure extends Model
     {
         return $this->hasMany(EmployeePayPeriodAcknowledgement::class);
     }
+
+    /**
+     * Permite anular o fecho no painel: só enquanto ninguém aceitou nem contestou.
+     */
+    public function canDeleteWhileAllPending(): bool
+    {
+        if (! $this->acknowledgements()->exists()) {
+            return false;
+        }
+
+        return ! $this->acknowledgements()
+            ->where('status', '!=', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE)
+            ->exists();
+    }
 }

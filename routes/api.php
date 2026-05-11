@@ -123,6 +123,7 @@ Route::prefix('v1')->group(function () {
             Route::middleware('can:manage-employees')->group(function () {
                 Route::get('/', [PayPeriodClosureController::class, 'index'])->name('api.pay-period-closures.index');
                 Route::post('/', [PayPeriodClosureController::class, 'store'])->name('api.pay-period-closures.store');
+                Route::delete('/{pay_period_closure}', [PayPeriodClosureController::class, 'destroy'])->name('api.pay-period-closures.destroy');
             });
         });
 

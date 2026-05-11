@@ -99,6 +99,7 @@ Route::middleware('auth')->group(function () {
         // Fechos do espelho de ponto (app)
         Route::get('/fechos-espelho', [PayPeriodClosureWebController::class, 'index'])->name('pay-period-closures.index');
         Route::post('/fechos-espelho', [PayPeriodClosureWebController::class, 'store'])->name('pay-period-closures.store');
+        Route::delete('/fechos-espelho/{payPeriodClosure}', [PayPeriodClosureWebController::class, 'destroy'])->name('pay-period-closures.destroy');
 
         // Empresas (apenas admin)
         Route::get('/empresas', [CompanyWebController::class, 'index'])->name('companies.index');
