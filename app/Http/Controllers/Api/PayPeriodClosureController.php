@@ -10,6 +10,7 @@ use App\Services\PayPeriodClosureService;
 use App\Services\WorkDayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PayPeriodClosureController extends Controller
 {
@@ -34,6 +35,7 @@ class PayPeriodClosureController extends Controller
                 'acknowledgements as pending_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE),
                 'acknowledgements as approved_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_APROVADO),
                 'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO),
+                'acknowledgements as people_total',
             ])
             ->orderByDesc('period_end')
             ->paginate(min((int) $request->query('per_page', 20), 100));
@@ -49,7 +51,7 @@ class PayPeriodClosureController extends Controller
     }
 
     /**
-     * Cria fecho de período e linhas «pendente» para todos os funcionários activos.
+     * Cria fecho de período e linhas «pendente» (empresa inteira, departamentos ou colaboradores).
      */
     public function store(Request $request): JsonResponse
     {
@@ -62,20 +64,43 @@ class PayPeriodClosureController extends Controller
             'period_start' => 'required|date',
             'period_end' => 'required|date|after_or_equal:period_start',
             'notes' => 'nullable|string|max:5000',
+            'closure_scope' => 'sometimes|in:company,departments,employees',
+            'department_ids' => 'exclude_unless:closure_scope,departments|required|array|min:1',
+            'department_ids.*' => 'integer',
+            'employee_ids' => 'exclude_unless:closure_scope,employees|required|array|min:1',
+            'employee_ids.*' => 'integer',
         ]);
 
-        $closure = $this->payPeriodClosureService->closePeriod(
-            $user,
-            (int) $user->company_id,
-            $validated['period_start'],
-            $validated['period_end'],
-            $validated['notes'] ?? null,
-        );
+        $scope = $validated['closure_scope'] ?? PayPeriodClosureService::SCOPE_COMPANY;
+
+        try {
+            $employeeIds = $this->payPeriodClosureService->resolveTargetEmployeeIds(
+                (int) $user->company_id,
+                $scope,
+                $validated['department_ids'] ?? [],
+                $validated['employee_ids'] ?? [],
+            );
+
+            $closure = $this->payPeriodClosureService->closePeriod(
+                $user,
+                (int) $user->company_id,
+                $validated['period_start'],
+                $validated['period_end'],
+                $validated['notes'] ?? null,
+                $employeeIds,
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first(),
+                'errors' => $e->errors(),
+            ], 422);
+        }
 
         $closure->loadCount([
             'acknowledgements as pending_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE),
             'acknowledgements as approved_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_APROVADO),
             'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO),
+            'acknowledgements as people_total',
         ]);
 
         return response()->json([
@@ -235,6 +260,7 @@ class PayPeriodClosureController extends Controller
             'pending_count' => (int) ($c->pending_count ?? 0),
             'approved_count' => (int) ($c->approved_count ?? 0),
             'rejected_count' => (int) ($c->rejected_count ?? 0),
+            'people_total' => (int) ($c->people_total ?? (($c->pending_count ?? 0) + ($c->approved_count ?? 0) + ($c->rejected_count ?? 0))),
         ];
     }
 

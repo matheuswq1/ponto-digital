@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\EmployeePayPeriodAcknowledgement;
 use App\Models\PayPeriodClosure;
 use App\Services\PayPeriodClosureService;
@@ -30,6 +32,7 @@ class PayPeriodClosureWebController extends Controller
                 'acknowledgements as pending_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE),
                 'acknowledgements as approved_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_APROVADO),
                 'acknowledgements as rejected_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_REJEITADO),
+                'acknowledgements as people_total',
             ]);
 
         if (! $user->isAdmin()) {
@@ -41,7 +44,43 @@ class PayPeriodClosureWebController extends Controller
 
         $closures = $query->orderByDesc('period_end')->paginate(20)->withQueryString();
 
-        return view('web.pay-period-closures.index', compact('closures', 'companies', 'companyId'));
+        $dataCompanyId = $user->isAdmin()
+            ? (
+                ($companyId !== null && $companyId !== '')
+                    ? (int) $companyId
+                    : ($companies->count() === 1 ? (int) $companies->first()->id : null)
+            )
+            : (int) $user->company_id;
+
+        $departments = $dataCompanyId
+            ? Department::query()->where('company_id', $dataCompanyId)->where('active', true)->orderBy('name')->get()
+            : collect();
+
+        $employeesForClosure = $dataCompanyId
+            ? Employee::query()
+                ->where('company_id', $dataCompanyId)
+                ->where('active', true)
+                ->with('user')
+                ->orderBy('id')
+                ->get()
+            : collect();
+
+        $selectedCompanyForForm = null;
+        if ($user->isAdmin()) {
+            $selectedCompanyForForm = (($companyId !== null && $companyId !== '')
+                ? (int) $companyId
+                : $dataCompanyId);
+        }
+
+        return view('web.pay-period-closures.index', compact(
+            'closures',
+            'companies',
+            'companyId',
+            'departments',
+            'employeesForClosure',
+            'dataCompanyId',
+            'selectedCompanyForForm',
+        ));
     }
 
     public function store(Request $request, PayPeriodClosureService $service): RedirectResponse
@@ -54,6 +93,11 @@ class PayPeriodClosureWebController extends Controller
             'period_start' => ['required', 'regex:/^\d{2}\/\d{2}\/\d{4}$/'],
             'period_end' => ['required', 'regex:/^\d{2}\/\d{2}\/\d{4}$/'],
             'notes' => 'nullable|string|max:5000',
+            'closure_scope' => 'required|in:company,departments,employees',
+            'department_ids' => 'exclude_unless:closure_scope,departments|required|array|min:1',
+            'department_ids.*' => 'integer',
+            'employee_ids' => 'exclude_unless:closure_scope,employees|required|array|min:1',
+            'employee_ids.*' => 'integer',
         ];
 
         if ($user->isAdmin()) {
@@ -92,12 +136,20 @@ class PayPeriodClosureWebController extends Controller
             return back()->with('error', 'Utilizador sem empresa associada.')->withInput();
         }
 
+        $employeeIds = $service->resolveTargetEmployeeIds(
+            $companyId,
+            $validated['closure_scope'],
+            $validated['department_ids'] ?? [],
+            $validated['employee_ids'] ?? [],
+        );
+
         $service->closePeriod(
             $user,
             $companyId,
             $start->toDateString(),
             $end->toDateString(),
             $validated['notes'] ?? null,
+            $employeeIds,
         );
 
         return redirect()

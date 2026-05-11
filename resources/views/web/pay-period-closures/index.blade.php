@@ -6,12 +6,27 @@
 
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
     <div>
-        <p class="text-sm text-slate-500">Feche um período para que os colaboradores aceitem ou rejeitem o espelho na app.</p>
+        <p class="text-sm text-slate-500">Feche um período para que os colaboradores aceitem ou rejeitem o espelho na app. Pode fechar para toda a empresa, só por departamento(s) ou colaboradores à escolha.</p>
         @if(! auth()->user()->isAdmin() && auth()->user()->company)
             <p class="text-xs text-slate-400 mt-1">{{ auth()->user()->company->name }}</p>
         @endif
     </div>
 </div>
+
+@if(count($companies) > 1 && auth()->user()->isAdmin())
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 mb-5 flex flex-wrap items-center gap-3">
+    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Empresa (lista + departamentos no formulário)</span>
+    <form method="get" class="flex items-center gap-2">
+        <select name="company_id" onchange="this.form.submit()"
+                class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-200 outline-none">
+            <option value="">— Escolher empresa —</option>
+            @foreach($companies as $co)
+                <option value="{{ $co->id }}" @selected((string)$companyId === (string)$co->id)>{{ $co->name }}</option>
+            @endforeach
+        </select>
+    </form>
+</div>
+@endif
 
 @if(session('success'))
 <div class="mb-4 flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
@@ -36,6 +51,16 @@
 </div>
 @endif
 
+@if(auth()->user()->isAdmin() && ! $dataCompanyId && count($companies) > 1)
+<div class="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+    Escolha uma empresa acima para carregar departamentos e colaboradores no formulário (fechos parciais).
+</div>
+@endif
+
+@php
+    $scopeOld = old('closure_scope', 'company');
+@endphp
+
 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6">
     <h3 class="text-sm font-semibold text-slate-800 mb-4">Novo fecho</h3>
     <form method="post" action="{{ route('painel.pay-period-closures.store') }}" class="space-y-4">
@@ -44,22 +69,77 @@
         <div>
             <label for="company_id" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Empresa</label>
             <select name="company_id" id="company_id" required
+                    data-reload-departments="{{ auth()->user()->isAdmin() && count($companies) > 1 ? '1' : '0' }}"
                     class="w-full max-w-md text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-200 outline-none @error('company_id') border-rose-400 @enderror">
                 <option value="">— Selecionar —</option>
                 @foreach($companies as $co)
-                    <option value="{{ $co->id }}" @selected(old('company_id', $companyId) == $co->id)>{{ $co->name }}</option>
+                    <option value="{{ $co->id }}" @selected(old('company_id', $selectedCompanyForForm) == $co->id)>{{ $co->name }}</option>
                 @endforeach
             </select>
             @error('company_id')<p class="text-xs text-rose-600 mt-1">{{ $message }}</p>@enderror
+            @if(auth()->user()->isAdmin() && count($companies) > 1)
+                <p class="text-[11px] text-slate-400 mt-1">Ao mudar a empresa, a página actualiza para carregar departamentos e colaboradores correctos.</p>
+            @endif
         </div>
         @endif
+
+        <fieldset class="space-y-2">
+            <legend class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Quem entra neste fecho</legend>
+            <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input type="radio" name="closure_scope" value="company" class="text-indigo-600 focus:ring-indigo-500" @checked($scopeOld === 'company')>
+                Toda a empresa (todos os colaboradores activos)
+            </label>
+            <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input type="radio" name="closure_scope" value="departments" class="text-indigo-600 focus:ring-indigo-500" @checked($scopeOld === 'departments')>
+                Por departamento(s) — útil quando calendários ou datas de fecho diferem por equipa
+            </label>
+            <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input type="radio" name="closure_scope" value="employees" class="text-indigo-600 focus:ring-indigo-500" @checked($scopeOld === 'employees')>
+                Por colaborador(es) — escolha manual na lista
+            </label>
+            @error('closure_scope')<p class="text-xs text-rose-600">{{ $message }}</p>@enderror
+        </fieldset>
+
+        <div id="closure-departments-box" class="@if($scopeOld !== 'departments') hidden @endif space-y-1">
+            <label for="department_ids" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Departamentos</label>
+            @if($departments->isEmpty())
+                <p class="text-sm text-slate-400">Sem departamentos activos para esta empresa — cadastre departamentos ou escolha outro alcance.</p>
+            @else
+                <select name="department_ids[]" id="department_ids" multiple size="{{ min(8, max(3, $departments->count())) }}"
+                        class="w-full max-w-md text-sm border border-slate-300 rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-indigo-200 outline-none @error('department_ids') border-rose-400 @enderror">
+                    @foreach($departments as $d)
+                        <option value="{{ $d->id }}" @selected(collect(old('department_ids', []))->contains($d->id))>{{ $d->name }}</option>
+                    @endforeach
+                </select>
+                <p class="text-[11px] text-slate-400">Mantenha Ctrl (Windows) ou Cmd (Mac) para seleccionar vários.</p>
+            @endif
+            @error('department_ids')<p class="text-xs text-rose-600">{{ $message }}</p>@enderror
+        </div>
+
+        <div id="closure-employees-box" class="@if($scopeOld !== 'employees') hidden @endif space-y-1">
+            <label for="employee_ids" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Colaboradores</label>
+            @if($employeesForClosure->isEmpty())
+                <p class="text-sm text-slate-400">Sem colaboradores activos listados para esta empresa.</p>
+            @else
+                <select name="employee_ids[]" id="employee_ids" multiple size="{{ min(12, max(4, min($employeesForClosure->count(), 10))) }}"
+                        class="w-full max-w-xl text-sm border border-slate-300 rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-indigo-200 outline-none @error('employee_ids') border-rose-400 @enderror">
+                    @foreach($employeesForClosure as $emp)
+                        @php $label = $emp->user->name ?? ('#'.$emp->id); @endphp
+                        <option value="{{ $emp->id }}" @selected(collect(old('employee_ids', []))->contains($emp->id))>{{ $label }}</option>
+                    @endforeach
+                </select>
+                <p class="text-[11px] text-slate-400">Ctrl/Cmd para várias linhas. Colaboradores sem departamento não aparecem em «Por departamento».</p>
+            @endif
+            @error('employee_ids')<p class="text-xs text-rose-600">{{ $message }}</p>@enderror
+        </div>
+
         <div class="flex flex-wrap gap-4">
             <div>
                 <label for="period_start" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Data inicial</label>
                 <input type="text" name="period_start" id="period_start" value="{{ old('period_start') }}" required
                        inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" autocomplete="off"
                        class="text-sm border border-slate-300 rounded-lg px-3 py-2 w-36 focus:ring-2 focus:ring-indigo-200 outline-none @error('period_start') border-rose-400 @enderror">
-                <p class="text-[11px] text-slate-400 mt-1">Digite no formato dia/mês/ano — sem saltos entre campos.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Digite no formato dia/mês/ano.</p>
             </div>
             <div>
                 <label for="period_end" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Data final</label>
@@ -80,21 +160,6 @@
     </form>
 </div>
 
-@if(count($companies) > 1 && auth()->user()->isAdmin())
-<div class="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 mb-5 flex flex-wrap items-center gap-3">
-    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filtrar lista:</span>
-    <form method="get" class="flex items-center gap-2">
-        <select name="company_id" onchange="this.form.submit()"
-                class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-200 outline-none">
-            <option value="">Todas as empresas</option>
-            @foreach($companies as $co)
-                <option value="{{ $co->id }}" @selected($companyId == $co->id)>{{ $co->name }}</option>
-            @endforeach
-        </select>
-    </form>
-</div>
-@endif
-
 @if($closures->isEmpty())
 <div class="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-sm">
     <svg class="mx-auto w-12 h-12 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
@@ -113,6 +178,7 @@
                     <th class="px-4 py-3">Empresa</th>
                     @endif
                     <th class="px-4 py-3">Período</th>
+                    <th class="px-4 py-3 text-center">Colab.</th>
                     <th class="px-4 py-3">Fechado</th>
                     <th class="px-4 py-3 text-center">Pend.</th>
                     <th class="px-4 py-3 text-center">Aprov.</th>
@@ -128,6 +194,7 @@
                     <td class="px-4 py-3 text-slate-800 font-medium">
                         {{ $c->period_start->format('d/m/Y') }} — {{ $c->period_end->format('d/m/Y') }}
                     </td>
+                    <td class="px-4 py-3 text-center text-slate-600 tabular-nums">{{ $c->people_total }}</td>
                     <td class="px-4 py-3 text-slate-600">
                         <span class="block">{{ $c->closed_at?->locale('pt_BR')->translatedFormat('d M Y, H:i') }}</span>
                         <span class="text-xs text-slate-400">{{ $c->closedByUser->name ?? '—' }}</span>
@@ -168,6 +235,30 @@
     var e = document.getElementById('period_end');
     if (s) maskBrDate(s);
     if (e) maskBrDate(e);
+
+    function toggleClosureScope() {
+        var checked = document.querySelector('input[name="closure_scope"]:checked');
+        var v = checked ? checked.value : 'company';
+        var db = document.getElementById('closure-departments-box');
+        var eb = document.getElementById('closure-employees-box');
+        if (db) db.classList.toggle('hidden', v !== 'departments');
+        if (eb) eb.classList.toggle('hidden', v !== 'employees');
+    }
+    document.querySelectorAll('input[name="closure_scope"]').forEach(function (r) {
+        r.addEventListener('change', toggleClosureScope);
+    });
+    toggleClosureScope();
+
+    var co = document.getElementById('company_id');
+    if (co && co.getAttribute('data-reload-departments') === '1') {
+        co.addEventListener('change', function () {
+            var v = this.value;
+            if (!v) return;
+            var url = new URL(window.location.href);
+            url.searchParams.set('company_id', v);
+            window.location.href = url.toString();
+        });
+    }
 })();
 </script>
 
