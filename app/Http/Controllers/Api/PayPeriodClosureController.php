@@ -4,18 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WorkDayResource;
-use App\Models\Employee;
 use App\Models\EmployeePayPeriodAcknowledgement;
 use App\Models\PayPeriodClosure;
+use App\Services\PayPeriodClosureService;
 use App\Services\WorkDayService;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class PayPeriodClosureController extends Controller
 {
-    public function __construct(private readonly WorkDayService $workDayService) {}
+    public function __construct(
+        private readonly WorkDayService $workDayService,
+        private readonly PayPeriodClosureService $payPeriodClosureService,
+    ) {}
 
     /**
      * Lista fechos da empresa (gestor/admin).
@@ -63,47 +64,13 @@ class PayPeriodClosureController extends Controller
             'notes' => 'nullable|string|max:5000',
         ]);
 
-        $start = Carbon::parse($validated['period_start'])->toDateString();
-        $end = Carbon::parse($validated['period_end'])->toDateString();
-
-        $overlap = PayPeriodClosure::query()
-            ->where('company_id', $user->company_id)
-            ->where('period_start', '<=', $end)
-            ->where('period_end', '>=', $start)
-            ->exists();
-
-        if ($overlap) {
-            return response()->json([
-                'message' => 'Já existe um fecho que intersecta este intervalo de datas.',
-            ], 422);
-        }
-
-        $closure = DB::transaction(function () use ($user, $start, $end, $validated) {
-            /** @var PayPeriodClosure $closure */
-            $closure = PayPeriodClosure::query()->create([
-                'company_id' => $user->company_id,
-                'period_start' => $start,
-                'period_end' => $end,
-                'notes' => $validated['notes'] ?? null,
-                'closed_at' => now(),
-                'closed_by' => $user->id,
-            ]);
-
-            $employeeIds = Employee::query()
-                ->where('company_id', $user->company_id)
-                ->where('active', true)
-                ->pluck('id');
-
-            foreach ($employeeIds as $employeeId) {
-                EmployeePayPeriodAcknowledgement::query()->create([
-                    'pay_period_closure_id' => $closure->id,
-                    'employee_id' => $employeeId,
-                    'status' => EmployeePayPeriodAcknowledgement::STATUS_PENDENTE,
-                ]);
-            }
-
-            return $closure->fresh(['company']);
-        });
+        $closure = $this->payPeriodClosureService->closePeriod(
+            $user,
+            (int) $user->company_id,
+            $validated['period_start'],
+            $validated['period_end'],
+            $validated['notes'] ?? null,
+        );
 
         $closure->loadCount([
             'acknowledgements as pending_count' => fn ($q) => $q->where('status', EmployeePayPeriodAcknowledgement::STATUS_PENDENTE),

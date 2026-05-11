@@ -16,6 +16,7 @@ use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
 use App\Http\Controllers\Web\HolidayWebController;
 use App\Http\Controllers\Web\HourBankWebController;
+use App\Http\Controllers\Web\PayPeriodClosureWebController;
 use App\Http\Controllers\Web\LoginController;
 use App\Http\Controllers\Web\ReportWebController;
 use App\Http\Controllers\Web\TimeRecordWebController;
@@ -94,6 +95,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/banco-horas/{hourBankRequest}/rejeitar', [HourBankWebController::class, 'reject'])->name('hour-bank.reject');
         Route::get('/banco-horas/colaborador/{employee}', [HourBankWebController::class, 'employeeBalance'])->name('hour-bank.employee');
         Route::post('/banco-horas/colaborador/{employee}/ajuste', [HourBankWebController::class, 'manualAdjust'])->name('hour-bank.adjust');
+
+        // Fechos do espelho de ponto (app)
+        Route::get('/fechos-espelho', [PayPeriodClosureWebController::class, 'index'])->name('pay-period-closures.index');
+        Route::post('/fechos-espelho', [PayPeriodClosureWebController::class, 'store'])->name('pay-period-closures.store');
 
         // Empresas (apenas admin)
         Route::get('/empresas', [CompanyWebController::class, 'index'])->name('companies.index');
