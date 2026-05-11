@@ -42,6 +42,7 @@ class WorkDayController extends Controller
         $workDays = $employee->workDays()
             ->when($request->start_date, fn($q) => $q->where('date', '>=', $request->start_date))
             ->when($request->end_date, fn($q) => $q->where('date', '<=', $request->end_date))
+            ->with('employee:id,company_id')
             ->orderByDesc('date')
             ->paginate(31);
 
@@ -78,6 +79,7 @@ class WorkDayController extends Controller
     public function recalculate(Request $request, Employee $employee, string $date): JsonResponse
     {
         $workDay = $this->workDayService->calculateAndSave($employee, $date);
+        $workDay->loadMissing('employee:id,company_id');
 
         return response()->json([
             'message' => 'Dia recalculado com sucesso.',

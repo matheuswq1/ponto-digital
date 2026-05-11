@@ -190,6 +190,7 @@ class PayPeriodClosureController extends Controller
 
         $workDays = $employee->workDays()
             ->whereBetween('date', [$start, $end])
+            ->with('employee:id,company_id')
             ->orderBy('date')
             ->get();
 

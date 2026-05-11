@@ -42,6 +42,7 @@ class WorkDayModel {
   final String status;
   final bool isClosed;
   final String balanceType;
+  final List<String> dayCalendarLabelsPt;
   final List<WorkDayTimeRecord> timeRecords;
 
   const WorkDayModel({
@@ -61,6 +62,7 @@ class WorkDayModel {
     required this.status,
     required this.isClosed,
     required this.balanceType,
+    this.dayCalendarLabelsPt = const [],
     this.timeRecords = const [],
   });
 
@@ -69,6 +71,9 @@ class WorkDayModel {
     final hours = json['hours'] as Map<String, dynamic>?;
     final minutes = json['minutes'] as Map<String, dynamic>?;
     final trList = json['time_records'] as List<dynamic>? ?? [];
+    final dc = json['day_calendar'] as Map<String, dynamic>?;
+    final labelsRaw = dc?['labels_pt'] as List<dynamic>? ?? [];
+    final labels = labelsRaw.map((e) => '$e').toList();
     return WorkDayModel(
       id: json['id'],
       date: json['date'],
@@ -86,6 +91,7 @@ class WorkDayModel {
       status: json['status'] ?? 'normal',
       isClosed: json['is_closed'] ?? false,
       balanceType: json['balance_type'] ?? 'neutro',
+      dayCalendarLabelsPt: labels,
       timeRecords: trList
           .map((e) => WorkDayTimeRecord.fromJson(e as Map<String, dynamic>))
           .toList(),

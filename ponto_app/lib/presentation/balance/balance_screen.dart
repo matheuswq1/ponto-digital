@@ -7,6 +7,7 @@ import 'hour_bank_provider.dart';
 import '../../data/models/work_day_model.dart';
 import '../../data/models/hour_bank_request_model.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/day_calendar_label_chips.dart';
 
 bool _canGoToNextMonth(DateTime selected) {
   final now = DateTime.now();
@@ -1210,7 +1211,12 @@ class _WorkDayTile extends StatelessWidget {
                       fontSize: 15,
                     ),
                   ),
-                  if (day.status != 'normal')
+                  if (day.dayCalendarLabelsPt.isNotEmpty)
+                    DayCalendarLabelChips(
+                      labels: day.dayCalendarLabelsPt,
+                      fontSize: 9,
+                    )
+                  else if (day.status != 'normal')
                     _StatusBadge(status: day.status),
                 ],
               ),

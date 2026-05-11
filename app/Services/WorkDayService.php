@@ -786,6 +786,7 @@ class WorkDayService
         $workDays = $employee->workDays()
             ->whereYear('date', $year)
             ->whereMonth('date', $month)
+            ->with('employee:id,company_id')
             ->orderBy('date')
             ->get();
 

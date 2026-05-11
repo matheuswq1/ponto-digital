@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/datasources/pay_period_datasource.dart';
 import '../../data/models/pay_period_models.dart';
 import '../../data/models/work_day_model.dart';
+import '../widgets/day_calendar_label_chips.dart';
 import 'pay_period_provider.dart';
 
 class PayPeriodsScreen extends ConsumerWidget {
@@ -613,46 +614,55 @@ class _WorkDayRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: day.timeRecords.isNotEmpty
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: day.timeRecords
-                        .map(
-                          (r) => Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  width: 42,
-                                  child: Text(
-                                    r.time,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DayCalendarLabelChips(labels: day.dayCalendarLabelsPt),
+                if (day.dayCalendarLabelsPt.isNotEmpty)
+                  const SizedBox(height: 6),
+                day.timeRecords.isNotEmpty
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: day.timeRecords
+                            .map(
+                              (r) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 42,
+                                      child: Text(
+                                        r.time,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    r.typeLabel,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade800,
-                                      height: 1.25,
+                                    Expanded(
+                                      child: Text(
+                                        r.typeLabel,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade800,
+                                          height: 1.25,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  )
-                : Text(
-                    _aggregatedTimes(day),
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
-                  ),
+                              ),
+                            )
+                            .toList(),
+                      )
+                    : Text(
+                        _aggregatedTimes(day),
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade800),
+                      ),
+              ],
+            ),
           ),
           Text(
             day.extraHours,
