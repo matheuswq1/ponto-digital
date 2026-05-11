@@ -25,6 +25,14 @@ use Illuminate\Support\Facades\Route;
 */
 Route::prefix('v1')->group(function () {
 
+    /** Monitoramento HTTP público (PulsePanel): 200 JSON, sem auth. */
+    Route::get('/health', function () {
+        return response()->json([
+            'status' => 'ok',
+            'service' => 'ponto-api',
+        ]);
+    })->name('api.v1.health');
+
     Route::post('/login', [AuthController::class, 'login'])->name('api.login');
 
     /*

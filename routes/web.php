@@ -2,26 +2,37 @@
 
 use App\Http\Controllers\Web\AdditionRequestWebController;
 use App\Http\Controllers\Web\AdminPushWebController;
-use App\Http\Controllers\Web\CommunicationWebController;
-use App\Http\Controllers\Web\PayslipWebController;
-use App\Http\Controllers\Web\VacationRequestWebController;
 use App\Http\Controllers\Web\AuditLogWebController;
+use App\Http\Controllers\Web\CommunicationWebController;
 use App\Http\Controllers\Web\CompanyLocationsWebController;
-use App\Http\Controllers\Web\FraudAlertWebController;
 use App\Http\Controllers\Web\CompanyWebController;
 use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\TotemPinWebController;
 use App\Http\Controllers\Web\DepartmentWebController;
 use App\Http\Controllers\Web\EditRequestWebController;
 use App\Http\Controllers\Web\EmployeeWebController;
+use App\Http\Controllers\Web\FraudAlertWebController;
 use App\Http\Controllers\Web\HolidayWebController;
 use App\Http\Controllers\Web\HourBankWebController;
-use App\Http\Controllers\Web\PayPeriodClosureWebController;
 use App\Http\Controllers\Web\LoginController;
+use App\Http\Controllers\Web\PayPeriodClosureWebController;
+use App\Http\Controllers\Web\PayslipWebController;
 use App\Http\Controllers\Web\ReportWebController;
 use App\Http\Controllers\Web\TimeRecordWebController;
+use App\Http\Controllers\Web\TotemPinWebController;
 use App\Http\Controllers\Web\UserWebController;
+use App\Http\Controllers\Web\VacationRequestWebController;
 use Illuminate\Support\Facades\Route;
+
+/*
+| PulsePanel / monitoramento HTTP: GET sem sessão, sem login.
+| Esperado: 200 OK (text/plain). User-Agent típico: PulsePanel-HealthCheck/1.0
+| Também existe GET /up (Laravel health nativo).
+*/
+Route::get('/health', function () {
+    return response('ok', 200)
+        ->header('Content-Type', 'text/plain; charset=UTF-8')
+        ->header('Cache-Control', 'no-store, private');
+})->name('health.public');
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -125,7 +136,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/comunicados/novo', [CommunicationWebController::class, 'create'])->name('communications.create');
         Route::post('/comunicados', [CommunicationWebController::class, 'store'])->name('communications.store');
         Route::get('/comunicados/{communication}/editar', [CommunicationWebController::class, 'edit'])->name('communications.edit');
-        Route::match(['PUT','POST'], '/comunicados/{communication}/atualizar', [CommunicationWebController::class, 'update'])->name('communications.update');
+        Route::match(['PUT', 'POST'], '/comunicados/{communication}/atualizar', [CommunicationWebController::class, 'update'])->name('communications.update');
         Route::delete('/comunicados/{communication}', [CommunicationWebController::class, 'destroy'])->name('communications.destroy');
 
         // Notificações push (painel)
