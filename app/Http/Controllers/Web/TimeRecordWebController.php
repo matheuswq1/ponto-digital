@@ -161,7 +161,7 @@ class TimeRecordWebController extends Controller
     private function exportCartaoPDF(array $cards, string $dateFrom, string $dateTo)
     {
         $pdf = Pdf::loadView('web.pontos.cartao_pdf', compact('cards'))
-            ->setPaper('a4', 'portrait')
+            ->setPaper('a4', 'landscape')
             ->setOptions([
                 'defaultFont'      => 'DejaVu Sans',
                 'isRemoteEnabled'  => false,

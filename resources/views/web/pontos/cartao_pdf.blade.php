@@ -4,13 +4,20 @@
 <meta charset="UTF-8">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8px; color: #111; }
+html { width: 100%; }
+body {
+    font-family: DejaVu Sans, Arial, sans-serif;
+    font-size: 8px;
+    color: #111;
+    width: 100%;
+    max-width: 100%;
+}
 
-/* Margens da página PDF — menos recorte à direita que width:100% + paddings internos */
-@page { margin: 7mm 6mm; }
+/* A4 landscape (~297mm × 210mm); margens modestas para máxima área útil */
+@page { margin: 6mm 8mm; size: A4 landscape; }
 
 /* ── Página ── */
-.page { width: 100%; max-width: 100%; padding: 4mm 3mm; page-break-after: always; }
+.page { width: 100%; max-width: 100%; padding: 3mm 2mm; page-break-after: always; overflow: visible; }
 .page:last-child { page-break-after: auto; }
 
 /* ── Cabeçalho ── */
@@ -36,11 +43,33 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8px; color: #111;
 .gabarito-table th, .gabarito-table td { border: 1px solid #d1d5db; padding: 2px 3px; text-align: center; }
 .gabarito-table th { background: #1e293b; color: #fff; }
 
-/* ── Tabela de batidas (largura cabe na área útil A4; sem isto DomPDF corta à direita) ── */
-.ponto-table { width: 100%; max-width: 100%; border-collapse: collapse; font-size: 7px; table-layout: fixed; }
-.ponto-table th { background: #1e293b; color: #fff; padding: 2px 1px; text-align: center; border: 1px solid #374151; font-size: 6.5px; }
+/* ── Tabela de batidas — landscape + colunas % somando ~100% para DomPDF não extrapolar -- */
+.ponto-table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    font-size: 7px;
+    table-layout: fixed;
+}
+.ponto-table th {
+    background: #1e293b;
+    color: #fff;
+    padding: 2px 1px;
+    text-align: center;
+    border: 1px solid #374151;
+    font-size: 6.5px;
+}
 .ponto-table th.sub { background: #374151; font-size: 6px; }
-.ponto-table td { border: 1px solid #d1d5db; text-align: center; padding: 1px; height: auto; min-height: 10px; word-wrap: break-word; overflow-wrap: anywhere; vertical-align: middle; }
+.ponto-table td {
+    border: 1px solid #d1d5db;
+    text-align: center;
+    padding: 1px 0;
+    height: auto;
+    min-height: 9px;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+}
 .ponto-table tr.even td { background: #f9fafb; }
 .ponto-table tr.folga td { background: #f1f5f9; color: #64748b; font-style: italic; }
 .ponto-table tr.sem-ponto td { background: #fff7ed; }
@@ -188,25 +217,25 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
     {{-- Tabela de batidas --}}
     <table class="ponto-table">
         <colgroup>
-            <col style="width:10%">
-            <col style="width:3.5%">
-            <col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%">
-            <col style="width:7.5%">
-            <col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%">
+            <col style="width:9%">
+            <col style="width:3%">
+            <col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%">
+            <col style="width:7%">
+            <col style="width:6.6%"><col style="width:6.6%"><col style="width:6.6%"><col style="width:6.6%"><col style="width:6.6%">
         </colgroup>
         <thead>
             <tr>
                 <th rowspan="2">Data</th>
-                <th rowspan="2">Dia</th>
-                <th colspan="2">1ª Batida</th>
-                <th colspan="2">2ª Batida</th>
-                <th colspan="2">3ª Batida</th>
+                <th rowspan="2">D</th>
+                <th colspan="2">1ª</th>
+                <th colspan="2">2ª</th>
+                <th colspan="2">3ª</th>
                 <th rowspan="2">Trab.</th>
                 <th rowspan="2">Falt.</th>
-                <th rowspan="2">EX50</th>
-                <th rowspan="2">EX100</th>
-                <th rowspan="2">EXF01</th>
-                <th rowspan="2">Extras</th>
+                <th rowspan="2">50%</th>
+                <th rowspan="2">100%</th>
+                <th rowspan="2">Noc.</th>
+                <th rowspan="2">Extra</th>
             </tr>
             <tr>
                 <th class="sub">E1</th>
