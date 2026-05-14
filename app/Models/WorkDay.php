@@ -482,7 +482,7 @@ class WorkDay extends Model
             return [
                 'key' => 'within',
                 'emoji' => '🟢',
-                'label' => 'Dentro da tolerância',
+                'label' => 'OK tol.',
                 'bg' => '#dcfce7',
                 'color' => '#166534',
             ];
@@ -491,7 +491,7 @@ class WorkDay extends Model
             return [
                 'key' => 'applied_discount',
                 'emoji' => '🔵',
-                'label' => 'Tolerância aplicada',
+                'label' => 'Tol. aplic.',
                 'bg' => '#dbeafe',
                 'color' => '#1e40af',
             ];
@@ -500,7 +500,7 @@ class WorkDay extends Model
         return [
             'key' => 'outside_dead_band',
             'emoji' => '🟠',
-            'label' => 'Fora da tolerância',
+            'label' => 'Fora tol.',
             'bg' => '#ffedd5',
             'color' => '#9a3412',
         ];
@@ -542,7 +542,7 @@ class WorkDay extends Model
             return null;
         }
 
-        return 'Saldo após fecho difere do resultado esperado pelo snapshot de tolerância.';
+        return 'Saldo ≠ snapshot';
     }
 
     /**

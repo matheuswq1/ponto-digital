@@ -50,7 +50,7 @@ class WorkDayToleranceUxTest extends TestCase
         ]);
         $b = $wd->toleranceUxBadgePt();
         $this->assertSame('within', $b['key']);
-        $this->assertStringContainsString('Dentro da tolerância', $b['label']);
+        $this->assertStringContainsString('OK tol.', $b['label']);
     }
 
     public function test_tolerance_ux_badge_applied_discount(): void
@@ -67,7 +67,7 @@ class WorkDayToleranceUxTest extends TestCase
         ]);
         $b = $wd->toleranceUxBadgePt();
         $this->assertSame('applied_discount', $b['key']);
-        $this->assertStringContainsString('Tolerância aplicada', $b['label']);
+        $this->assertStringContainsString('Tol. aplic.', $b['label']);
     }
 
     public function test_tolerance_ux_badge_outside_dead_band(): void
@@ -84,7 +84,7 @@ class WorkDayToleranceUxTest extends TestCase
         ]);
         $b = $wd->toleranceUxBadgePt();
         $this->assertSame('outside_dead_band', $b['key']);
-        $this->assertStringContainsString('Fora da tolerância', $b['label']);
+        $this->assertStringContainsString('Fora tol.', $b['label']);
     }
 
     public function test_tolerance_post_close_mismatch_when_balance_differs(): void

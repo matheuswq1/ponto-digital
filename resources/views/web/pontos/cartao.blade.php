@@ -192,6 +192,29 @@
         .banco-ok { color: #16a34a; font-weight: 700; font-size: 7px; }
         .banco-pending { color: #d97706; font-size: 7px; }
         .ponto-table .td-date { font-weight: 600; text-align: left; padding-left: 4px; min-width: 18mm; }
+        .tol-badge-cartao {
+            display: inline-block;
+            font-size: 7px;
+            font-weight: 700;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-top: 2px;
+            margin-right: 3px;
+            line-height: 1.15;
+            vertical-align: middle;
+        }
+        .tol-mismatch-cartao {
+            display: inline-block;
+            font-size: 7px;
+            font-weight: 600;
+            color: #9a3412;
+            padding: 1px 4px;
+            border-radius: 3px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            line-height: 1.15;
+            vertical-align: middle;
+        }
         .ponto-table .td-dia  { font-size: 7px; color: #6b7280; }
         .ponto-table .td-horas { font-weight: 600; }
         .ponto-table .td-extra { color: #059669; font-weight: 700; }
@@ -478,11 +501,11 @@ if (!function_exists('ponto_cartao_fmt_min')) {
                     @if($day['work_day']?->tolerance_snapshot)
                         @php $tolBadge = $day['work_day']->toleranceUxBadgePt(); @endphp
                         @if($tolBadge)
-                            <span style="display:inline-block;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;background:{{ $tolBadge['bg'] }};color:{{ $tolBadge['color'] }};margin-top:4px;">{{ $tolBadge['emoji'] }} {{ $tolBadge['label'] }}</span>
+                            <span class="tol-badge-cartao" style="background:{{ $tolBadge['bg'] }};color:{{ $tolBadge['color'] }};" title="{{ match ($tolBadge['key']) { 'within' => 'Dentro da tolerância', 'applied_discount' => 'Tolerância aplicada', default => 'Fora da tolerância' } }}">{{ $tolBadge['label'] }}</span>
                         @endif
                         @php $tolMismatch = $day['work_day']->tolerancePostCloseMismatchPt(); @endphp
                         @if($tolMismatch)
-                            <div style="font-size:9px;line-height:1.35;color:#9a3412;margin-top:4px;padding:4px 6px;background:#fff7ed;border-radius:4px;border:1px solid #fed7aa;max-width:14rem;">{{ $tolMismatch }}</div>
+                            <span class="tol-mismatch-cartao" title="Saldo após fecho difere do resultado esperado pelo snapshot de tolerância.">{{ $tolMismatch }}</span>
                         @endif
                     @endif
                 </td>
