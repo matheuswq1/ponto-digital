@@ -21,6 +21,19 @@ class CltProgressiveCapEngineTest extends TestCase
         ];
     }
 
+    /** Override explícito do delta (ex.: efeito jornada no almoço). */
+    private function slotDeltaOverride(string $semantic, int $deltaMinutes): array
+    {
+        $c = Carbon::parse(self::DATE.' 12:00:00', self::TZ);
+
+        return [
+            'semantic_type' => $semantic,
+            'expected' => $c->copy(),
+            'actual' => $c->copy(),
+            'delta_minutes_override' => $deltaMinutes,
+        ];
+    }
+
     public function test_small_deviations_accumulate_until_bucket_abs_ge_ten_then_full_release(): void
     {
         $engine = new CltToleranceEngine;
@@ -157,5 +170,24 @@ class CltProgressiveCapEngineTest extends TestCase
         $this->assertSame(0, $r['bank_minutes']);
         $this->assertSame(8, $r['clt_bucket_sum']);
         $this->assertFalse($r['clt']['tolerance_closed_end']);
+    }
+
+    /** Medidor diário (|delta| acumulado) ≥10 libera bucket mesmo quando |bucket| &lt;10 — saldo líquido pode ser 0. */
+    public function test_daily_meter_releases_residual_bucket_net_zero_bank(): void
+    {
+        $engine = new CltToleranceEngine;
+        $r = $engine->calculateProgressiveDailyCap([
+            $this->slot('entry', '08:00', '08:06'),
+            $this->slotDeltaOverride('lunch_effect', 2),
+            $this->slot('exit', '18:00', '18:04'),
+        ]);
+
+        $this->assertSame(0, $r['bank_minutes']);
+        $this->assertSame(0, $r['clt_bucket_sum']);
+        $this->assertTrue($r['clt']['tolerance_closed_end']);
+        $last = $r['events'][2];
+        $this->assertSame('daily_tolerance_meter_reached', $last['tolerance_close_reason']);
+        $this->assertSame(1, $last['released_bucket_minutes']);
+        $this->assertSame(12, $last['daily_tolerance_meter_after_event']);
     }
 }

@@ -121,9 +121,11 @@ final class CltToleranceEngine
     }
 
     /**
-     * Motor CLT “bucket progressivo”: até 5 min → bucket; 6–9 → ±5 no bucket + resto no saldo;
-     * ≥10 min ou |bucket|≥10 após o evento → todo o bucket vai para o saldo e a tolerância do dia encerra;
-     * depois disso cada evento integral no saldo.
+     * Motor CLT “bucket progressivo”: até 5 min → bucket; 6–9 → ±5 no bucket + resto no saldo (disponível já).
+     * Romper o dia ocorre se (i) uma marcação ≥10 min, ou (ii) |bucket|≥10 após o evento, ou (iii) o **medidor
+     * diário** — soma dos |delta| das marcações enquanto a tolerância está aberta e cada |delta|&lt;10 —
+     * atinge ≥10 (guardado no bucket + parte já libertada contam na mesma conta). Nesses casos todo o bucket
+     * atual vai para o saldo e a tolerância encerra; depois cada evento integral no saldo.
      *
      * Snapshot `clt`: inclui `timeline` (passo a passo bucket/banco) e `calculation_engine_family` para analytics.
      *
@@ -139,6 +141,8 @@ final class CltToleranceEngine
         $bucket = 0;
         $bank = 0;
         $toleranceClosed = false;
+        /** Soma dos |delta| por marcação (apenas |delta| &lt; {@see self::DAILY_CAP_MINUTES}) enquanto a tolerância do dia está aberta — inclui o que foi para o bucket e o que já foi para o saldo. */
+        $dailyToleranceMeter = 0;
 
         $releasedBucketsSigned = 0;
         $immediateCarveSigned = 0;
@@ -243,13 +247,21 @@ final class CltToleranceEngine
 
             $bucketAfterBeforeCapCheck = $bucket;
 
-            if (! $toleranceClosed && abs($bucket) >= self::DAILY_CAP_MINUTES) {
+            if (! $toleranceClosed && $abs < self::DAILY_CAP_MINUTES) {
+                $dailyToleranceMeter += $abs;
+            }
+
+            if (! $toleranceClosed && ($dailyToleranceMeter >= self::DAILY_CAP_MINUTES || abs($bucket) >= self::DAILY_CAP_MINUTES)) {
                 $releasedBucketMinutes = $bucket;
                 $bank += $bucket;
                 $releasedBucketsSigned += $bucket;
                 $bucket = 0;
                 $toleranceClosed = true;
-                $toleranceCloseReason = $toleranceCloseReason ?? 'daily_cap_reached';
+                $toleranceCloseReason = $toleranceCloseReason ?? (
+                    abs($releasedBucketMinutes) >= self::DAILY_CAP_MINUTES
+                        ? 'daily_cap_reached'
+                        : 'daily_tolerance_meter_reached'
+                );
             }
 
             $bucketAfterEvent = $bucket;
@@ -269,7 +281,7 @@ final class CltToleranceEngine
                 : null;
 
             $classification = match (true) {
-                $toleranceCloseReasonForSnapshot === 'daily_cap_reached' => 'daily_cap_release',
+                in_array($toleranceCloseReasonForSnapshot, ['daily_cap_reached', 'daily_tolerance_meter_reached'], true) => 'daily_cap_release',
                 $toleranceCloseReasonForSnapshot === 'event_exceeds_daily_cap' => 'event_exceeds_cap',
                 $abs <= self::EVENT_TOLERANCE_MINUTES => 'within_event_tolerance',
                 $abs < self::DAILY_CAP_MINUTES => 'partial_immediate_bank',
@@ -279,6 +291,7 @@ final class CltToleranceEngine
             $snapProgressive = [
                 'bucket_before_event' => $bucketBeforeEvent,
                 'bucket_after_before_cap_check' => $bucketAfterBeforeCapCheck,
+                'daily_tolerance_meter_after_event' => $dailyToleranceMeter,
                 'bucket_after_event' => $bucketAfterEvent,
                 'tolerance_closed' => $toleranceClosed,
                 'tolerance_close_reason' => $toleranceCloseReasonForSnapshot,
@@ -325,8 +338,11 @@ final class CltToleranceEngine
             'outside_event_tolerance_sum' => $outsidePortionSigned,
             'result_minutes_from_clt_small_bucket' => $releasedBucketsSigned,
             'integration_strategy' => 'clt_progressive_cap_primary',
-            'integration_note_pt' => 'Bucket progressivo: até 5 min só no bucket; 6–9 min divide ±5 no bucket e resto no saldo; '
-                .'≥10 min ou |bucket|≥10 libera todo o bucket no saldo e encerra a tolerância do dia; depois todos os eventos são integralmente no saldo.',
+            'integration_note_pt' => 'Bucket progressivo: até 5 min só no bucket; 6–9 min coloca ±5 no bucket e o resto já no saldo; '
+                .'≥10 min numa marcação libera bucket anterior + delta integral e encerra; '
+                .'|bucket|≥10 ou soma dos |delta| (&lt;10 min cada) ≥10 min libera todo o bucket no saldo e encerra; '
+                .'depois todos os eventos são integralmente no saldo.',
+            'daily_tolerance_meter_end' => $dailyToleranceMeter,
             'tolerance_closed_end' => $toleranceClosed,
             'timeline' => $timeline,
             'calculation_engine_family' => 'clt_event_progressive_cap',
