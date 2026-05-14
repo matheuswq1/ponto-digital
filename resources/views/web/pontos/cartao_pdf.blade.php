@@ -7,27 +7,36 @@
 html { width: 100%; }
 body {
     font-family: DejaVu Sans, Arial, sans-serif;
-    font-size: 8px;
+    font-size: 7px;
     color: #111;
-    width: 100%;
-    max-width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
-/* A4 landscape (~297mm × 210mm); margens modestas para máxima área útil */
-@page { margin: 6mm 8mm; size: A4 landscape; }
+/**
+ * A4 retrato: largura útil ~202 mm (210 − margens). DomPDF corta à direita se o bloco
+ * "imaginar" mais largo que a página — por isso .pdf-root em mm e grelha ~92%.
+ */
+@page { margin: 4mm 5mm; size: A4 portrait; }
+
+.pdf-root {
+    width: 198mm;
+    max-width: 100%;
+    margin: 0 auto;
+}
 
 /* ── Página ── */
-.page { width: 100%; max-width: 100%; padding: 3mm 2mm; page-break-after: always; overflow: visible; }
+.page { width: 100%; padding: 2mm 1mm; page-break-after: always; }
 .page:last-child { page-break-after: auto; }
 
 /* ── Cabeçalho ── */
 .header { border-bottom: 2px solid #1e293b; padding-bottom: 4px; margin-bottom: 5px; }
 .header table { width: 100%; border-collapse: collapse; }
 .header td { vertical-align: middle; }
-.header-logo { font-size: 10px; font-weight: 900; color: #1e293b; border: 2px solid #1e293b; padding: 3px 5px; text-align: center; white-space: nowrap; }
+.header-logo { font-size: 8px; font-weight: 900; color: #1e293b; border: 1px solid #1e293b; padding: 2px 4px; text-align: center; white-space: nowrap; line-height: 1.1; }
 .header-title { text-align: center; }
-.header-title h1 { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-.header-title h2 { font-size: 9px; font-weight: 700; color: #374151; }
+.header-title h1 { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+.header-title h2 { font-size: 8px; font-weight: 700; color: #374151; }
 .header-period { font-size: 7px; text-align: right; white-space: nowrap; }
 
 /* ── Empresa + Gabarito ── */
@@ -43,29 +52,32 @@ body {
 .gabarito-table th, .gabarito-table td { border: 1px solid #d1d5db; padding: 2px 3px; text-align: center; }
 .gabarito-table th { background: #1e293b; color: #fff; }
 
-/* ── Tabela de batidas — landscape + colunas % somando ~100% para DomPDF não extrapolar -- */
+/* ── Tabela de batidas: retrato, colunas estreitas, uma linha de cabeçalho ── */
 .ponto-table {
-    width: 100%;
-    max-width: 100%;
+    width: 98%;
+    max-width: 98%;
+    margin: 0 auto;
     border-collapse: collapse;
-    font-size: 7px;
+    font-size: 5.5px;
     table-layout: fixed;
 }
 .ponto-table th {
     background: #1e293b;
     color: #fff;
-    padding: 2px 1px;
+    padding: 1px 0;
     text-align: center;
     border: 1px solid #374151;
-    font-size: 6.5px;
+    font-size: 5px;
+    font-weight: 700;
+    line-height: 1.05;
 }
-.ponto-table th.sub { background: #374151; font-size: 6px; }
 .ponto-table td {
     border: 1px solid #d1d5db;
     text-align: center;
-    padding: 1px 0;
+    padding: 0;
     height: auto;
-    min-height: 9px;
+    min-height: 8px;
+    font-size: 5.5px;
     word-wrap: break-word;
     overflow-wrap: anywhere;
     vertical-align: middle;
@@ -74,13 +86,23 @@ body {
 .ponto-table tr.folga td { background: #f1f5f9; color: #64748b; font-style: italic; }
 .ponto-table tr.sem-ponto td { background: #fff7ed; }
 .ponto-table tr.feriado td { background: #faf5ff; color: #6b21a8; }
-.ponto-table tfoot td { background: #1e293b; color: #fff; font-weight: 700; font-size: 7px; padding: 2px 1px; border: 1px solid #374151; }
-.td-date { font-weight: 600; text-align: left; padding-left: 2px; font-size: 6px; line-height: 1.15; vertical-align: top; hyphens: none; }
+.ponto-table tfoot td { background: #1e293b; color: #fff; font-weight: 700; font-size: 5.5px; padding: 1px 0; border: 1px solid #374151; }
+.td-date {
+    font-weight: 600;
+    text-align: left;
+    padding-left: 1px;
+    font-size: 5px;
+    line-height: 1.1;
+    vertical-align: top;
+    hyphens: none;
+}
 .td-extra { color: #059669; font-weight: 700; }
 .td-falta { color: #dc2626; font-weight: 700; }
 .td-100 { color: #7c3aed; font-weight: 700; }
 .td-noc { color: #0369a1; font-weight: 700; }
 .banco-ok { color: #16a34a; font-weight: 700; }
+
+.pdf-col-legend { font-size: 4.5px; color: #64748b; margin: 2px 0 0; padding: 0 1mm; line-height: 1.2; }
 
 /* ── Rodapé ── */
 .footer { margin-top: 8px; border-top: 1px solid #9ca3af; padding-top: 4px; }
@@ -90,6 +112,8 @@ body {
 </style>
 </head>
 <body>
+
+<div class="pdf-root">
 
 @php
 if (!function_exists('pdf_fmt_min')) {
@@ -135,7 +159,7 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
     <div class="header">
         <table>
             <tr>
-                <td style="width:55px;"><div class="header-logo">PONTO<br>DIGITAL</div></td>
+                <td style="width:42px;"><div class="header-logo">PONTO<br>DIGITAL</div></td>
                 <td class="header-title">
                     <h1>Espelho de Ponto</h1>
                     <h2>{{ $company?->name ?? 'Empresa' }}</h2>
@@ -214,36 +238,21 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
         </table>
     </div>
 
-    {{-- Tabela de batidas --}}
+    {{-- Tabela de batidas — cabeçalho numa linha (menos altura); larguras % dentro da .pdf-root --}}
     <table class="ponto-table">
         <colgroup>
-            <col style="width:9%">
-            <col style="width:3%">
+            <col style="width:10%">
+            <col style="width:2.5%">
             <col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%"><col style="width:6.2%">
-            <col style="width:7%">
-            <col style="width:6.6%"><col style="width:6.6%"><col style="width:6.6%"><col style="width:6.6%"><col style="width:6.6%">
+            <col style="width:8%">
+            <col style="width:6.5%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:7%">
         </colgroup>
         <thead>
             <tr>
-                <th rowspan="2">Data</th>
-                <th rowspan="2">D</th>
-                <th colspan="2">1ª</th>
-                <th colspan="2">2ª</th>
-                <th colspan="2">3ª</th>
-                <th rowspan="2">Trab.</th>
-                <th rowspan="2">Falt.</th>
-                <th rowspan="2">50%</th>
-                <th rowspan="2">100%</th>
-                <th rowspan="2">Noc.</th>
-                <th rowspan="2">Extra</th>
-            </tr>
-            <tr>
-                <th class="sub">E1</th>
-                <th class="sub">S1</th>
-                <th class="sub">E2</th>
-                <th class="sub">S2</th>
-                <th class="sub">E3</th>
-                <th class="sub">S3</th>
+                <th>Data</th>
+                <th>D</th>
+                <th>E1</th><th>S1</th><th>E2</th><th>S2</th><th>E3</th><th>S3</th>
+                <th>Tr</th><th>Fa</th><th>50</th><th>100</th><th>Nc</th><th>Ex</th>
             </tr>
         </thead>
         <tbody>
@@ -268,7 +277,7 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
                     <div style="font-size:5px;color:#9a3412;margin-top:1px;line-height:1.1;">{{ $pdfTolWarn }}</div>
                 @endif
             </td>
-            <td style="color:#6b7280;font-size:7px;">{{ $diasSemana[$dw] }}</td>
+            <td style="color:#6b7280;font-size:5px;">{{ $diasSemana[$dw] }}</td>
 
             @if($day['folga'])
                 <td colspan="6" style="font-style:italic;color:#64748b;">Folga</td>
@@ -292,7 +301,7 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="8" style="text-align:right;padding-right:5px;">TOTAIS</td>
+                <td colspan="8" style="text-align:right;padding-right:2px;">Totais</td>
                 <td>{{ pdf_fmt_min($card['total_worked']) }}</td>
                 <td style="color:#fca5a5;">{{ $card['total_falta'] > 0 ? pdf_fmt_min($card['total_falta']) : '—' }}</td>
                 <td style="color:#86efac;">{{ $card['total_extra_50'] > 0 ? pdf_fmt_min($card['total_extra_50']) : '—' }}</td>
@@ -302,6 +311,7 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
             </tr>
         </tfoot>
     </table>
+    <p class="pdf-col-legend">Tr trabalhado · Fa faltas · 50/100 extras · Nc noturno · Ex saldo extra</p>
 
     {{-- Rodapé com assinaturas --}}
     <div class="footer">
@@ -323,5 +333,6 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
 </div>
 @endforeach
 
+</div>
 </body>
 </html>
