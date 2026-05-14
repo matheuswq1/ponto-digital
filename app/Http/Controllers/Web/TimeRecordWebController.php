@@ -228,7 +228,7 @@ class TimeRecordWebController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function cartaoPonto(Request $request): View|StreamedResponse
+    public function cartaoPonto(Request $request): View|StreamedResponse|\Illuminate\Http\Response
     {
         $this->authorize('manage-employees');
 
