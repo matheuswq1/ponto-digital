@@ -6,8 +6,11 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8px; color: #111; }
 
+/* Margens da página PDF — menos recorte à direita que width:100% + paddings internos */
+@page { margin: 7mm 6mm; }
+
 /* ── Página ── */
-.page { width: 100%; padding: 6mm 8mm; page-break-after: always; }
+.page { width: 100%; max-width: 100%; padding: 4mm 3mm; page-break-after: always; }
 .page:last-child { page-break-after: auto; }
 
 /* ── Cabeçalho ── */
@@ -21,7 +24,7 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8px; color: #111;
 .header-period { font-size: 7px; text-align: right; white-space: nowrap; }
 
 /* ── Empresa + Gabarito ── */
-.info-top table.split { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+.info-top table.split { width: 100%; max-width: 100%; border-collapse: collapse; margin-bottom: 5px; table-layout: fixed; }
 .info-top table.split td { vertical-align: top; padding: 0 3px; width: 50%; }
 .box { border: 1px solid #9ca3af; padding: 4px 5px; background: #f8fafc; }
 .box h3 { font-size: 7px; text-transform: uppercase; color: #64748b; font-weight: 800; margin-bottom: 3px; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; }
@@ -33,17 +36,17 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8px; color: #111;
 .gabarito-table th, .gabarito-table td { border: 1px solid #d1d5db; padding: 2px 3px; text-align: center; }
 .gabarito-table th { background: #1e293b; color: #fff; }
 
-/* ── Tabela de batidas ── */
-.ponto-table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
-.ponto-table th { background: #1e293b; color: #fff; padding: 3px 2px; text-align: center; border: 1px solid #374151; font-size: 7px; }
-.ponto-table th.sub { background: #374151; font-size: 6.5px; }
-.ponto-table td { border: 1px solid #d1d5db; text-align: center; padding: 2px 1px; height: 12px; }
+/* ── Tabela de batidas (largura cabe na área útil A4; sem isto DomPDF corta à direita) ── */
+.ponto-table { width: 100%; max-width: 100%; border-collapse: collapse; font-size: 7px; table-layout: fixed; }
+.ponto-table th { background: #1e293b; color: #fff; padding: 2px 1px; text-align: center; border: 1px solid #374151; font-size: 6.5px; }
+.ponto-table th.sub { background: #374151; font-size: 6px; }
+.ponto-table td { border: 1px solid #d1d5db; text-align: center; padding: 1px; height: auto; min-height: 10px; word-wrap: break-word; overflow-wrap: anywhere; vertical-align: middle; }
 .ponto-table tr.even td { background: #f9fafb; }
 .ponto-table tr.folga td { background: #f1f5f9; color: #64748b; font-style: italic; }
 .ponto-table tr.sem-ponto td { background: #fff7ed; }
 .ponto-table tr.feriado td { background: #faf5ff; color: #6b21a8; }
-.ponto-table tfoot td { background: #1e293b; color: #fff; font-weight: 700; font-size: 7.5px; padding: 3px 2px; border: 1px solid #374151; }
-.td-date { font-weight: 600; text-align: left; padding-left: 3px; }
+.ponto-table tfoot td { background: #1e293b; color: #fff; font-weight: 700; font-size: 7px; padding: 2px 1px; border: 1px solid #374151; }
+.td-date { font-weight: 600; text-align: left; padding-left: 2px; font-size: 6px; line-height: 1.15; vertical-align: top; hyphens: none; }
 .td-extra { color: #059669; font-weight: 700; }
 .td-falta { color: #dc2626; font-weight: 700; }
 .td-100 { color: #7c3aed; font-weight: 700; }
@@ -184,27 +187,34 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
 
     {{-- Tabela de batidas --}}
     <table class="ponto-table">
+        <colgroup>
+            <col style="width:10%">
+            <col style="width:3.5%">
+            <col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%">
+            <col style="width:7.5%">
+            <col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%">
+        </colgroup>
         <thead>
             <tr>
-                <th rowspan="2" style="width:14mm;">Data</th>
-                <th rowspan="2" style="width:6mm;">Dia</th>
+                <th rowspan="2">Data</th>
+                <th rowspan="2">Dia</th>
                 <th colspan="2">1ª Batida</th>
                 <th colspan="2">2ª Batida</th>
                 <th colspan="2">3ª Batida</th>
-                <th rowspan="2" style="width:10mm;">Trabalhado</th>
-                <th rowspan="2" style="width:8mm;">Faltas</th>
-                <th rowspan="2" style="width:8mm;">EX 50%</th>
-                <th rowspan="2" style="width:8mm;">EX 100%</th>
-                <th rowspan="2" style="width:8mm;">EXF01</th>
-                <th rowspan="2" style="width:8mm;">Extras</th>
+                <th rowspan="2">Trab.</th>
+                <th rowspan="2">Falt.</th>
+                <th rowspan="2">EX50</th>
+                <th rowspan="2">EX100</th>
+                <th rowspan="2">EXF01</th>
+                <th rowspan="2">Extras</th>
             </tr>
             <tr>
-                <th class="sub" style="width:9mm;">ENT1</th>
-                <th class="sub" style="width:9mm;">SAI1</th>
-                <th class="sub" style="width:9mm;">ENT2</th>
-                <th class="sub" style="width:9mm;">SAI2</th>
-                <th class="sub" style="width:9mm;">ENT3</th>
-                <th class="sub" style="width:9mm;">SAI3</th>
+                <th class="sub">E1</th>
+                <th class="sub">S1</th>
+                <th class="sub">E2</th>
+                <th class="sub">S2</th>
+                <th class="sub">E3</th>
+                <th class="sub">S3</th>
             </tr>
         </thead>
         <tbody>
@@ -222,11 +232,11 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
                 @if($day['banco_ok']) <span class="banco-ok">&#10003;</span>@endif
                 @php $pdfTolBadge = $day['work_day']?->toleranceUxBadgePt(); @endphp
                 @if($pdfTolBadge)
-                    <div style="font-size:6px;font-weight:700;margin-top:1px;padding:1px 3px;border-radius:2px;background:{{ $pdfTolBadge['bg'] }};color:{{ $pdfTolBadge['color'] }};">{{ $pdfTolBadge['label'] }}</div>
+                    <div style="font-size:5px;font-weight:700;margin-top:1px;padding:0 2px;line-height:1.1;border-radius:2px;background:{{ $pdfTolBadge['bg'] }};color:{{ $pdfTolBadge['color'] }};">{{ $pdfTolBadge['label'] }}</div>
                 @endif
                 @php $pdfTolWarn = $day['work_day']?->tolerancePostCloseMismatchPt(); @endphp
                 @if($pdfTolWarn)
-                    <div style="font-size:6px;color:#9a3412;margin-top:2px;line-height:1.2;">{{ $pdfTolWarn }}</div>
+                    <div style="font-size:5px;color:#9a3412;margin-top:1px;line-height:1.1;">{{ $pdfTolWarn }}</div>
                 @endif
             </td>
             <td style="color:#6b7280;font-size:7px;">{{ $diasSemana[$dw] }}</td>
