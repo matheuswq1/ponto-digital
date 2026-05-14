@@ -117,12 +117,50 @@ body {
     line-height: 1.6;
 }
 .assinaturas { margin-top: 4mm; }
-.assinaturas table { width: 100%; border-collapse: collapse; }
-.assinaturas td {
+.assinaturas table { width: 100%; border-collapse: separate; border-spacing: 5mm 0; }
+.assinaturas .assinatura-gap { width: 6%; border: none !important; padding: 0 !important; }
+.assinatura-cell {
+    width: 47%;
+    vertical-align: top;
     text-align: center;
-    padding-top: 20mm;
-    border-top: 1px solid #374151;
-    font-size: 7.5px;
+    padding: 0;
+    border: none !important;
+}
+.assinatura-caption {
+    font-size: 6px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 1.5mm;
+    text-align: center;
+}
+/* Área livre para caneta / carimbo */
+.assinatura-blank {
+    min-height: 28mm;
+    height: 28mm;
+    border: 1px solid #64748b;
+    background: #fff;
+    margin: 0 auto 3mm;
+    box-sizing: border-box;
+}
+.assinatura-ident {
+    font-size: 7px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-top: 1mm;
+    line-height: 1.35;
+}
+.assinatura-role {
+    font-size: 6px;
+    color: #64748b;
+    margin-top: 1mm;
+}
+.assinatura-data-linha {
+    font-size: 6px;
+    color: #475569;
+    margin-top: 2mm;
+    letter-spacing: 0.5px;
 }
 </style>
 </head>
@@ -337,9 +375,21 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
         <div class="assinaturas">
             <table>
                 <tr>
-                    <td style="width:42%;">{{ $emp->user?->name ?? '' }}<br><span style="font-size:7px;color:#64748b;">Colaborador</span></td>
-                    <td style="width:16%;"></td>
-                    <td style="width:42%;">Responsável / Diretor</td>
+                    <td class="assinatura-cell">
+                        <div class="assinatura-caption">Colaborador — assinatura ou carimbo</div>
+                        <div class="assinatura-blank"></div>
+                        <div class="assinatura-ident">{{ $emp->user?->name ?? '_________________________' }}</div>
+                        <div class="assinatura-role">Nome legível do colaborador</div>
+                        <div class="assinatura-data-linha">Data: _____ / _____ / ________</div>
+                    </td>
+                    <td class="assinatura-gap"></td>
+                    <td class="assinatura-cell">
+                        <div class="assinatura-caption">Empresa — assinatura ou carimbo</div>
+                        <div class="assinatura-blank"></div>
+                        <div class="assinatura-ident">Responsável pela empresa</div>
+                        <div class="assinatura-role">Cargo / Direção</div>
+                        <div class="assinatura-data-linha">Data: _____ / _____ / ________</div>
+                    </td>
                 </tr>
             </table>
         </div>
