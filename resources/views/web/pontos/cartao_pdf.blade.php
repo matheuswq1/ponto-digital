@@ -102,13 +102,28 @@ body {
 .td-noc { color: #0369a1; font-weight: 700; }
 .banco-ok { color: #16a34a; font-weight: 700; }
 
-.pdf-col-legend { font-size: 4.5px; color: #64748b; margin: 2px 0 0; padding: 0 1mm; line-height: 1.2; }
+.pdf-col-legend { font-size: 4.5px; color: #64748b; margin: 2px 0 10mm; padding: 0 1mm; line-height: 1.2; }
 
-/* ── Rodapé ── */
-.footer { margin-top: 8px; border-top: 1px solid #9ca3af; padding-top: 4px; }
-.footer-text { font-size: 7px; color: #374151; margin-bottom: 8px; line-height: 1.6; }
+/* ── Rodapé — afastado do histórico + espaço para assinar -- */
+.footer {
+    margin-top: 12mm;
+    padding-top: 5mm;
+    border-top: 1px solid #9ca3af;
+}
+.footer-text {
+    font-size: 7px;
+    color: #374151;
+    margin-bottom: 12mm;
+    line-height: 1.6;
+}
+.assinaturas { margin-top: 4mm; }
 .assinaturas table { width: 100%; border-collapse: collapse; }
-.assinaturas td { text-align: center; padding-top: 16px; border-top: 1px solid #374151; font-size: 7.5px; }
+.assinaturas td {
+    text-align: center;
+    padding-top: 20mm;
+    border-top: 1px solid #374151;
+    font-size: 7.5px;
+}
 </style>
 </head>
 <body>
@@ -322,9 +337,9 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
         <div class="assinaturas">
             <table>
                 <tr>
-                    <td style="width:45%;">{{ $emp->user?->name ?? '' }}<br><span style="font-size:7px;color:#64748b;">Colaborador</span></td>
-                    <td style="width:10%;"></td>
-                    <td style="width:45%;">Responsável / Diretor</td>
+                    <td style="width:42%;">{{ $emp->user?->name ?? '' }}<br><span style="font-size:7px;color:#64748b;">Colaborador</span></td>
+                    <td style="width:16%;"></td>
+                    <td style="width:42%;">Responsável / Diretor</td>
                 </tr>
             </table>
         </div>
