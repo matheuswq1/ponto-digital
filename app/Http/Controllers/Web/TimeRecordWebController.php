@@ -398,6 +398,18 @@ class TimeRecordWebController extends Controller
                         }
                     }
 
+                    // Saldo oficial = WorkDay (motor CLT / tolerância / banco). O espelho antes usava só diff±tol genérico.
+                    $wdForDay = $workDaysByDateStr[$dateStr] ?? null;
+                    if ($wdForDay && $wdForDay->is_closed) {
+                        $em = (int) $wdForDay->extra_minutes;
+                        $extraMin = max(0, $em);
+                        $faltaMin = $em < 0 ? abs($em) : 0;
+                        $workedMin = (int) $wdForDay->total_minutes;
+                        // Evitar colunas EX50/EX100 com valores que não entram no mesmo saldo do app/banco.
+                        $extra50Min = 0;
+                        $extra100Min = 0;
+                    }
+
                     $totalWorkedMin += $workedMin;
                     $totalExtraMin += $extraMin;
                     $totalExtra50Min += $extra50Min;
