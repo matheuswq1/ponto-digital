@@ -162,9 +162,11 @@ class TimeRecordWebController extends Controller
     {
         $pdf = Pdf::loadView('web.pontos.cartao_pdf', compact('cards'))
             ->setPaper('a4', 'portrait')
-            ->setOption('defaultFont', 'DejaVu Sans')
-            ->setOption('isHtml5ParserEnabled', true)
-            ->setOption('isRemoteEnabled', false);
+            ->setOptions([
+                'defaultFont'      => 'DejaVu Sans',
+                'isRemoteEnabled'  => false,
+                'chroot'           => public_path(),
+            ]);
 
         $slug = count($cards) === 1
             ? Str::slug($cards[0]['employee']->user?->name ?? 'colaborador', '_').'_'

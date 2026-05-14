@@ -222,7 +222,7 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
                 @if($day['banco_ok']) <span class="banco-ok">&#10003;</span>@endif
                 @php $pdfTolBadge = $day['work_day']?->toleranceUxBadgePt(); @endphp
                 @if($pdfTolBadge)
-                    <div style="font-size:6px;font-weight:700;margin-top:1px;padding:1px 3px;border-radius:2px;background:{{ $pdfTolBadge['bg'] }};color:{{ $pdfTolBadge['color'] }};">{{ $pdfTolBadge['emoji'] }} {{ $pdfTolBadge['label'] }}</div>
+                    <div style="font-size:6px;font-weight:700;margin-top:1px;padding:1px 3px;border-radius:2px;background:{{ $pdfTolBadge['bg'] }};color:{{ $pdfTolBadge['color'] }};">{{ $pdfTolBadge['label'] }}</div>
                 @endif
                 @php $pdfTolWarn = $day['work_day']?->tolerancePostCloseMismatchPt(); @endphp
                 @if($pdfTolWarn)
