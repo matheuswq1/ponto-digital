@@ -71,25 +71,13 @@ class DepartmentWebController extends Controller
     {
         $this->authorize('manage-employees');
 
-        $rules = [
-            'name' => 'required|string|max:120',
-            'entry_time' => 'nullable|date_format:H:i',
-            'exit_time' => 'nullable|date_format:H:i',
-            'lunch_minutes' => 'nullable|integer|min:0|max:300',
-            'lunch_by_day' => 'nullable|array',
-            'lunch_by_day.*' => 'nullable|integer|min:0|max:300',
-            'tolerance_minutes' => 'nullable|integer|min:0|max:120',
-            'tolerance_mode' => ['nullable', 'string', Rule::in(array_merge([''], WorkToleranceResolver::modes()))],
-            'work_days' => 'nullable|array',
-            'work_days.*' => 'integer|between:0,6',
-            'active' => 'nullable|boolean',
-            'app_punch_disabled' => 'nullable|boolean',
-        ];
+        $rules = $this->departmentRules();
         if (auth()->user()->isAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
         }
 
         $this->normalizeRequestTimeFields($request, ['entry_time', 'exit_time']);
+        $this->normalizeRequestTimeMapFields($request, ['entry_by_day', 'exit_by_day']);
 
         $validated = $request->validate($rules);
 
@@ -105,6 +93,11 @@ class DepartmentWebController extends Controller
         sort($workDays);
 
         $lunchResolved = $this->resolveLunchFromRequest($request, (int) ($validated['lunch_minutes'] ?? 60));
+        $scheduleResolved = $this->resolveScheduleFromRequest(
+            $request,
+            $validated['entry_time'] ?? null,
+            $validated['exit_time'] ?? null
+        );
 
         $tolMode = $validated['tolerance_mode'] ?? '';
         $tolMode = $tolMode !== '' ? $tolMode : null;
@@ -112,8 +105,10 @@ class DepartmentWebController extends Controller
         Department::create([
             'company_id' => $companyId,
             'name' => $validated['name'],
-            'entry_time' => $validated['entry_time'] ?? null,
-            'exit_time' => $validated['exit_time'] ?? null,
+            'entry_time' => $scheduleResolved['entry_time'],
+            'exit_time' => $scheduleResolved['exit_time'],
+            'entry_time_by_day' => $scheduleResolved['entry_time_by_day'],
+            'exit_time_by_day' => $scheduleResolved['exit_time_by_day'],
             'lunch_minutes' => $lunchResolved['lunch_minutes'],
             'lunch_minutes_by_day' => $lunchResolved['lunch_minutes_by_day'],
             'tolerance_minutes' => $validated['tolerance_minutes'] ?? 10,
@@ -144,25 +139,13 @@ class DepartmentWebController extends Controller
         $this->authorize('manage-employees');
         $this->ensureCanAccessDepartment($department);
 
-        $rules = [
-            'name' => 'required|string|max:120',
-            'entry_time' => 'nullable|date_format:H:i',
-            'exit_time' => 'nullable|date_format:H:i',
-            'lunch_minutes' => 'nullable|integer|min:0|max:300',
-            'lunch_by_day' => 'nullable|array',
-            'lunch_by_day.*' => 'nullable|integer|min:0|max:300',
-            'tolerance_minutes' => 'nullable|integer|min:0|max:120',
-            'tolerance_mode' => ['nullable', 'string', Rule::in(array_merge([''], WorkToleranceResolver::modes()))],
-            'work_days' => 'nullable|array',
-            'work_days.*' => 'integer|between:0,6',
-            'active' => 'nullable|boolean',
-            'app_punch_disabled' => 'nullable|boolean',
-        ];
+        $rules = $this->departmentRules();
         if (auth()->user()->isAdmin()) {
             $rules['company_id'] = 'required|exists:companies,id';
         }
 
         $this->normalizeRequestTimeFields($request, ['entry_time', 'exit_time']);
+        $this->normalizeRequestTimeMapFields($request, ['entry_by_day', 'exit_by_day']);
 
         $validated = $request->validate($rules);
 
@@ -178,6 +161,11 @@ class DepartmentWebController extends Controller
         sort($workDays);
 
         $lunchResolved = $this->resolveLunchFromRequest($request, (int) ($validated['lunch_minutes'] ?? 60));
+        $scheduleResolved = $this->resolveScheduleFromRequest(
+            $request,
+            $validated['entry_time'] ?? null,
+            $validated['exit_time'] ?? null
+        );
 
         $tolMode = $validated['tolerance_mode'] ?? '';
         $tolMode = $tolMode !== '' ? $tolMode : null;
@@ -185,8 +173,10 @@ class DepartmentWebController extends Controller
         $department->update([
             'company_id' => $companyId,
             'name' => $validated['name'],
-            'entry_time' => $validated['entry_time'] ?? null,
-            'exit_time' => $validated['exit_time'] ?? null,
+            'entry_time' => $scheduleResolved['entry_time'],
+            'exit_time' => $scheduleResolved['exit_time'],
+            'entry_time_by_day' => $scheduleResolved['entry_time_by_day'],
+            'exit_time_by_day' => $scheduleResolved['exit_time_by_day'],
             'lunch_minutes' => $lunchResolved['lunch_minutes'],
             'lunch_minutes_by_day' => $lunchResolved['lunch_minutes_by_day'],
             'tolerance_minutes' => $validated['tolerance_minutes'] ?? 10,
@@ -225,6 +215,95 @@ class DepartmentWebController extends Controller
     {
         if (auth()->user()->isGestor() && (int) $department->company_id !== (int) auth()->user()->company_id) {
             abort(403);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function departmentRules(): array
+    {
+        return [
+            'name' => 'required|string|max:120',
+            'entry_time' => 'nullable|date_format:H:i',
+            'exit_time' => 'nullable|date_format:H:i',
+            'entry_by_day' => 'nullable|array',
+            'entry_by_day.*' => 'nullable|date_format:H:i',
+            'exit_by_day' => 'nullable|array',
+            'exit_by_day.*' => 'nullable|date_format:H:i',
+            'lunch_minutes' => 'nullable|integer|min:0|max:300',
+            'lunch_by_day' => 'nullable|array',
+            'lunch_by_day.*' => 'nullable|integer|min:0|max:300',
+            'tolerance_minutes' => 'nullable|integer|min:0|max:120',
+            'tolerance_mode' => ['nullable', 'string', Rule::in(array_merge([''], WorkToleranceResolver::modes()))],
+            'work_days' => 'nullable|array',
+            'work_days.*' => 'integer|between:0,6',
+            'active' => 'nullable|boolean',
+            'app_punch_disabled' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entry_time: ?string,
+     *     exit_time: ?string,
+     *     entry_time_by_day: ?array<int, string>,
+     *     exit_time_by_day: ?array<int, string>
+     * }
+     */
+    private function resolveScheduleFromRequest(Request $request, ?string $defaultEntry, ?string $defaultExit): array
+    {
+        $defaultEntry = $this->normalizeTimeString($defaultEntry);
+        $defaultExit = $this->normalizeTimeString($defaultExit);
+
+        $rawEntry = $request->input('entry_by_day', []);
+        $rawExit = $request->input('exit_by_day', []);
+        if ((! is_array($rawEntry) || $rawEntry === []) && (! is_array($rawExit) || $rawExit === [])) {
+            return [
+                'entry_time' => $defaultEntry,
+                'exit_time' => $defaultExit,
+                'entry_time_by_day' => null,
+                'exit_time_by_day' => null,
+            ];
+        }
+
+        $entries = [];
+        $exits = [];
+        foreach (range(0, 6) as $d) {
+            $e = $rawEntry[$d] ?? $rawEntry[(string) $d] ?? null;
+            $x = $rawExit[$d] ?? $rawExit[(string) $d] ?? null;
+            $entries[$d] = $this->normalizeTimeString(is_string($e) && $e !== '' ? $e : $defaultEntry) ?? $defaultEntry;
+            $exits[$d] = $this->normalizeTimeString(is_string($x) && $x !== '' ? $x : $defaultExit) ?? $defaultExit;
+        }
+
+        $uniquePairs = [];
+        foreach (range(0, 6) as $d) {
+            $uniquePairs[] = ($entries[$d] ?? '').'|'.($exits[$d] ?? '');
+        }
+        if (count(array_unique($uniquePairs)) === 1) {
+            return [
+                'entry_time' => $defaultEntry ?? $entries[1] ?? $entries[0] ?? null,
+                'exit_time' => $defaultExit ?? $exits[1] ?? $exits[0] ?? null,
+                'entry_time_by_day' => null,
+                'exit_time_by_day' => null,
+            ];
+        }
+
+        return [
+            'entry_time' => $defaultEntry ?? $entries[1] ?? null,
+            'exit_time' => $defaultExit ?? $exits[1] ?? null,
+            'entry_time_by_day' => $entries,
+            'exit_time_by_day' => $exits,
+        ];
+    }
+
+    private function normalizeTimeString(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+        try {
+            return Carbon::parse('2000-01-01 '.$value)->format('H:i');
+        } catch (\Throwable) {
+            return null;
         }
     }
 

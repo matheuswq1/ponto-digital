@@ -287,7 +287,7 @@ class TimeRecordWebController extends Controller
 
             $ws = $emp->workSchedule;
             $dept = $emp->dept;
-            $deptRef = $dept && $dept->entry_time && $dept->exit_time ? $dept : null;
+            $deptRef = $dept && $dept->hasGabarito() ? $dept : null;
             $workDays = $deptRef
                 ? $deptRef->workDaysList()
                 : ($ws?->work_days ?? [1, 2, 3, 4, 5]);

@@ -188,7 +188,7 @@ $diasGabarito = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',0=>'Dom'
     $dfCarbon  = \Carbon\Carbon::parse($card['date_from']);
     $dtCarbon  = \Carbon\Carbon::parse($card['date_to']);
 
-    if ($dept && $dept->entry_time && $dept->exit_time) {
+    if ($dept && $dept->hasGabarito()) {
         $gabKind  = 'dept';
         $gabLabel = 'Departamento: '.$dept->name;
         $gabRef   = $dept;

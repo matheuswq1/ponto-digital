@@ -33,4 +33,44 @@ trait NormalizesRequestTimeFields
             }
         }
     }
+
+    /**
+     * Normaliza mapas dia→horário (ex.: entry_by_day[1] = "08:00:00").
+     *
+     * @param  list<string>  $fields
+     */
+    protected function normalizeRequestTimeMapFields(Request $request, array $fields): void
+    {
+        foreach ($fields as $field) {
+            $raw = $request->input($field);
+            if (! is_array($raw)) {
+                continue;
+            }
+            $normalized = [];
+            foreach ($raw as $key => $value) {
+                if (! is_string($value)) {
+                    $normalized[$key] = $value;
+
+                    continue;
+                }
+                $value = trim($value);
+                if ($value === '') {
+                    $normalized[$key] = '';
+
+                    continue;
+                }
+                if (! preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $value)) {
+                    $normalized[$key] = $value;
+
+                    continue;
+                }
+                try {
+                    $normalized[$key] = Carbon::parse('2000-01-01 '.$value)->format('H:i');
+                } catch (\Throwable) {
+                    $normalized[$key] = $value;
+                }
+            }
+            $request->merge([$field => $normalized]);
+        }
+    }
 }

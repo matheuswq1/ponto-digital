@@ -176,7 +176,7 @@ class WorkDayService
 
         $schedule = $employee->workSchedule;
         $dept = $employee->dept;
-        $deptRef = ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
+        $deptRef = ($dept && $dept->hasGabarito()) ? $dept : null;
 
         $tz = WorkToleranceResolver::effectiveTimezone($employee->company);
         $calendarCarbon = Carbon::parse($date.' 12:00:00', $tz);
@@ -623,10 +623,12 @@ class WorkDayService
      */
     private function buildCltEventTemplate(?Department $deptRef, ?WorkSchedule $schedule, int $dayOfWeek): ?array
     {
-        if ($deptRef !== null && $deptRef->entry_time && $deptRef->exit_time) {
+        if ($deptRef !== null && $deptRef->hasGabarito()) {
+            $entry = $deptRef->getEntryTimeForDay($dayOfWeek);
+            $exit = $deptRef->getExitTimeForDay($dayOfWeek);
             $lunch = $deptRef->getLunchMinutesForDay($dayOfWeek);
-            if ($lunch <= 0) {
-                return $this->twoSlotCltTemplate((string) $deptRef->entry_time, (string) $deptRef->exit_time);
+            if ($lunch <= 0 && $entry !== null && $exit !== null) {
+                return $this->twoSlotCltTemplate($entry, $exit);
             }
             $g = $deptRef->getGabaritoTimesForDay($dayOfWeek);
             if (! is_array($g) || ! isset($g['e1'], $g['s1'], $g['e2'], $g['s2'])) {

@@ -62,11 +62,14 @@
                     <td class="px-4 py-3 text-slate-600">{{ $d->company?->name ?? '—' }}</td>
                     @endif
                     <td class="px-4 py-3 text-slate-600 font-mono text-xs">
-                        @if($d->entry_time && $d->exit_time)
+                        @if($d->hasGabarito())
                             {{ \Carbon\Carbon::parse($d->entry_time)->format('H:i') }} – {{ \Carbon\Carbon::parse($d->exit_time)->format('H:i') }}
+                            @if($d->hasVariableScheduleByDay())
+                                <span class="text-indigo-600">· horário varia</span>
+                            @endif
                             @if($d->hasVariableLunchByDay())
                                 <span class="text-indigo-600">· int. varia</span>
-                            @else
+                            @elseif(! $d->hasVariableScheduleByDay())
                                 ({{ $d->lunch_minutes }} min)
                             @endif
                         @else

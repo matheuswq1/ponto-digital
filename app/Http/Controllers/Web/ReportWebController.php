@@ -54,7 +54,7 @@ class ReportWebController extends Controller
 
             $ws   = $emp->workSchedule;
             $dept = $emp->dept;
-            $deptRef = $dept && $dept->entry_time && $dept->exit_time ? $dept : null;
+            $deptRef = $dept && $dept->hasGabarito() ? $dept : null;
             $workDaysList = $deptRef
                 ? $deptRef->workDaysList()
                 : ($ws?->work_days ?? [1, 2, 3, 4, 5]);
@@ -220,7 +220,7 @@ class ReportWebController extends Controller
         foreach ($employees as $emp) {
             $ws      = $emp->workSchedule;
             $dept    = $emp->dept;
-            $deptRef = $dept && $dept->entry_time && $dept->exit_time ? $dept : null;
+            $deptRef = $dept && $dept->hasGabarito() ? $dept : null;
             $workDaysList = $deptRef
                 ? $deptRef->workDaysList()
                 : ($ws?->work_days ?? [1, 2, 3, 4, 5]);
@@ -457,7 +457,7 @@ class ReportWebController extends Controller
 
             $ws       = $emp->workSchedule;
             $dept     = $emp->dept;
-            $deptRef  = $dept && $dept->entry_time ? $dept : null;
+            $deptRef  = $dept && $dept->hasGabarito() ? $dept : null;
             $workList = $deptRef ? $deptRef->workDaysList() : ($ws?->work_days ?? [1,2,3,4,5]);
             $holidays = array_flip(Holiday::datesInPeriod($dateFrom, $dateTo, $emp->company_id));
             $fmtMin   = fn(int $m) => $m === 0 ? '00:00' : sprintf('%02d:%02d', intdiv($m, 60), $m % 60);

@@ -14,6 +14,8 @@ class Department extends Model
         'name',
         'entry_time',
         'exit_time',
+        'entry_time_by_day',
+        'exit_time_by_day',
         'lunch_minutes',
         'lunch_minutes_by_day',
         'tolerance_minutes',
@@ -32,6 +34,8 @@ class Department extends Model
             'lunch_minutes' => 'integer',
             'tolerance_minutes' => 'integer',
             'lunch_minutes_by_day' => 'array',
+            'entry_time_by_day' => 'array',
+            'exit_time_by_day' => 'array',
         ];
     }
 
@@ -45,9 +49,31 @@ class Department extends Model
         return $this->hasMany(Employee::class, 'department_id');
     }
 
+    /** Tem gabarito de entrada/saída (padrão ou mapa por dia). */
+    public function hasGabarito(): bool
+    {
+        return $this->getEntryTimeForDay(1) !== null && $this->getExitTimeForDay(1) !== null;
+    }
+
+    /**
+     * Horário de entrada para o dia da semana (0=dom .. 6=sáb).
+     */
+    public function getEntryTimeForDay(int $dayOfWeek): ?string
+    {
+        return $this->timeFromMapOrDefault($this->entry_time_by_day, $dayOfWeek, $this->entry_time);
+    }
+
+    /**
+     * Horário de saída para o dia da semana (0=dom .. 6=sáb).
+     */
+    public function getExitTimeForDay(int $dayOfWeek): ?string
+    {
+        return $this->timeFromMapOrDefault($this->exit_time_by_day, $dayOfWeek, $this->exit_time);
+    }
+
     public function getExpectedMinutes(): int
     {
-        if (empty($this->entry_time) || empty($this->exit_time)) {
+        if (! $this->hasGabarito()) {
             return 0;
         }
         $wd = $this->workDaysList();
@@ -80,11 +106,13 @@ class Department extends Model
 
     public function getExpectedMinutesForDay(int $dayOfWeek): int
     {
-        if (empty($this->entry_time) || empty($this->exit_time)) {
+        $entryTime = $this->getEntryTimeForDay($dayOfWeek);
+        $exitTime = $this->getExitTimeForDay($dayOfWeek);
+        if ($entryTime === null || $exitTime === null) {
             return 0;
         }
-        $entry = strtotime($this->entry_time);
-        $exit = strtotime($this->exit_time);
+        $entry = strtotime($entryTime);
+        $exit = strtotime($exitTime);
         if ($entry === false || $exit === false) {
             return 0;
         }
@@ -107,12 +135,27 @@ class Department extends Model
         return count(array_unique($vals)) > 1;
     }
 
+    public function hasVariableScheduleByDay(): bool
+    {
+        $hasEntryMap = is_array($this->entry_time_by_day) && $this->entry_time_by_day !== [];
+        $hasExitMap = is_array($this->exit_time_by_day) && $this->exit_time_by_day !== [];
+        if (! $hasEntryMap && ! $hasExitMap) {
+            return false;
+        }
+        $pairs = [];
+        foreach (range(0, 6) as $d) {
+            $pairs[] = ($this->getEntryTimeForDay($d) ?? '').'|'.($this->getExitTimeForDay($d) ?? '');
+        }
+
+        return count(array_unique($pairs)) > 1;
+    }
+
     /**
      * Parte a jornada em manhã / intervalo / tarde para o gabarito do cartão ponto.
      */
     public function getGabaritoTimes(): ?array
     {
-        if (empty($this->entry_time) || empty($this->exit_time)) {
+        if (! $this->hasGabarito()) {
             return null;
         }
         $wd = $this->workDaysList()[0] ?? 1;
@@ -122,11 +165,13 @@ class Department extends Model
 
     public function getGabaritoTimesForDay(int $dayOfWeek): ?array
     {
-        if (empty($this->entry_time) || empty($this->exit_time)) {
+        $entryTime = $this->getEntryTimeForDay($dayOfWeek);
+        $exitTime = $this->getExitTimeForDay($dayOfWeek);
+        if ($entryTime === null || $exitTime === null) {
             return null;
         }
-        $e = Carbon::parse('2000-01-01 '.$this->entry_time);
-        $x = Carbon::parse('2000-01-01 '.$this->exit_time);
+        $e = Carbon::parse('2000-01-01 '.$entryTime);
+        $x = Carbon::parse('2000-01-01 '.$exitTime);
         if ($x->lessThanOrEqualTo($e)) {
             return null;
         }
@@ -152,5 +197,31 @@ class Department extends Model
         $d = $this->work_days;
 
         return is_array($d) && $d !== [] ? array_map('intval', $d) : [1, 2, 3, 4, 5];
+    }
+
+    private function timeFromMapOrDefault(mixed $map, int $dayOfWeek, mixed $default): ?string
+    {
+        $d = (int) $dayOfWeek;
+        if (is_array($map)) {
+            $raw = $map[$d] ?? $map[(string) $d] ?? null;
+            $formatted = $this->formatTimeValue($raw);
+            if ($formatted !== null) {
+                return $formatted;
+            }
+        }
+
+        return $this->formatTimeValue($default);
+    }
+
+    private function formatTimeValue(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        try {
+            return Carbon::parse('2000-01-01 '.(string) $value)->format('H:i');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

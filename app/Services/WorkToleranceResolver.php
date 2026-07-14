@@ -59,7 +59,7 @@ class WorkToleranceResolver
 
     public function resolveDepartmentReference(?Department $dept): ?Department
     {
-        return ($dept && $dept->entry_time && $dept->exit_time) ? $dept : null;
+        return ($dept && $dept->hasGabarito()) ? $dept : null;
     }
 
     /**
@@ -74,14 +74,16 @@ class WorkToleranceResolver
         $company = $employee->company;
 
         $tz = self::effectiveTimezone($company);
-        $calendarDateStr = $calendarDate->copy()->setTimezone($tz)->format('Y-m-d');
+        $calendarDateLocal = $calendarDate->copy()->setTimezone($tz);
+        $calendarDateStr = $calendarDateLocal->format('Y-m-d');
+        $dayOfWeek = (int) $calendarDateLocal->format('w');
 
         $toleranceMinutes = (int) ($deptRef?->tolerance_minutes ?? $schedule?->tolerance_minutes ?? 5);
 
         [$toleranceMode, $modeResolvedFrom] = $this->resolveModeAndSource($deptRef, $schedule, $company);
 
         $entryTime = $deptRef
-            ? ($deptRef->entry_time !== null ? (string) $deptRef->entry_time : null)
+            ? $deptRef->getEntryTimeForDay($dayOfWeek)
             : ($schedule?->entry_time !== null ? (string) $schedule->entry_time : null);
 
         $workDays = $deptRef

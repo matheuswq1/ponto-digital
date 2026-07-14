@@ -338,7 +338,7 @@ if (!function_exists('ponto_cartao_fmt_min')) {
     $diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
     $diasGabarito = [1 => 'Seg', 2 => 'Ter', 3 => 'Qua', 4 => 'Qui', 5 => 'Sex', 6 => 'Sáb', 0 => 'Dom'];
 
-    if ($deptModel && $deptModel->entry_time && $deptModel->exit_time) {
+    if ($deptModel && $deptModel->hasGabarito()) {
         $gabaritoLabel = 'Departamento: '.$deptModel->name;
         $gabaritoRef = $deptModel;
         $gWorkDays = $deptModel->workDaysList();

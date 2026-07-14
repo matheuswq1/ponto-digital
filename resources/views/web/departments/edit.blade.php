@@ -30,16 +30,19 @@
         </div>
         <div class="grid sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Entrada</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Entrada padrão</label>
                 <input type="time" name="entry_time" value="{{ old('entry_time', $department->entry_time ? \Carbon\Carbon::parse($department->entry_time)->format('H:i') : '') }}" step="60"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Saída</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Saída padrão</label>
                 <input type="time" name="exit_time" value="{{ old('exit_time', $department->exit_time ? \Carbon\Carbon::parse($department->exit_time)->format('H:i') : '') }}" step="60"
                        class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2">
             </div>
         </div>
+
+        @include('web.departments._schedule_by_day', ['department' => $department])
+
         <div class="grid sm:grid-cols-2 gap-4">
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Intervalo padrão (minutos)</label>
